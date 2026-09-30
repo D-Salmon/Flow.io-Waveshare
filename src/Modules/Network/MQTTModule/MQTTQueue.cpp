@@ -82,7 +82,7 @@ int16_t MQTTModule::findJobSlot_(uint8_t producerId, uint16_t messageId) const
 {
     for (uint8_t i = 0; i < MaxJobs; ++i) {
         const Job& job = txStorage_->jobs[i];
-        if (!job.used) continue;
+        if (job.state == JobState::Free) continue;
         if (job.producerId == producerId && job.messageId == messageId) return (int16_t)i;
     }
     return -1;
@@ -91,7 +91,7 @@ int16_t MQTTModule::findJobSlot_(uint8_t producerId, uint16_t messageId) const
 int16_t MQTTModule::allocJobSlot_()
 {
     for (uint8_t i = 0; i < MaxJobs; ++i) {
-        if (!txStorage_->jobs[i].used) return (int16_t)i;
+        if (txStorage_->jobs[i].state == JobState::Free) return (int16_t)i;
     }
     return -1;
 }
@@ -142,64 +142,102 @@ bool MQTTModule::queuePop_(uint8_t prio, JobQueueItem& out)
     return true;
 }
 
-bool MQTTModule::queueSlot_(uint8_t slotIdx, uint8_t prio, bool invalidateOld)
+bool MQTTModule::queueSlot_(uint8_t slotIdx, uint8_t prio)
 {
     if (slotIdx >= MaxJobs) return false;
     Job& job = txStorage_->jobs[slotIdx];
-    if (!job.used) return false;
+    if (job.state == JobState::Free || job.state == JobState::Processing) return false;
+    if (job.state == JobState::Queued && job.queuedPrio == prio) return true;
 
-    if (invalidateOld && job.queued) {
-        ++job.queueToken;
-        job.queued = false;
-    }
-
-    if (job.queued) return true;
-
-    job.queuedPrio = prio;
-    job.queued = true;
-    ++job.queueToken;
-
+    // Commit only after insertion succeeds: a failed promotion must leave the
+    // previous entry valid. All callers hold jobsMux_ throughout this operation.
     JobQueueItem item{};
     item.slot = slotIdx;
-    item.token = job.queueToken;
+    item.token = (uint16_t)(job.queueToken + 1U);
+    if (!queuePush_(prio, item)) return false;
 
-    if (!queuePush_(prio, item)) {
-        job.queued = false;
-        return false;
-    }
-
+    job.queueToken = item.token;
+    job.queuedPrio = prio;
+    job.state = JobState::Queued;
     return true;
+}
+
+void MQTTModule::deferJob_(uint8_t slotIdx)
+{
+    Job& job = txStorage_->jobs[slotIdx];
+    job.state = JobState::WaitingForQueue;
+    // The consumer retries this durable state, respecting priority and backoff.
+}
+
+void MQTTModule::releaseJob_(uint8_t slotIdx)
+{
+    Job& job = txStorage_->jobs[slotIdx];
+    // Obsolete references can outlive a slot's occupant. Preserve its generation
+    // across reuse so they cannot become valid for the next message in this slot.
+    const uint16_t token = job.queueToken;
+    job = Job{};
+    job.queueToken = token;
+}
+
+void MQTTModule::retryPendingJobsNoLock_(uint32_t nowMs)
+{
+    for (int prio = (int)MqttPublishPriority::High; prio >= (int)MqttPublishPriority::Low; --prio) {
+        const uint8_t start = queueRetryCursor_[prio];
+        for (uint16_t n = 0; n < MaxJobs; ++n) {
+            const uint8_t idx = (uint8_t)((start + n) % MaxJobs);
+            Job& job = txStorage_->jobs[idx];
+            const bool waiting = job.state == JobState::WaitingForQueue;
+            const bool promotion = job.state == JobState::Queued && job.priority > job.queuedPrio;
+            if ((!waiting && !promotion) || job.priority != prio) continue;
+            if ((int32_t)(nowMs - job.notBeforeMs) < 0) continue;
+            if (!queueSlot_(idx, job.priority)) break; // Target ring is full.
+            queueRetryCursor_[prio] = (uint8_t)((idx + 1U) % MaxJobs);
+        }
+    }
 }
 
 void MQTTModule::snapshotQueueStatsNoLock_(uint16_t& jobsUsed,
                                            uint16_t& highCount,
                                            uint16_t& normalCount,
-                                           uint16_t& lowCount) const
+                                           uint16_t& lowCount,
+                                           JobStateCounts* states) const
 {
     jobsUsed = 0U;
+    if (states) *states = JobStateCounts{};
     for (uint8_t i = 0; i < MaxJobs; ++i) {
-        if (txStorage_->jobs[i].used) ++jobsUsed;
+        const JobState state = txStorage_->jobs[i].state;
+        if (state != JobState::Free) ++jobsUsed;
+        if (states) {
+            switch (state) {
+                case JobState::Queued: ++states->queued; break;
+                case JobState::Processing: ++states->processing; break;
+                case JobState::WaitingForQueue: ++states->waiting; break;
+                case JobState::Free: break;
+            }
+        }
     }
     highCount = txStorage_->highQ.count;
     normalCount = txStorage_->normalQ.count;
     lowCount = txStorage_->lowQ.count;
 }
 
-void MQTTModule::logEnqueueReject_(uint8_t producerId,
+void MQTTModule::logEnqueueIssue_(uint8_t producerId,
                                    uint16_t messageId,
                                    uint8_t priority,
                                    const char* reason,
                                    uint16_t jobsUsed,
                                    uint16_t highCount,
                                    uint16_t normalCount,
-                                   uint16_t lowCount)
+                                   uint16_t lowCount,
+                                   bool accepted)
 {
     const uint32_t nowMs = millis();
     static constexpr uint32_t kMinLogIntervalMs = 1000U;
-    if ((uint32_t)(nowMs - lastEnqueueRejectLogMs_) < kMinLogIntervalMs) return;
-    lastEnqueueRejectLogMs_ = nowMs;
+    if ((uint32_t)(nowMs - lastEnqueueIssueLogMs_) < kMinLogIntervalMs) return;
+    lastEnqueueIssueLogMs_ = nowMs;
 
-    LOGW("enqueue reject reason=%s producer=%u msg=%u prio=%u jobs=%u/%u q(h=%u/%u,n=%u/%u,l=%u/%u)",
+    LOGW("enqueue %s reason=%s producer=%u msg=%u prio=%u jobs=%u/%u q(h=%u/%u,n=%u/%u,l=%u/%u)",
+         accepted ? "deferred" : "reject",
          reason ? reason : "unknown",
          (unsigned)producerId,
          (unsigned)messageId,
@@ -216,97 +254,53 @@ void MQTTModule::logEnqueueReject_(uint8_t producerId,
 
 bool MQTTModule::enqueueJob_(uint8_t producerId, uint16_t messageId, uint8_t priority, uint8_t flags)
 {
-    bool ok = false;
-    bool shouldLogReject = false;
-    const bool silentRejectLog = (flags & (uint8_t)MqttEnqueueFlags::SilentRejectLog) != 0U;
-    const char* rejectReason = nullptr;
-    uint16_t jobsUsed = 0U;
-    uint16_t highCount = 0U;
-    uint16_t normalCount = 0U;
-    uint16_t lowCount = 0U;
+    bool accepted = false;
+    const char* issue = nullptr;
+    const bool silent = (flags & (uint8_t)MqttEnqueueFlags::SilentRejectLog) != 0U;
+    uint16_t jobsUsed = 0U, highCount = 0U, normalCount = 0U, lowCount = 0U;
     portENTER_CRITICAL(&jobsMux_);
 
     int16_t idx = findJobSlot_(producerId, messageId);
     if (idx >= 0) {
         Job& job = txStorage_->jobs[(uint8_t)idx];
         job.flags |= flags;
-
-        if (priority > job.priority) {
-            job.priority = priority;
-        }
-
-        if (job.processing) {
+        if (priority > job.priority) job.priority = priority;
+        // The transport already owns this publication, even if promotion or
+        // readmission must wait. Do not ask producers to retry an accepted job.
+        accepted = true;
+        if (job.state == JobState::Processing) {
             job.requeueAfterProcess = true;
-            ok = true;
-            portEXIT_CRITICAL(&jobsMux_);
-            return ok;
-        }
-
-        if (job.queued) {
-            if (job.priority > job.queuedPrio) {
-                ok = queueSlot_((uint8_t)idx, job.priority, true);
-                if (!ok) {
-                    rejectReason = "queue_full";
-                    snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
-                    shouldLogReject = !silentRejectLog;
-                }
-            } else {
-                ok = true;
+        } else if (job.state == JobState::Queued) {
+            if (job.priority > job.queuedPrio && !queueSlot_((uint8_t)idx, job.priority)) {
+                issue = "promotion_full";
             }
-            portEXIT_CRITICAL(&jobsMux_);
-            return ok;
         }
-
-        job.retryCount = 0;
-        job.notBeforeMs = 0;
-        ok = queueSlot_((uint8_t)idx, job.priority, false);
-        if (!ok) {
-            rejectReason = "queue_full";
-            snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
-            shouldLogReject = !silentRejectLog;
+        // WaitingForQueue is retried by the consumer without resetting backoff.
+    } else {
+        idx = allocJobSlot_();
+        if (idx < 0) {
+            issue = "slot_full";
+        } else {
+            Job& job = txStorage_->jobs[(uint8_t)idx];
+            job.state = JobState::WaitingForQueue;
+            job.producerId = producerId;
+            job.messageId = messageId;
+            job.priority = priority;
+            job.flags = flags;
+            accepted = queueSlot_((uint8_t)idx, job.priority);
+            if (!accepted) {
+                releaseJob_((uint8_t)idx);
+                issue = "queue_full";
+            }
         }
-        portEXIT_CRITICAL(&jobsMux_);
-        if (shouldLogReject) {
-            logEnqueueReject_(producerId, messageId, priority, rejectReason, jobsUsed, highCount, normalCount, lowCount);
-        }
-        return ok;
     }
-
-    idx = allocJobSlot_();
-    if (idx < 0) {
-        rejectReason = "slot_full";
-        snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
-        shouldLogReject = !silentRejectLog;
-        portEXIT_CRITICAL(&jobsMux_);
-        if (shouldLogReject) {
-            logEnqueueReject_(producerId, messageId, priority, rejectReason, jobsUsed, highCount, normalCount, lowCount);
-        }
-        return false;
-    }
-
-    Job& job = txStorage_->jobs[(uint8_t)idx];
-    job = Job{};
-    job.used = true;
-    job.producerId = producerId;
-    job.messageId = messageId;
-    job.priority = priority;
-    job.flags = flags;
-    job.retryCount = 0;
-    job.notBeforeMs = 0;
-
-    ok = queueSlot_((uint8_t)idx, job.priority, false);
-    if (!ok) {
-        rejectReason = "queue_full";
-        snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
-        shouldLogReject = !silentRejectLog;
-        job = Job{};
-    }
-
+    if (issue && !silent) snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
     portEXIT_CRITICAL(&jobsMux_);
-    if (shouldLogReject) {
-        logEnqueueReject_(producerId, messageId, priority, rejectReason, jobsUsed, highCount, normalCount, lowCount);
+    if (issue && !silent) {
+        logEnqueueIssue_(producerId, messageId, priority, issue,
+                         jobsUsed, highCount, normalCount, lowCount, accepted);
     }
-    return ok;
+    return accepted;
 }
 
 bool MQTTModule::enqueue(uint8_t producerId, uint16_t messageId, MqttPublishPriority priority, uint8_t flags)
@@ -318,41 +312,35 @@ bool MQTTModule::enqueue(uint8_t producerId, uint16_t messageId, MqttPublishPrio
 
 bool MQTTModule::dequeueNextJob_(uint32_t nowMs, uint8_t& slotIdx)
 {
-    static const uint8_t order[3] = {
-        (uint8_t)MqttPublishPriority::High,
-        (uint8_t)MqttPublishPriority::Normal,
-        (uint8_t)MqttPublishPriority::Low
-    };
-
     portENTER_CRITICAL(&jobsMux_);
-    const uint16_t maxScan = txStorage_->highQ.count + txStorage_->normalQ.count + txStorage_->lowQ.count + 4U;
-
-    for (uint16_t scan = 0; scan < maxScan; ++scan) {
-        for (uint8_t i = 0; i < 3; ++i) {
+    retryPendingJobsNoLock_(nowMs);
+    for (int prio = (int)MqttPublishPriority::High; prio >= (int)MqttPublishPriority::Low; --prio) {
+        // Each physical entry is examined at most once per priority per pass.
+        const uint16_t count = prio == (int)MqttPublishPriority::High ? txStorage_->highQ.count
+            : prio == (int)MqttPublishPriority::Normal ? txStorage_->normalQ.count : txStorage_->lowQ.count;
+        for (uint16_t scan = 0; scan < count; ++scan) {
             JobQueueItem item{};
-            if (!queuePop_(order[i], item)) continue;
+            if (!queuePop_((uint8_t)prio, item)) break;
             if (item.slot >= MaxJobs) continue;
-
             Job& job = txStorage_->jobs[item.slot];
-            if (!job.used || !job.queued || job.queueToken != item.token || job.queuedPrio != order[i]) {
-                continue;
-            }
-
-            job.queued = false;
-            if (job.processing) continue;
+            if (job.state != JobState::Queued || job.queueToken != item.token || job.queuedPrio != prio) continue;
 
             if ((int32_t)(nowMs - job.notBeforeMs) < 0) {
-                (void)queueSlot_(item.slot, job.priority, false);
+                // Keep delayed work outside the rings until due. This also
+                // releases capacity for ready jobs without bypassing backoff.
+                job.state = JobState::WaitingForQueue;
                 continue;
             }
-
-            job.processing = true;
+            job.state = JobState::Processing;
             slotIdx = item.slot;
+            // Offer the newly freed capacity to retained work before producers
+            // can fill it again, preserving round-robin admission progress.
+            retryPendingJobsNoLock_(nowMs);
             portEXIT_CRITICAL(&jobsMux_);
             return true;
         }
     }
-
+    retryPendingJobsNoLock_(nowMs);
     portEXIT_CRITICAL(&jobsMux_);
     return false;
 }
@@ -395,6 +383,10 @@ bool MQTTModule::tryPublishNow_(const char* topic, const char* payload, uint8_t 
 
 void MQTTModule::processJobs_(uint32_t nowMs)
 {
+    if (state_ != MQTTState::Connected) return;
+    portENTER_CRITICAL(&jobsMux_);
+    retryPendingJobsNoLock_(nowMs);
+    portEXIT_CRITICAL(&jobsMux_);
     if (lastPublishDispatchMs_ != 0U &&
         (uint32_t)(nowMs - lastPublishDispatchMs_) <
             Limits::Mqtt::Timing::PublishDispatchIntervalMs) {
@@ -412,7 +404,7 @@ void MQTTModule::processJobs_(uint32_t nowMs)
         {
             portENTER_CRITICAL(&jobsMux_);
             Job& job = txStorage_->jobs[slotIdx];
-            if (!job.used || !job.processing) {
+            if (job.state != JobState::Processing) {
                 portEXIT_CRITICAL(&jobsMux_);
                 continue;
             }
@@ -464,20 +456,19 @@ void MQTTModule::processJobs_(uint32_t nowMs)
 
         portENTER_CRITICAL(&jobsMux_);
         Job& job = txStorage_->jobs[slotIdx];
-        if (!job.used) {
+        if (job.state != JobState::Processing) {
             portEXIT_CRITICAL(&jobsMux_);
             continue;
         }
 
         if (published) {
-            job.processing = false;
             job.retryCount = 0;
             job.notBeforeMs = 0;
             if (job.requeueAfterProcess) {
                 job.requeueAfterProcess = false;
-                (void)queueSlot_(slotIdx, job.priority, false);
+                deferJob_(slotIdx);
             } else {
-                job = Job{};
+                releaseJob_(slotIdx);
             }
             callbackPublished = true;
         } else if (buildResult == MqttBuildResult::RetryLater ||
@@ -491,23 +482,22 @@ void MQTTModule::processJobs_(uint32_t nowMs)
 
             if (job.retryCount < 15U) ++job.retryCount;
             job.notBeforeMs = nowMs + backoff;
-            job.processing = false;
             job.requeueAfterProcess = false;
-            (void)queueSlot_(slotIdx, job.priority, false);
+            deferJob_(slotIdx);
             callbackDeferred = true;
         } else {
-            job.processing = false;
             if (job.requeueAfterProcess) {
                 job.requeueAfterProcess = false;
                 job.retryCount = 0;
                 job.notBeforeMs = 0;
-                (void)queueSlot_(slotIdx, job.priority, false);
+                deferJob_(slotIdx);
                 callbackDeferred = true;
             } else {
-                job = Job{};
+                releaseJob_(slotIdx);
                 callbackDropped = true;
             }
         }
+        retryPendingJobsNoLock_(nowMs);
         portEXIT_CRITICAL(&jobsMux_);
 
         if (producer) {
@@ -529,8 +519,9 @@ void MQTTModule::updateAndReportQueueOccupancy_(uint32_t nowMs)
     uint16_t normalCount = 0U;
     uint16_t lowCount = 0U;
 
+    JobStateCounts states{};
     portENTER_CRITICAL(&jobsMux_);
-    snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
+    snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount, &states);
     portEXIT_CRITICAL(&jobsMux_);
 
     if (jobsUsed > occMaxJobs_) occMaxJobs_ = jobsUsed;
@@ -560,32 +551,8 @@ void MQTTModule::updateAndReportQueueOccupancy_(uint32_t nowMs)
          (unsigned)occMaxLow_,
          (unsigned)LowQueueCap);
 
+    LOGD("queue state jobs=%u queued=%u processing=%u waiting=%u",
+         (unsigned)jobsUsed, (unsigned)states.queued,
+         (unsigned)states.processing, (unsigned)states.waiting);
     occLastReportMs_ = nowMs;
-}
-
-void MQTTModule::clearAllJobs_(const char* reason)
-{
-    if (!txStorage_) return;
-
-    uint16_t jobsUsed = 0U;
-    uint16_t highCount = 0U;
-    uint16_t normalCount = 0U;
-    uint16_t lowCount = 0U;
-
-    portENTER_CRITICAL(&jobsMux_);
-    snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
-    memset(txStorage_->jobs, 0, sizeof(txStorage_->jobs));
-    txStorage_->highQ = JobRing<HighQueueCap>{};
-    txStorage_->normalQ = JobRing<NormalQueueCap>{};
-    txStorage_->lowQ = JobRing<LowQueueCap>{};
-    portEXIT_CRITICAL(&jobsMux_);
-
-    if (jobsUsed == 0U && highCount == 0U && normalCount == 0U && lowCount == 0U) return;
-
-    LOGW("queue reset reason=%s jobs=%u qh=%u qn=%u ql=%u",
-         reason ? reason : "unknown",
-         (unsigned)jobsUsed,
-         (unsigned)highCount,
-         (unsigned)normalCount,
-         (unsigned)lowCount);
 }

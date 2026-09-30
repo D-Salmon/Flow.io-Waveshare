@@ -127,10 +127,16 @@ private:
         char payload[Limits::Mqtt::Buffers::Reply] = {0};
     };
 
+    enum class JobState : uint8_t { Free, Queued, Processing, WaitingForQueue };
+
+    struct JobStateCounts {
+        uint16_t queued = 0;
+        uint16_t processing = 0;
+        uint16_t waiting = 0;
+    };
+
     struct Job {
-        bool used = false;
-        bool queued = false;
-        bool processing = false;
+        JobState state = JobState::Free;
         bool requeueAfterProcess = false;
         uint8_t producerId = 0;
         uint16_t messageId = 0;
@@ -286,7 +292,8 @@ private:
     uint32_t parseFailCount_ = 0;
     uint32_t handlerFailCount_ = 0;
     uint32_t oversizeDropCount_ = 0;
-    uint32_t lastEnqueueRejectLogMs_ = 0;
+    uint32_t lastEnqueueIssueLogMs_ = 0;
+    uint8_t queueRetryCursor_[3]{};
     uint32_t lastDataChangedTraceLogMs_ = 0;
     uint32_t lastPublishDispatchMs_ = 0;
     uint32_t lastMemoryGuardLogMs_ = 0;
@@ -352,24 +359,29 @@ private:
     void snapshotQueueStatsNoLock_(uint16_t& jobsUsed,
                                    uint16_t& highCount,
                                    uint16_t& normalCount,
-                                   uint16_t& lowCount) const;
-    void logEnqueueReject_(uint8_t producerId,
+                                   uint16_t& lowCount,
+                                   JobStateCounts* states = nullptr) const;
+    void logEnqueueIssue_(uint8_t producerId,
                            uint16_t messageId,
                            uint8_t priority,
                            const char* reason,
                            uint16_t jobsUsed,
                            uint16_t highCount,
                            uint16_t normalCount,
-                           uint16_t lowCount);
+                           uint16_t lowCount,
+                           bool accepted);
     bool queuePush_(uint8_t prio, const JobQueueItem& item);
     bool queuePop_(uint8_t prio, JobQueueItem& out);
-    bool queueSlot_(uint8_t slotIdx, uint8_t prio, bool invalidateOld);
+    // Caller holds jobsMux_. A failed promotion preserves the old queue entry.
+    bool queueSlot_(uint8_t slotIdx, uint8_t prio);
+    void deferJob_(uint8_t slotIdx);
+    void releaseJob_(uint8_t slotIdx);
+    void retryPendingJobsNoLock_(uint32_t nowMs);
     bool dequeueNextJob_(uint32_t nowMs, uint8_t& slotIdx);
     int16_t findJobSlot_(uint8_t producerId, uint16_t messageId) const;
     int16_t allocJobSlot_();
     const MqttPublishProducer* findProducer_(uint8_t producerId) const;
     void updateAndReportQueueOccupancy_(uint32_t nowMs);
-    void clearAllJobs_(const char* reason);
 
     // Producers and runtime publishing
     void enqueueAlarmFullSync_();

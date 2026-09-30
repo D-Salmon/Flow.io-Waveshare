@@ -154,7 +154,7 @@ Effets:
 
 ### Occupation queues/jobs
 
-`queue occ max/boot jobs=A/80 qh=B/80 qn=C/80 ql=D/60`
+`queue occ max/boot jobs=A/240 qh=B/80 qn=C/80 ql=D/192`
 - niveau log: `DEBUG` (métrologie uniquement, pas d'alerte à elle seule)
 - max observés depuis le boot (non remis à zéro)
 - `jobs`: slots jobs utilisés
@@ -163,9 +163,31 @@ Effets:
 ### Rejet enqueue (noyau)
 
 `enqueue reject reason=<slot_full|queue_full> producer=P msg=M prio=R jobs=...`
-- `slot_full`: plus de slot job libre (`80/80`)
+- `slot_full`: plus de slot job libre (`240/240`)
 - `queue_full`: ring de priorité cible saturé
 - peut être silencé par flag `MqttEnqueueFlags::SilentRejectLog`
+
+### Publications acceptées en attente
+
+`enqueue deferred reason=promotion_full producer=P msg=M prio=R ...`
+- la publication reste acceptée : l'ancienne entrée reste valide si la promotion échoue
+- la priorité souhaitée est conservée et la promotion est retentée automatiquement
+- les diagnostics enqueue sont limités à un par seconde et respectent `SilentRejectLog`
+
+`queue state jobs=A queued=B processing=C waiting=D`
+- niveau `DEBUG`, occupation instantanée relevée sous le même verrou, toutes les 5 s
+- `jobs = queued + processing + waiting`
+- `waiting` : jobs conservés en attente d'une place ou de l'échéance de retry
+- les compteurs physiques `qh/qn/ql` peuvent aussi inclure des références obsolètes
+
+Les jobs acceptés ont un état explicite : libre, en file, en traitement ou en
+attente de file. Les reprises et promotions sont parcourues par priorité puis
+avec un curseur circulaire, sans remettre à zéro les délais de retry. Une nouvelle
+demande sur le même couple producteur/message est fusionnée avec le job conservé.
+Les jobs survivent à la déconnexion et reprennent après reconnexion. Une nouvelle
+publication sans slot ou sans place initiale reste refusée (`enqueue=false`).
+
+Validation native : `python3 -m unittest scripts.tests.test_mqtt_queue`.
 
 ### Métriques cfg route producer
 

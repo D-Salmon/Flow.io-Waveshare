@@ -171,6 +171,29 @@ class RuntimeUiActionManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "invalid switch action binding"):
             self.collect(value)
 
+    def test_target_only_release_action(self):
+        value = self.dialog_value()
+        value["actions"].append({"id": "release", "command": "poollogic.device.release",
+                                 "presentation": "button", "target": {"name": "slot", "type": "uint32"}})
+        entry = self.collect(value)[0]
+        self.assertEqual({"type": "none"}, entry["actions"][-1]["input"])
+        self.assertEqual({"name": "slot", "type": "uint32"}, entry["actions"][-1]["target"])
+
+    def test_override_bindings_require_typed_duration_and_target(self):
+        value = self.dialog_value()
+        value["displayConfig"]["actionDialog"]["overrideActions"] = {
+            "on": "force_on", "off": "force_off", "release": "release"}
+        for role in ("force_on", "force_off", "release"):
+            action = {"id": role, "command": "poollogic.device." + role,
+                      "presentation": "button", "target": {"name": "slot", "type": "uint32"}}
+            if role != "release":
+                action["input"] = {"name": "duration_s", "type": "uint32"}
+            value["actions"].append(action)
+        self.collect(value)
+        value["actions"][-2]["input"]["type"] = "bool"
+        with self.assertRaisesRegex(RuntimeError, "invalid override action binding"):
+            self.collect(value)
+
     def test_action_target_rejects_duplicate_input_name(self):
         value = self.dialog_value()
         value["actions"][0]["target"] = {"name": "slot", "type": "uint32"}

@@ -24,6 +24,15 @@ Payload attendu:
 Réponse:
 - `<base>/<device>/ack`
 
+Tous les PoolDevices ON/OFF compatibles acceptent également un
+[forçage temporaire persistant](../modules/TimedActuatorOverrides.md) avec
+`pooldevice.override` (`slot`, `value`, `duration_s`) et son annulation
+`pooldevice.release` (`slot`). L'ACK confirme l'enregistrement durable ;
+l'état de forçage est publié dans les snapshots PDM et de la sortie digitale.
+Les topics `rt/pdm/override/selected` et `rt/pdm/override/all` alimentent un panneau
+Discovery commun de sept entités ; `actuators` contient les attributs de chaque
+équipement. Les anciennes commandes PoolLogic par rôle restent compatibles.
+
 ### `cfg/set`
 
 Payload patch config multi-modules:

@@ -5,6 +5,7 @@
  */
 
 #include <stdint.h>
+#include "Core/Services/ActuatorControlState.h"
 #include "Core/Services/PoolInterlockState.h"
 #include "Core/Services/PoolActuatorTypes.h"
 
@@ -31,6 +32,7 @@ enum PoolDeviceRuntimeBlockReason : uint8_t {
 struct PoolDeviceRuntimeStateEntry {
     bool valid = false;
     bool enabled = false;
+    ActuatorControlState control{};
     bool desiredOn = false;
     bool actualOn = false;
     uint8_t type = POOL_DEVICE_RT_RELAY_STD;

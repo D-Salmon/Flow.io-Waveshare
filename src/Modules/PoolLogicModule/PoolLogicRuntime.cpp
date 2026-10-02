@@ -143,7 +143,7 @@ MqttBuildResult PoolLogicModule::buildCfgBase_(MqttBuildContext& buildCtx)
 
 uint8_t PoolLogicModule::runtimeSnapshotCount() const
 {
-    return 4;
+    return 6;
 }
 
 bool PoolLogicModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const
@@ -170,18 +170,20 @@ const char* PoolLogicModule::runtimeSnapshotSuffix(uint8_t idx) const
     if (idx == 1) return "rt/poollogic/orp";
     if (idx == 2) return "rt/poollogic/heat_assist";
     if (idx == 3) return "rt/poollogic/disinfection";
+    if (idx == 4) return "rt/poollogic/override/filtration";
+    if (idx == 5) return "rt/poollogic/override/robot";
     return nullptr;
 }
 
 RuntimeRouteClass PoolLogicModule::runtimeSnapshotClass(uint8_t idx) const
 {
-    (void)idx;
-    return RuntimeRouteClass::NumericThrottled;
+    return idx >= 4 ? RuntimeRouteClass::ActuatorImmediate : RuntimeRouteClass::NumericThrottled;
 }
 
 bool PoolLogicModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 {
-    if (idx > 3) return false;
+    if (idx > 5) return false;
+    if (idx >= 4 && key == DataKeys::PoolDeviceOverrides) return true;
     if (key >= DATAKEY_IO_BASE && key < (DataKey)(DATAKEY_IO_BASE + IO_MAX_ENDPOINTS)) return true;
     if (key >= DATAKEY_POOL_DEVICE_STATE_BASE &&
         key < (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + POOL_DEVICE_MAX)) return true;
@@ -191,6 +193,7 @@ bool PoolLogicModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 bool PoolLogicModule::buildRuntimeSnapshot(uint8_t idx, char* out, size_t len, uint32_t& maxTsOut) const
 {
     if (!out || len == 0) return false;
+    if (idx == 4 || idx == 5) return buildOverrideSnapshot_(idx - 4, out, len, maxTsOut);
 
     const uint32_t nowMs = millis();
     if (idx == 3) {

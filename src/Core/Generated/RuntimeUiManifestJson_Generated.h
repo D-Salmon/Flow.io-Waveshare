@@ -428,8 +428,8 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
         "showValue": false,
         "actionDialog": {
           "buttonText": "G\u00e9rer les \u00e9quipements",
-          "title": "Gestion des \u00e9quipements",
-          "description": "Le toggle On/Off envoie une commande manuelle et affiche l\u2019\u00e9tat r\u00e9el apr\u00e8s actualisation. Les protections des \u00e9quipements restent appliqu\u00e9es. Cette action remet \u00e0 z\u00e9ro les temps de fonctionnement et les volumes inject\u00e9s du jour, de la semaine et du mois. Les compteurs totaux sont conserv\u00e9s. Un \u00e9quipement bloqu\u00e9 par sa dur\u00e9e maximale journali\u00e8re peut redevenir autoris\u00e9 \u00e0 fonctionner, sous r\u00e9serve des autres protections.",
+          "title": "\u00c9quipements du bassin",
+          "description": "Pour la filtration et le robot automatiques sur relais, choisissez une dur\u00e9e puis forcez la marche ou l\u2019arr\u00eat. Le for\u00e7age survit au red\u00e9marrage et revient ensuite au mode guid\u00e9. Les protections restent prioritaires. Les autres \u00e9quipements conservent leur commande manuelle. La remise \u00e0 z\u00e9ro efface les compteurs jour, semaine et mois, sans modifier les compteurs totaux.",
           "inputLabel": "\u00c9quipement",
           "allLabel": "Tous les \u00e9quipements",
           "successText": "Les compteurs de {target} ont \u00e9t\u00e9 remis \u00e0 z\u00e9ro.",
@@ -481,7 +481,12 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
           "confirmationHint": "Jour, semaine et mois \u00b7 Totaux conserv\u00e9s",
           "confirmButtonText": "Confirmer",
           "detailsLabel": "Ce qui est remis \u00e0 z\u00e9ro",
-          "countText": "{count} \u00e9quipements"
+          "countText": "{count} \u00e9quipements",
+          "overrideActions": {
+            "on": "override_on",
+            "off": "override_off",
+            "release": "release_override"
+          }
         }
       },
       "actions": [
@@ -544,6 +549,56 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
             "equipements",
             "alarm"
           ]
+        },
+        {
+          "id": "override_on",
+          "command": "pooldevice.override_on",
+          "presentation": "button",
+          "input": {
+            "name": "duration_s",
+            "type": "uint32"
+          },
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ],
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          }
+        },
+        {
+          "id": "override_off",
+          "command": "pooldevice.override_off",
+          "presentation": "button",
+          "input": {
+            "name": "duration_s",
+            "type": "uint32"
+          },
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ],
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          }
+        },
+        {
+          "id": "release_override",
+          "command": "pooldevice.release",
+          "presentation": "button",
+          "input": {
+            "type": "none"
+          },
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ],
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          }
         }
       ]
     },

@@ -41,6 +41,9 @@ constexpr DataKey HaVendor = 11;
 /** @brief Home Assistant runtime key: configured device id (`HARuntime`). */
 constexpr DataKey HaDeviceId = 12;
 
+/** @brief Shared actuator override panel/state changed. */
+constexpr DataKey PoolDeviceOverrides = 13;
+
 /** @brief Reserved base for IO endpoint runtime keys (`IORuntime`). */
 constexpr DataKey IoBase = 40;
 /** @brief Reserved IO runtime key count for the active board profile. */
@@ -51,14 +54,14 @@ constexpr DataKey IoEndExclusive = IoBase + IoReservedCount;
 /** @brief Reserved base for pool-device state runtime keys (`PoolDeviceRuntime`, state part). */
 constexpr DataKey PoolDeviceStateBase = IoEndExclusive;
 /** @brief Reserved pool-device state key count for the active board profile. */
-constexpr uint8_t PoolDeviceStateReservedCount = 8;
+constexpr uint8_t PoolDeviceStateReservedCount = Limits::Io::MaxPoolDevices;
 /** @brief End-exclusive bound for pool-device state key range. */
 constexpr DataKey PoolDeviceStateEndExclusive = PoolDeviceStateBase + PoolDeviceStateReservedCount;
 
 /** @brief Reserved base for pool-device metrics runtime keys (`PoolDeviceRuntime`, metrics part). */
 constexpr DataKey PoolDeviceMetricsBase = PoolDeviceStateEndExclusive;
 /** @brief Reserved pool-device metrics key count for the active board profile. */
-constexpr uint8_t PoolDeviceMetricsReservedCount = 8;
+constexpr uint8_t PoolDeviceMetricsReservedCount = Limits::Io::MaxPoolDevices;
 /** @brief End-exclusive bound for pool-device metrics key range. */
 constexpr DataKey PoolDeviceMetricsEndExclusive = PoolDeviceMetricsBase + PoolDeviceMetricsReservedCount;
 
@@ -70,7 +73,8 @@ constexpr DataKey ReservedMax = ValueBase + ValueReservedCount - 1;
 static_assert(WifiReady < TimeReady, "DataKey ordering invariant broken");
 static_assert(TimeReady < MqttReady, "DataKey ordering invariant broken");
 static_assert(MqttRuntimeFullSnapshotPublished < HaPublished, "DataKey ranges overlap");
-static_assert(HaDeviceId < IoBase, "HA fixed keys overlap IO key range");
+static_assert(HaDeviceId < PoolDeviceOverrides, "Fixed runtime keys overlap");
+static_assert(PoolDeviceOverrides < IoBase, "Fixed runtime keys overlap IO key range");
 static_assert(IoEndExclusive <= PoolDeviceStateBase, "IO and pool-device key ranges overlap");
 static_assert(PoolDeviceStateEndExclusive <= PoolDeviceMetricsBase, "Pool-device state and metrics ranges overlap");
 static_assert(PoolDeviceMetricsEndExclusive <= (ReservedMax + 1), "Pool-device key range exceeds reserved max");

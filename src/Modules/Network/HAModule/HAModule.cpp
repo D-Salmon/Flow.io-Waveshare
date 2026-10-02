@@ -558,49 +558,25 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
                              bool hasEntityName,
                              const char* availabilityTemplate,
                              bool isText,
-                             MqttBuildContext* outCtx)
+                             MqttBuildContext* outCtx,
+                             const char* attributesTemplate)
 {
-    if (!outCtx) return false;
-    MqttBuildContext& buildCtx = *outCtx;
-    if (!objectId || !name || !stateTopic || !valueTemplate) return false;
-
-    char unitField[64] = {0};
-    if (unit) {
-        snprintf(unitField, sizeof(unitField), ",\"unit_of_meas\":\"%s\"", unit);
-    }
-    char entityCategoryField[64] = {0};
-    if (entityCategory && entityCategory[0] != '\0') {
-        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
-    }
-    char iconField[64] = {0};
-    if (icon && icon[0] != '\0') {
-        snprintf(iconField, sizeof(iconField), ",\"ic\":\"%s\"", icon);
-    }
-    (void)hasEntityName;
-    const char* hasEntityNameField = ",\"has_entity_name\":false";
-    char defaultEntityId[224] = {0};
-    if (!buildDefaultEntityId("sensor", objectId, defaultEntityId, sizeof(defaultEntityId))) return false;
-    char uniqueId[256] = {0};
-    if (!buildUniqueId(objectId, name, uniqueId, sizeof(uniqueId))) return false;
-    char availabilityField[768] = {0};
-    buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField), stateTopic, availabilityTemplate);
-    const char* stateClassField = isText ? "" : ",\"stat_cla\":\"measurement\"";
-
-    if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-             "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
-             "\"stat_t\":\"%s\",\"val_tpl\":\"%s\"%s%s%s%s%s%s,"
-             "\"o\":{\"name\":\"%s\"},"
-             "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
-             name, objectId, defaultEntityId, uniqueId,
-             stateTopic, valueTemplate,
-             stateClassField, entityCategoryField, iconField, unitField, hasEntityNameField, availabilityField,
-             originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
-        LOGW("HA sensor payload truncated object=%s", objectId);
+    if (!outCtx || !stateTopic || !valueTemplate) return false;
+    (void)hasEntityName; // Preserve existing sensor naming and unique IDs.
+    SpiRamJsonDocument doc(4096);
+    if (!initDiscoveryDocument_(doc, "sensor", objectId, name, true)) return false;
+    if (unit && unit[0]) doc["unit_of_meas"] = unit;
+    if (entityCategory && entityCategory[0]) doc["ent_cat"] = entityCategory;
+    if (icon && icon[0]) doc["ic"] = icon;
+    HADiscoveryJson::sensor(doc.as<JsonObject>(), stateTopic, valueTemplate, isText, attributesTemplate);
+    char statusTopic[192]{};
+    mqttSvc_->formatTopic(mqttSvc_->ctx, MqttTopics::SuffixStatus, statusTopic, sizeof(statusTopic));
+    HADiscoveryJson::availability(doc.as<JsonObject>(), statusTopic, stateTopic, availabilityTemplate);
+    if (!HADiscoveryJson::serialize(doc, outCtx->payload, outCtx->payloadCapacity)) {
+        LOGW("HA sensor payload overflow object=%s", objectId);
         return false;
     }
-
-    return publishDiscovery("sensor", objectId, buildCtx);
+    return publishDiscovery("sensor", objectId, *outCtx);
 }
 
 bool HAModule::initDiscoveryDocument_(JsonDocument& doc, const char* component,
@@ -1081,7 +1057,7 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
         if (buildObjectId(e.objectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) {
             mqttSvc_->formatTopic(mqttSvc_->ctx, e.stateTopicSuffix, stateTopicBuf_, sizeof(stateTopicBuf_));
             ok = publishSensor(objectIdBuf_, e.name, stateTopicBuf_, e.valueTemplate,
-                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx);
+                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx, e.attributesTemplate);
         }
     } else {
         cursor = (uint16_t)(cursor + sensorCount_);

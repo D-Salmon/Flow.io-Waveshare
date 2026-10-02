@@ -391,6 +391,8 @@ constexpr char DsRomAir[] = "io_dsarm"; // IO module runtime DS18 air ROM blob.
 }  // namespace Io
 
 namespace PoolLogic {
+constexpr char OverrideFiltrationDuration[] = "ovr_flt_dur"; // Next timed override duration, versioned runtime blob.
+constexpr char OverrideRobotDuration[] = "ovr_rbt_dur";
 constexpr char Enabled[] = "pl_en"; // Pool logic module persisted key for field `pl_en`.
 constexpr char AutoMode[] = "pl_auto"; // Pool logic module persisted key for field `pl_auto`.
 constexpr char WinterMode[] = "pl_wint"; // Pool logic module persisted key for field `pl_wint`.
@@ -462,6 +464,8 @@ constexpr char CoverClosedAtNight[] = "pl_covnight"; // True when the cover is n
 }  // namespace PoolLogic
 
 namespace PoolDevice {
+inline constexpr const char* OverrideDuration = "pdm_ovr_min";
+// Per-slot durable leases use the bounded key family pdm_ovr_0 … pdm_ovr_15.
 /** @brief printf format for per-slot `enabled` key (example `act0_en`). */
 constexpr char EnabledFmt[] = "act%u_en"; // Pool device module key template; `%u` is replaced by slot index before NVS access.
 /** @brief printf format for per-slot dependency mask key (example `act0_dp`). */

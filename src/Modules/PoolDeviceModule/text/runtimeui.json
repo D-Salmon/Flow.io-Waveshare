@@ -168,7 +168,12 @@
           "confirmationHint_t": "runtimeui.pooldev.reset.confirmationHint",
           "confirmButtonText_t": "runtimeui.pooldev.reset.confirmButtonText",
           "detailsLabel_t": "runtimeui.pooldev.reset.detailsLabel",
-          "countText_t": "runtimeui.pooldev.reset.countText"
+          "countText_t": "runtimeui.pooldev.reset.countText",
+          "overrideActions": {
+            "on": "override_on",
+            "off": "override_off",
+            "release": "release_override"
+          }
         }
       },
       "actions": [
@@ -224,6 +229,53 @@
           "id": "reset_uptime_all",
           "command": "pooldevice.uptime.reset_all",
           "presentation": "button",
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ]
+        },
+        {
+          "id": "override_on",
+          "command": "pooldevice.override_on",
+          "presentation": "button",
+          "input": {
+            "name": "duration_s",
+            "type": "uint32"
+          },
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          },
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ]
+        },
+        {
+          "id": "override_off",
+          "command": "pooldevice.override_off",
+          "presentation": "button",
+          "input": {
+            "name": "duration_s",
+            "type": "uint32"
+          },
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          },
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ]
+        },
+        {
+          "id": "release_override",
+          "command": "pooldevice.release",
+          "presentation": "button",
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          },
           "refreshDomains": [
             "equipements",
             "alarm"

@@ -2697,6 +2697,7 @@
     }
 
     function formatActivityActor(ev) {
+      if (ev && ev.actor_kind === 'remote') return 'Remote (MQTT)';
       if (ev && String(ev.actor_kind || '') === 'user' && ev.actor) {
         return 'par ' + String(ev.actor);
       }
@@ -5652,7 +5653,7 @@
       return badge;
     }
 
-    function createIoDeviceStateBadge(row) {
+    function createIoDeviceStateBadgeBase(row) {
       const badge = createIoStateBadge(row.state);
       const device = row.pool_device;
       if (!device || !device.enabled || (device.block_code !== 0 && device.block_code !== 2)) return badge;
@@ -5673,6 +5674,18 @@
         badge.textContent = tr('io.state.stopped', 'Arrêté');
       }
       return badge;
+    }
+
+    function createIoDeviceStateBadge(row) {
+      const badge = createIoDeviceStateBadgeBase(row);
+      const label = actuatorControlLabel(row.pool_device && row.pool_device.control);
+      if (!label) return badge;
+      const wrapper = document.createElement('span');
+      wrapper.className = 'io-control-state';
+      const control = document.createElement('small');
+      control.textContent = label;
+      wrapper.append(badge, control);
+      return wrapper;
     }
 
     function createIoCompactTable(title, columns, rows) {
@@ -6719,6 +6732,9 @@
           sinceMs: runtimeValue && Number.isFinite(Number(runtimeValue.since_ms)) ? Number(runtimeValue.since_ms) : null,
           disabled: !stateKnown || (!!runtimeActionBusyKey && runtimeActionBusyKey !== actionKey),
           feedback: actionKey ? runtimeActionFeedback.get(actionKey) : null,
+          control: runtimeValue && runtimeValue.control,
+          onOpen: opts.onOpen,
+          openLabel: opts.openLabel,
           onAction: action
             ? (requested) => executeRuntimeAction(entry, action, requested)
             : null
@@ -6768,6 +6784,21 @@
         runtimeActionFeedback.delete(actionKey);
         refreshPoolMeasuresView();
       }, 7000);
+    }
+
+    function actuatorControlLabel(control, showGuided = true) {
+      if (!control || !control.override_supported) return '';
+      switch (control.control_mode) {
+        case 'forced': {
+          const seconds = Math.max(0, Number(control.override_remaining_s) || 0);
+          const remaining = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+          return '✋ ' + (control.override_value
+            ? tr('override.on', 'Marche forcée') : tr('override.off', 'Arrêt forcé')) + ' · ' + remaining;
+        }
+        case 'waiting_time': return '✋ ' + tr('override.waiting', 'Reprise en attente de l’heure');
+        case 'persistence_error': return tr('override.saveError', 'Forçage interrompu — sauvegarde en échec');
+        default: return showGuided ? tr('override.guided', 'Guidé') : '';
+      }
     }
 
     async function executeRuntimeAction(entry, action, inputValue, targetValue) {
@@ -6867,6 +6898,7 @@
         bell: ['M6 9a6 6 0 0 1 12 0v5l2 3H4l2-3V9Z', 'M10 21h4M12 2v1'],
         equipment: ['M5 4h14v16H5Z', 'M9 8h6M9 12h6M9 16h2'],
         reset: ['M4 10a8 8 0 1 0 3-5', 'M4 3v7h7'],
+        close: ['M6 6l12 12', 'M18 6 6 18'],
         check: ['m5 12 4 4L19 6'],
         info: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'M12 11v6M12 7h.01'],
         chevron: ['m6 9 6 6 6-6']
@@ -6891,10 +6923,10 @@
       // PoolIds domain actuator identities; labels and device indices can change.
       const appearances = {
         14: { icon: 'waves', tone: 'blue' },
-        15: { icon: 'drop', tone: 'blue' },
+        15: { icon: 'drop', tone: 'cyan' },
         16: { icon: 'flask', tone: 'green' },
         17: { icon: 'robot', tone: 'purple' },
-        18: { icon: 'fill', tone: 'cyan' },
+        18: { icon: 'fill', tone: 'green' },
         19: { icon: 'bolt', tone: 'amber' },
         20: { icon: 'thermometer', tone: 'red' },
         22: { icon: 'light', tone: 'orange' }
@@ -6912,6 +6944,19 @@
 
     function setRuntimeActionDisabled(element, value) {
       if (element.disabled !== value) element.disabled = value;
+    }
+
+    function buildDashboardManagementButton(onOpen, label) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'dashboard-tile-open';
+      button.setAttribute('aria-label', label);
+      button.setAttribute('aria-haspopup', 'dialog');
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onOpen(button);
+      });
+      return button;
     }
 
     function buildFlowSwitch(options) {
@@ -7030,8 +7075,12 @@
         volume.className = 'runtime-counter-volume';
         cell.append(duration, volume);
         update = (current) => {
-          setRuntimeActionText(duration, formatRuntimeCounterDuration(runtimeCounterValue(current, column.durationKey)));
-          setRuntimeActionText(volume, formatRuntimeCounterVolume(runtimeCounterValue(current, column.volumeKey)));
+          const durationValue = runtimeCounterValue(current, column.durationKey);
+          const volumeValue = runtimeCounterValue(current, column.volumeKey);
+          const empty = !durationValue && !volumeValue;
+          if (cell.classList.contains('is-empty') !== empty) cell.classList.toggle('is-empty', empty);
+          setRuntimeActionText(duration, formatRuntimeCounterDuration(durationValue));
+          setRuntimeActionText(volume, formatRuntimeCounterVolume(volumeValue));
         };
       }
       update(target);
@@ -7052,6 +7101,8 @@
       const managementLayout = equipmentLayout || alarmLayout;
       dialog.classList.toggle('runtime-management-dialog', managementLayout);
       dialog.classList.toggle('runtime-alarm-dialog', alarmLayout);
+      dialog.classList.toggle('runtime-equipment-dialog', equipmentLayout);
+      const columns = equipmentLayout ? config.columns.filter(column => column.type !== 'setpoint') : config.columns;
       dialog.classList.toggle('is-safe-action', config.destructive === false);
       const actionClass = config.destructive === false ? 'btn-tonal' : 'btn-tonal danger-action';
       dialog.setAttribute('aria-labelledby', 'runtimeActionDialogTitle');
@@ -7097,14 +7148,27 @@
         header.className = 'runtime-management-header';
         const heading = document.createElement('div');
         heading.className = 'runtime-management-heading';
-        heading.append(title, count);
+        if (equipmentLayout) {
+          const subtitle = document.createElement('p');
+          subtitle.className = 'runtime-equipment-subtitle';
+          subtitle.textContent = tr('equipment.subtitle', 'Contrôle et suivi de consommation');
+          heading.append(title, subtitle);
+        } else heading.append(title, count);
         buttons.classList.add('runtime-management-actions');
         close.classList.add('runtime-management-close');
-        close.prepend(buildRuntimeActionIcon('check'));
+        if (equipmentLayout) {
+          close.replaceChildren(buildRuntimeActionIcon('close'));
+          close.setAttribute('aria-label', tr('dashboard.action.close', 'Fermer'));
+        } else close.prepend(buildRuntimeActionIcon('check'));
         resetAll.classList.add('runtime-management-all-action');
         resetAll.prepend(buildRuntimeActionIcon(equipmentLayout ? 'reset' : 'check'));
         buttons.append(resetAll, close);
-        header.append(heading, buttons);
+        if (equipmentLayout) {
+          const status = document.createElement('div');
+          status.className = 'runtime-equipment-header-status';
+          status.append(count, buttons);
+          header.append(heading, status);
+        } else header.append(heading, buttons);
         const panel = document.createElement('div');
         panel.className = 'runtime-management-panel';
         const footer = document.createElement('div');
@@ -7130,6 +7194,7 @@
       let selection = null;
       let confirmationRow = null;
       let confirmationButtons = [];
+      let overridePanel = null;
       let tableRefreshPromise = null;
       let tableReadFailed = false;
       let commandCompletion = Promise.resolve();
@@ -7147,12 +7212,15 @@
         rowButtons.forEach(({ button, target }) => { setRuntimeActionDisabled(button, blocked || !eligible(target)); });
         switchControls.forEach(({ input, available }) => { setRuntimeActionDisabled(input, blocked || !available); });
         confirmationButtons.forEach((button) => { setRuntimeActionDisabled(button, blocked); });
+        if (overridePanel) overridePanel.update(blocked);
       }
 
       function clearConfirmation(restoreFocus = true) {
         if (confirmationRow) confirmationRow.remove();
         const previous = selection;
-        if (previous && previous.row) previous.row.classList.remove('is-selected');
+        if (previous && previous.row) previous.row.classList.remove('is-selected', 'is-override-selected');
+        if (previous && previous.kind === 'override') previous.button.setAttribute('aria-expanded', 'false');
+        overridePanel = null;
         confirmationRow = null;
         confirmationButtons = [];
         selection = null;
@@ -7177,7 +7245,7 @@
         confirmationRow = document.createElement('tr');
         confirmationRow.className = 'runtime-counter-confirmation';
         const cell = document.createElement('td');
-        cell.colSpan = config.columns.length + 2;
+        cell.colSpan = columns.length + 2;
         const line = document.createElement('div');
         line.className = 'runtime-counter-confirmation-line';
         const copy = document.createElement('div');
@@ -7231,7 +7299,8 @@
           const previous = rowViews[index].target;
           return target.value === previous.value && target.kind === previous.kind && ('actualOn' in target) === ('actualOn' in previous) &&
             !!target.deviceId === !!previous.deviceId &&
-            automatic(target) === automatic(previous);
+            automatic(target) === automatic(previous) &&
+            target.override_supported === previous.override_supported;
         });
         if (sameRows) {
           targets = targets.map((current, index) => {
@@ -7263,21 +7332,21 @@
         const table = document.createElement('table');
         table.className = 'runtime-counter-table';
         table.classList.toggle('has-text-actions', config.rowPresentation === 'text');
-        table.classList.toggle('has-switches', config.columns.some((column) => column.type === 'switch'));
+        table.classList.toggle('has-switches', columns.some((column) => column.type === 'switch'));
         const caption = document.createElement('caption');
         caption.className = 'visually-hidden';
         caption.textContent = config.metricsLabel;
         const head = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        [config.inputLabel, ...config.columns.map((column) => column.label),
-          tr('dashboard.action.column', 'Action')].forEach((text) => {
+        [config.inputLabel, ...columns.map((column) => equipmentLayout && column.type === 'switch' ? tr('equipment.state', 'État') : column.label),
+          (equipmentLayout ? tr('equipment.actions', 'Actions') : tr('dashboard.action.column', 'Action'))].forEach((text) => {
           const th = document.createElement('th');
           th.scope = 'col';
           th.textContent = text;
           headerRow.appendChild(th);
         });
         head.appendChild(headerRow);
-        if (config.rowPresentation !== 'text') {
+        if (!equipmentLayout && config.rowPresentation !== 'text') {
           const actionHeading = document.createElement('span');
           actionHeading.className = 'visually-hidden';
           actionHeading.textContent = headerRow.lastElementChild.textContent;
@@ -7320,13 +7389,23 @@
             (managementLayout ? identity : name).appendChild(deviceId);
           }
           row.appendChild(name);
-          const cells = config.columns.map((column) => buildRuntimeActionCell(target, column, buildSwitch, buildSetpoint));
+          const cells = columns.map((column) => buildRuntimeActionCell(target, column, buildSwitch, buildSetpoint));
           cells.forEach((cell) => row.appendChild(cell.element));
           const view = { target, row, name, indicator, label, deviceId, cells, iconHost,
-            iconKind: null, reset: null };
-          if (managementLayout && rowViews.length % 2 === 1) row.classList.add('is-alternate');
+            iconKind: null, reset: null, override: null };
+          if (alarmLayout && rowViews.length % 2 === 1) row.classList.add('is-alternate');
           rowViews.push(view);
           const actionCell = document.createElement('td');
+          const rowActions = document.createElement('div');
+          rowActions.className = 'runtime-equipment-row-actions';
+          const actionHost = equipmentLayout ? rowActions : actionCell;
+          if (equipmentLayout) {
+            actionCell.appendChild(rowActions);
+            if (target.override_supported && config.overrideActions) {
+              view.override = buildOverrideControls(target);
+              rowActions.appendChild(view.override.element);
+            }
+          }
           if (automatic(target)) {
             const automaticLabel = document.createElement('span');
             automaticLabel.className = 'runtime-counter-volume';
@@ -7354,7 +7433,7 @@
           }
           view.reset = reset;
           reset.addEventListener('click', () => selectTarget(target, inputAction, target.value, reset, row));
-          actionCell.appendChild(reset);
+          actionHost.appendChild(reset);
           row.appendChild(actionCell);
           rowButtons.push({ button: reset, target: target });
           updateRow(view);
@@ -7362,7 +7441,7 @@
         });
         table.append(caption, head, body);
         tableContainer.appendChild(table);
-        if (previousSelection) {
+        if (previousSelection && previousSelection.kind !== 'override') {
           const previous = previousSelection;
           const selectedRow = previous.row && rowButtons.find(({ target }) => target.value === previous.value);
           const target = selectedRow ? selectedRow.target : previous.row ? null : {
@@ -7394,8 +7473,9 @@
       }
 
       function updateCount() {
-        setRuntimeActionText(count, config.countText.replace('{count}', String(targets.length))
-          .replace('{eligible}', String(targets.filter(eligible).length)));
+        setRuntimeActionText(count, equipmentLayout
+          ? tr('equipment.activeCount', '{active} actif(s) / {count}').replace('{active}', String(targets.filter(target => target.actualOn === true).length)).replace('{count}', String(targets.length))
+          : config.countText.replace('{count}', String(targets.length)).replace('{eligible}', String(targets.filter(eligible).length)));
       }
 
       function updateRow(view) {
@@ -7427,6 +7507,7 @@
           setRuntimeActionAttribute(reset, 'aria-label', config.rowButtonText + ' — ' + target.label);
         }
         cells.forEach((cell) => cell.update(target));
+        if (view.override) view.override.update(target);
       }
 
       function buildSetpoint(target, column) {
@@ -7469,6 +7550,142 @@
         } };
       }
 
+      function buildOverrideControls(target) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'runtime-override-control';
+        const status = document.createElement('span');
+        status.className = 'runtime-override-status';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'secondary btn-compact runtime-override-open';
+        button.setAttribute('aria-expanded', 'false');
+        button.setAttribute('aria-controls', 'runtimeOverridePanel');
+        const buttonLabel = document.createElement('span');
+        button.append(buildRuntimeActionIcon('bolt'), buttonLabel);
+        const control = { input: button, available: true, target, column: config.overrideActions };
+        switchControls.push(control);
+        button.addEventListener('click', () => {
+          if (pending || (loading && !backgroundLoading) || runtimeActionBusyKey) return;
+          const alreadyOpen = selection && selection.kind === 'override' && selection.target.value === target.value;
+          clearConfirmation(false);
+          if (alreadyOpen) { button.focus(); return; }
+          selection = { kind: 'override', target, button, row: button.closest('tr') };
+          renderOverridePanel();
+          updateControls();
+        });
+        wrapper.append(status, button);
+        return { element: wrapper, update: (current) => {
+          const active = current.control_mode !== 'guided';
+          const label = actuatorControlLabel(current, false);
+          setRuntimeActionText(status, label);
+          status.hidden = !label;
+          status.classList.toggle('is-forced', active);
+          wrapper.hidden = !current.override_supported && !active;
+          const text = active ? tr('override.modify', 'Modifier…') : tr('override.open', 'Forcer…');
+          setRuntimeActionText(buttonLabel, text);
+          setRuntimeActionAttribute(button, 'aria-label', text + ' — ' + current.label);
+        } };
+      }
+
+      function renderOverridePanel() {
+        const { target, button, row } = selection;
+        button.setAttribute('aria-expanded', 'true');
+        row.classList.add('is-override-selected');
+        confirmationRow = document.createElement('tr');
+        confirmationRow.className = 'runtime-counter-confirmation runtime-override-row';
+        const cell = document.createElement('td');
+        cell.colSpan = columns.length + 2;
+        const panel = document.createElement('section');
+        panel.id = 'runtimeOverridePanel';
+        panel.className = 'runtime-override-panel';
+        panel.setAttribute('aria-label', tr('override.panelTitle', 'Forçage temporaire') + ' — ' + (target.name || target.label));
+        const controls = document.createElement('div');
+        controls.className = 'runtime-override-controls';
+        const fields = document.createElement('div');
+        fields.className = 'runtime-override-fields';
+        const makeField = (label) => {
+          const field = document.createElement('fieldset');
+          const legend = document.createElement('legend');
+          legend.textContent = label;
+          const choices = document.createElement('div');
+          choices.className = 'runtime-override-choices';
+          field.append(legend, choices);
+          fields.appendChild(field);
+          return { field, choices };
+        };
+        const modeField = makeField(tr('override.target', 'Consigne'));
+        const durationField = makeField(tr('override.durationLabel', 'Durée'));
+        let requested = target.override_value !== false;
+        let minutes = 30;
+        let custom = false;
+        const modeButtons = [], durationButtons = [];
+        const makeButton = (text) => {
+          const node = document.createElement('button');
+          node.type = 'button'; node.className = 'secondary btn-compact'; node.textContent = text;
+          confirmationButtons.push(node);
+          return node;
+        };
+        for (const value of [true, false]) {
+          const node = makeButton(value ? tr('override.run', 'Marche') : tr('override.stop', 'Arrêt'));
+          node.addEventListener('click', () => { requested = value; updateControls(); });
+          modeButtons.push({ node, value }); modeField.choices.appendChild(node);
+        }
+        const customLabel = document.createElement('label');
+        customLabel.className = 'runtime-override-custom';
+        customLabel.textContent = tr('override.duration', 'Durée (minutes)');
+        const duration = document.createElement('input');
+        duration.type = 'number'; duration.required = true; duration.min = '1'; duration.max = '1440'; duration.step = '1'; duration.value = '30';
+        duration.className = 'control-input';
+        duration.setAttribute('aria-label', customLabel.textContent + ' — ' + target.label);
+        customLabel.appendChild(duration);
+        for (const value of [15, 30, 60, null]) {
+          const node = makeButton(value === null ? tr('override.other', 'Autre') : value === 60 ? '1 h' : value + ' min');
+          node.addEventListener('click', () => { custom = value === null; if (!custom) minutes = value; updateControls(); if (custom) duration.focus(); });
+          durationButtons.push({ node, value }); durationField.choices.appendChild(node);
+        }
+        durationField.field.appendChild(customLabel);
+        const hint = document.createElement('p');
+        hint.className = 'runtime-override-hint';
+        hint.textContent = tr('override.hint', 'Retour automatique au pilotage habituel à la fin du délai.');
+        const footer = document.createElement('div');
+        footer.className = 'runtime-override-footer';
+        const release = makeButton(tr('override.finish', 'Terminer le forçage'));
+        release.classList.add('runtime-override-release');
+        const cancel = makeButton(tr('dashboard.action.cancel', 'Annuler'));
+        cancel.addEventListener('click', () => clearConfirmation());
+        const apply = makeButton('');
+        apply.className = 'primary btn-compact';
+        const run = (role, value) => {
+          if (pending || runtimeActionBusyKey || (loading && !backgroundLoading)) return;
+          const action = actions.find(item => item.id === config.overrideActions[role]);
+          if (action) applyTargetAction(target, action, value, target.value, tr('override.accepted', 'Commande enregistrée'));
+        };
+        release.addEventListener('click', () => { if (!release.disabled) run('release', undefined); });
+        apply.addEventListener('click', () => {
+          if (apply.disabled || (custom && !duration.reportValidity())) return;
+          run(requested ? 'on' : 'off', (custom ? Number(duration.value) : minutes) * 60);
+        });
+        duration.addEventListener('input', () => updateControls());
+        footer.append(cancel, apply);
+        controls.append(fields, footer);
+        panel.append(controls, hint, release);
+        cell.appendChild(panel); confirmationRow.appendChild(cell); row.after(confirmationRow);
+        overridePanel = { primary: apply, update: (blocked) => {
+          const available = target.override_available === true && target.controllable === true;
+          modeButtons.forEach(({ node, value }) => node.setAttribute('aria-pressed', String(value === requested)));
+          durationButtons.forEach(({ node, value }) => node.setAttribute('aria-pressed', String(custom ? value === null : value === minutes)));
+          customLabel.hidden = !custom;
+          duration.disabled = blocked || !available;
+          [...modeButtons, ...durationButtons].forEach(({ node }) => setRuntimeActionDisabled(node, blocked || !available));
+          release.hidden = target.control_mode === 'guided';
+          setRuntimeActionDisabled(release, blocked || release.hidden);
+          setRuntimeActionDisabled(apply, blocked || !available);
+          const amount = custom ? duration.value : minutes;
+          setRuntimeActionText(apply, (requested ? tr('override.forceOn', 'Forcer marche') : tr('override.forceOff', 'Forcer arrêt')) + ' · ' + amount + ' min');
+        } };
+        modeButtons[0].node.focus();
+      }
+
       function buildSwitch(target, column) {
         let state;
         const action = actions.find((item) => item.id === column.action);
@@ -7490,13 +7707,24 @@
         const status = document.createElement('span');
         const control = { input, available, target, column };
         switchControls.push(control);
+        const override = !equipmentLayout && target.override_supported && config.overrideActions ? buildOverrideControls(target) : null;
+        if (equipmentLayout) status.className = 'visually-hidden';
         wrapper.append(switchView.element, status);
+        const setpointColumn = equipmentLayout && config.columns.find(column => column.type === 'setpoint');
+        const setpoint = setpointColumn && target.kind ? buildSetpoint(target, setpointColumn) : null;
+        if (setpoint) wrapper.appendChild(setpoint.element);
+        if (override) wrapper.appendChild(override.element);
         return { element: wrapper, update: (current) => {
           state = runtimeCounterValue(current, column.key);
           const actualUnknown = typeof state !== 'boolean';
           if (actualUnknown && typeof current.desiredOn === 'boolean') state = current.desiredOn;
           available = !!action && typeof state === 'boolean' && runtimeCounterValue(current, column.eligibleKey) === true;
-          control.available = available;
+          // Keep unlimited manual control for devices without active automation.
+          const timed = !!override && (current.control_automatic || current.control_mode !== 'guided');
+          control.available = available && !timed;
+          switchView.element.hidden = timed;
+          if (override) override.update(current);
+          if (setpoint) setpoint.update(current);
           switchView.update({
             checked: state === true,
             label: column.label + ' — ' + current.label,
@@ -7571,6 +7799,7 @@
       }
 
       async function applyTargetAction(target, action, value, targetValue, success) {
+        const overrideTrigger = selection && selection.kind === 'override' ? selection.button : null;
         const updatedSlots = targetValue !== undefined ? [target.value]
           : (value === undefined ? targets.filter(eligible).map((item) => item.value) : [value]);
         pending = true;
@@ -7597,7 +7826,9 @@
           pending = false;
           completeCommand();
           updateControls();
-          if (confirmationRow) confirmationButtons[1].focus();
+          if (overridePanel) overridePanel.primary.focus();
+          else if (overrideTrigger && overrideTrigger.isConnected) overrideTrigger.focus();
+          else if (confirmationRow) confirmationButtons[1].focus();
           else close.focus();
         }
       }
@@ -7630,7 +7861,10 @@
 
     function buildDashboardDualStateTile(label, value, options) {
       let currentOptions = options || {};
-      const tile = document.createElement(currentOptions.action ? 'label' : 'div');
+      const separateActions = typeof currentOptions.onOpen === 'function';
+      const tile = document.createElement(!separateActions && currentOptions.action ? 'label' : 'div');
+      const openButton = separateActions ? buildDashboardManagementButton(
+        (trigger) => currentOptions.onOpen(trigger), currentOptions.openLabel || label) : null;
       const title = document.createElement('div');
       title.className = 'status-dual-title';
       const state = document.createElement('div');
@@ -7643,16 +7877,22 @@
       const since = document.createElement('div');
       since.className = 'status-dual-since';
       since.hidden = true;
-      tile.append(title, state, since);
+      const controlStatus = document.createElement('div');
+      controlStatus.className = 'runtime-override-status';
+      tile.append(title, state, since, controlStatus);
       const switchView = buildFlowSwitch({
-        host: tile,
+        host: separateActions ? undefined : tile,
         interactive: !!currentOptions.action,
         checked: value === true,
         onChange: (requested) => {
           switchView.update({ checked: view.value === true });
-          if (typeof currentOptions.onAction === 'function') currentOptions.onAction(requested);
+          if (typeof currentOptions.onAction === 'function') currentOptions.onAction(requested, switchView.input);
         }
       });
+      if (separateActions) {
+        switchView.element.classList.add('dashboard-tile-switch');
+        tile.append(openButton, switchView.element);
+      }
       const view = { label, value, options: currentOptions, update: (nextLabel, nextValue, nextOptions) => {
         currentOptions = nextOptions || {};
         view.label = nextLabel;
@@ -7668,11 +7908,15 @@
           ? tr('dashboard.action.pending', 'Application…')
           : stateKnown ? (nextValue ? activeText : inactiveText) : unknownText;
         const classes = ['status-dual-tile', 'flow-switch-control', stateKnown ? (nextValue ? 'is-true' : 'is-false') : 'is-empty'];
-        if (currentOptions.action) classes.push('is-action');
+        if (currentOptions.action || separateActions) classes.push('is-action');
+        if (separateActions) {
+          classes.push('has-management-action');
+          setRuntimeActionAttribute(openButton, 'aria-label', (currentOptions.openLabel || nextLabel) + ' — ' + nextLabel);
+        }
         if (pending) classes.push('is-pending');
         if (feedback) classes.push('is-error');
         setRuntimeActionAttribute(tile, 'class', classes.join(' '));
-        if (!currentOptions.action) {
+        if (!currentOptions.action && !separateActions) {
           setRuntimeActionAttribute(tile, 'role', 'img');
           setRuntimeActionAttribute(tile, 'aria-label', nextLabel + ' : ' + stateText);
         } else {
@@ -7691,6 +7935,9 @@
         const sinceText = formatStateSinceText(currentOptions.sinceMs);
         setRuntimeActionText(since, sinceText);
         since.hidden = !sinceText;
+        const controlText = actuatorControlLabel(currentOptions.control, false);
+        setRuntimeActionText(controlStatus, controlText);
+        controlStatus.hidden = !controlText;
       } };
       dashboardDualStateTileViews.set(tile, view);
       view.update(label, value, currentOptions);
@@ -7893,10 +8140,14 @@
         since.textContent = sinceText;
         tile.appendChild(since);
       }
+      if (typeof opts.onOpen === 'function') {
+        tile.classList.add('has-management-action');
+        tile.appendChild(buildDashboardManagementButton(opts.onOpen, (opts.openLabel || label) + ' — ' + label));
+      }
       return tile;
     }
 
-    function buildRuntimeAlarmGrid(entries, valueById) {
+    function buildRuntimeAlarmGrid(entries, valueById, management = {}) {
       const columnsByRole = new Map();
       const flagDefs = mergeRuntimeAlarmFlags(entries);
 
@@ -7922,6 +8173,7 @@
         const latchValue = activeMaskValue === null ? null : ((activeMaskValue & flag.mask) !== 0);
         const conditionValue = conditionMaskValue === null ? null : ((conditionMaskValue & flag.mask) !== 0);
         const tile = buildDashboardAlarmTile({
+          ...management,
           label: flag.label,
           conditionValue: conditionValue,
           latchValue: latchValue
@@ -7932,7 +8184,7 @@
       return grid;
     }
 
-    function buildPoolAlarmSlotsGrid(slots) {
+    function buildPoolAlarmSlotsGrid(slots, management = {}) {
       const cleanSlots = Array(8).fill(null);
       if (Array.isArray(slots)) {
         slots.forEach((slot) => {
@@ -7952,6 +8204,7 @@
         const latchValue = enabled && slot.available ? !!slot.latched : null;
         const conditionValue = enabled && slot.available && slot.conditionKnown ? !!slot.conditionTrue : null;
         const tile = buildDashboardAlarmTile({
+          ...management,
           label: slot && slot.label ? slot.label : tr('dashboard.alarm.default', 'Alarme'),
           conditionValue: conditionValue,
           latchValue: latchValue,
@@ -8091,7 +8344,16 @@
         const isPoolEquipmentGroup = cleanGroupDomain === 'equipements' || cleanGroupDomain === 'equipment';
         const isPoolSondesGroup = isPoolSondesGroupKey(group.domainKey, group.groupKey);
         const isPoolAlarmGroup = cleanGroupDomain === 'alarm';
+        const managementLayout = isPoolEquipmentGroup ? 'equipment-management' : isPoolAlarmGroup ? 'alarm-management' : null;
+        const managementEntry = managementLayout && (entries || []).find((entry) =>
+          runtimeMeasureDisplayConfig(entry).actionDialog?.layout === managementLayout);
+        const managementConfig = managementEntry && runtimeMeasureDisplayConfig(managementEntry).actionDialog;
+        const management = managementConfig ? {
+          onOpen: (trigger) => openRuntimeActionDialog(managementEntry, managementConfig, trigger),
+          openLabel: managementConfig.buttonText
+        } : {};
         const groupDisplayOptions = {
+          ...management,
           displayLabelResolver: (entry) => runtimeMeasureDisplayLabel(entry),
           booleanTexts: isPoolEquipmentGroup
             ? {
@@ -8109,7 +8371,7 @@
           return;
         }
         if (isPoolAlarmGroup && alarmSlots.length) {
-          card.appendChild(buildPoolAlarmSlotsGrid(alarmSlots));
+          card.appendChild(buildPoolAlarmSlotsGrid(alarmSlots, management));
           appendRuntimeCardActions(card, group.entries);
           fragment.appendChild(card);
           return;
@@ -8176,8 +8438,8 @@
         if (flagEntries.length) {
           if (isRuntimeAlarmGroup(group)) {
             const alarmGrid = alarmSlots.length
-              ? buildPoolAlarmSlotsGrid(alarmSlots)
-              : buildRuntimeAlarmGrid(flagEntries, valueById);
+              ? buildPoolAlarmSlotsGrid(alarmSlots, management)
+              : buildRuntimeAlarmGrid(flagEntries, valueById, management);
             if (alarmGrid) {
               card.appendChild(alarmGrid);
             } else {

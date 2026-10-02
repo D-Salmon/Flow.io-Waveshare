@@ -104,7 +104,7 @@ const char* PoolDeviceModule::blockReasonStr_(uint8_t reason)
 
 uint8_t PoolDeviceModule::runtimeSnapshotCount() const
 {
-    return (uint8_t)(activeCount_() * 2U);
+    return (uint8_t)(2U + activeCount_() * 2U);
 }
 
 bool PoolDeviceModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const
@@ -143,6 +143,8 @@ bool PoolDeviceModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& wr
 
 bool PoolDeviceModule::snapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& slotIdxOut, bool& metricsOut) const
 {
+    if (snapshotIdx < 2) return false;
+    snapshotIdx -= 2;
     if (!lockState_()) return false;
     uint8_t seen = 0;
     for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
@@ -202,6 +204,7 @@ bool PoolDeviceModule::buildStateSnapshot_(uint8_t slotIdx, char* out, size_t le
     doc["name"] = s.def.label;
     doc["enabled"] = entry.enabled;
     doc["desired"] = entry.desiredOn;
+    writeActuatorControlJson(doc, entry.control);
     doc["on"] = entry.actualOn;
     doc["block"] = blockReasonStr_(entry.blockReason);
     doc["interlock_state"] = static_cast<uint8_t>(entry.interlockState);
@@ -286,6 +289,7 @@ bool PoolDeviceModule::buildMetricsSnapshot_(uint8_t slotIdx, char* out, size_t 
 
 const char* PoolDeviceModule::runtimeSnapshotSuffix(uint8_t idx) const
 {
+    if (idx < 2) return idx == 0 ? "rt/pdm/override/selected" : "rt/pdm/override/all";
     uint8_t slotIdx = 0xFF;
     bool metrics = false;
     if (!snapshotRouteFromIndex_(idx, slotIdx, metrics)) return nullptr;
@@ -302,6 +306,7 @@ const char* PoolDeviceModule::runtimeSnapshotSuffix(uint8_t idx) const
 
 RuntimeRouteClass PoolDeviceModule::runtimeSnapshotClass(uint8_t idx) const
 {
+    if (idx < 2) return RuntimeRouteClass::ActuatorImmediate;
     uint8_t slotIdx = 0xFF;
     bool metrics = false;
     if (!snapshotRouteFromIndex_(idx, slotIdx, metrics)) {
@@ -315,6 +320,7 @@ RuntimeRouteClass PoolDeviceModule::runtimeSnapshotClass(uint8_t idx) const
 
 bool PoolDeviceModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 {
+    if (idx < 2) return key == DataKeys::PoolDeviceOverrides;
     uint8_t slotIdx = 0xFF;
     bool metrics = false;
     if (!snapshotRouteFromIndex_(idx, slotIdx, metrics)) return false;
@@ -328,6 +334,7 @@ bool PoolDeviceModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 
 bool PoolDeviceModule::buildRuntimeSnapshot(uint8_t idx, char* out, size_t len, uint32_t& maxTsOut) const
 {
+    if (idx < 2) return buildOverrideSnapshot_(idx == 1, out, len, maxTsOut);
     uint8_t slotIdx = 0xFF;
     bool metrics = false;
     if (!snapshotRouteFromIndex_(idx, slotIdx, metrics)) return false;
@@ -350,7 +357,8 @@ bool PoolDeviceModule::configureRuntime_()
         s.runtimePublishable = true;
         s.actualOn = s.desiredOn = false;
         s.interlockState = PoolInterlockState::Ready;
-        s.desired = {false, s.driverConfig.capabilities.startup};
+        s.desired = {s.overrideRestored && s.overrideBaseline, s.driverConfig.capabilities.startup};
+        s.desiredOn = s.desired.running;
         s.effective = s.desired;
         s.blockReason = s.driverReady ? POOL_DEVICE_BLOCK_NONE : POOL_DEVICE_BLOCK_UNBOUND;
 

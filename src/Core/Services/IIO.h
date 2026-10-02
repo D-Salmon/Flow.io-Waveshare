@@ -1,4 +1,5 @@
 #pragma once
+#include "ActuatorControlState.h"
 /**
  * @file IIO.h
  * @brief Unified I/O service interfaces.
@@ -234,4 +235,6 @@ struct IOServiceV2 {
     IoStatus (*writeAnalog)(void* ctx, IoId id, float value, uint32_t tsMs, uint8_t owner);
     /** Opaque implementation context. */
     void* ctx;
+    /** Publish the owning controller state without changing the physical output. */
+    IoStatus (*setOutputControlState)(void* ctx, IoId id, uint8_t owner, const ActuatorControlState* state) = nullptr;
 };

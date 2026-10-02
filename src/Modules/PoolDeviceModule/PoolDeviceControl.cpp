@@ -4,6 +4,7 @@
  */
 
 #include "PoolDeviceModule.h"
+#include <esp_timer.h>
 #include "Core/BufferUsageTracker.h"
 #include "Domain/Pool/PoolDeviceSlots.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
@@ -75,10 +76,12 @@ PoolDeviceSvcStatus PoolDeviceModule::svcMetaImpl_(uint8_t slot, PoolDeviceSvcMe
     outMeta->ioId = s.ioId;
     outMeta->capabilities = s.driverConfig.capabilities;
     outMeta->driverReady = s.driverReady;
+    outMeta->guidedOn = s.desiredOn;
     outMeta->outputCount = s.driverConfig.capabilities.kind == PoolControlKind::Rs485 ? 0 :
         (s.driverConfig.capabilities.kind == PoolControlKind::Discrete ? s.driverConfig.capabilities.stepCount : 1);
     for (uint8_t i = 0; i < outMeta->outputCount; ++i) outMeta->outputs[i] = s.driverConfig.outputs[i];
     outMeta->commandSlot = s.def.commandSlot;
+    outMeta->control = s.control;
     outMeta->flowLPerHour = s.def.flowLPerHour;
     strncpy(outMeta->runtimeId, s.id, sizeof(outMeta->runtimeId) - 1);
     outMeta->runtimeId[sizeof(outMeta->runtimeId) - 1] = '\0';
@@ -114,17 +117,26 @@ PoolDeviceSvcStatus PoolDeviceModule::svcReadActualOnImpl_(uint8_t slot, uint8_t
 }
 
 PoolDeviceSvcStatus PoolDeviceModule::svcSetRunningImpl_(uint8_t slot, uint8_t on)
+{ return setRunning_(slot, on, false); }
+
+PoolDeviceSvcStatus PoolDeviceModule::svcSetManualRunningImpl_(uint8_t slot, uint8_t on)
+{ return setRunning_(slot, on, true); }
+
+PoolDeviceSvcStatus PoolDeviceModule::setRunning_(uint8_t slot, uint8_t on, bool manual)
 {
     if (!lockState_()) return POOLDEV_SVC_ERR_NOT_READY;
     if (slot >= POOL_DEVICE_MAX || !slots_[slot].used) { unlockState_(); return POOLDEV_SVC_ERR_UNKNOWN_SLOT; }
     auto target = slots_[slot].desired;
     target.running = on != 0;
-    const auto result = svcSetTargetImpl_(slot, &target);
+    const auto result = setTarget_(slot, &target, manual);
     unlockState_();
     return result;
 }
 
 PoolDeviceSvcStatus PoolDeviceModule::svcSetTargetImpl_(uint8_t slot, const PoolDeviceTarget* target)
+{ return setTarget_(slot, target, false); }
+
+PoolDeviceSvcStatus PoolDeviceModule::setTarget_(uint8_t slot, const PoolDeviceTarget* target, bool manual)
 {
     if (!target) return POOLDEV_SVC_ERR_INVALID_ARG;
     if (!lockState_()) return POOLDEV_SVC_ERR_NOT_READY;
@@ -141,6 +153,10 @@ PoolDeviceSvcStatus PoolDeviceModule::svcSetTargetImpl_(uint8_t slot, const Pool
             tickDevices_(millis(), false);
             return finish(POOLDEV_SVC_ERR_INTERLOCK);
         }
+    }
+    if (manual && !s.overrideTimer.cancel(ActuatorOverrideReason::Released)) {
+        tickDevices_(millis(), false);
+        return finish(POOLDEV_SVC_ERR_IO);
     }
     s.interlockState = PoolInterlockState::Ready;
     s.desired = *target;
@@ -594,7 +610,8 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
         const auto previous = s.feedback;
         const bool dependenciesReady = dependenciesSatisfied_(i);
         s.interlockState = updatePoolInterlockState(s.interlockState, dependenciesReady,
-                                                    s.desiredOn || s.effective.running || s.actualOn);
+                                                    s.desiredOn || s.effective.running || s.actualOn ||
+                                                    (s.overrideTimer.active() && s.overrideTimer.state(0).value));
         s.blockReason = !s.def.enabled ? POOL_DEVICE_BLOCK_DISABLED :
             !s.driverReady ? POOL_DEVICE_BLOCK_UNBOUND :
             maxUptimeReached_(s) ? POOL_DEVICE_BLOCK_MAX_UPTIME :
@@ -602,7 +619,9 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
         if (s.blockReason != POOL_DEVICE_BLOCK_NONE || s.feedback.error ||
             s.feedback.quality == PoolFeedbackQuality::Stale) s.desiredOn = s.desired.running = false;
         PoolDeviceTarget effective = s.desired;
-        effective.running = s.desiredOn && dependenciesReady && s.blockReason == POOL_DEVICE_BLOCK_NONE;
+        const bool safe = dependenciesReady && s.blockReason == POOL_DEVICE_BLOCK_NONE &&
+            !s.feedback.error && s.feedback.quality != PoolFeedbackQuality::Stale;
+        effective.running = resolveOverride_(i, safe, uint64_t(esp_timer_get_time()) / 1000) && safe;
         if (s.driverReady) {
             if (!s.revision || effective.running != s.effective.running || effective.setpoint != s.effective.setpoint) {
                 s.effective = effective;
@@ -614,6 +633,7 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
             if (s.feedback.error) s.blockReason = POOL_DEVICE_BLOCK_IO_ERROR;
         }
         s.actualOn = s.feedback.observedValid && s.feedback.observed.running;
+        if (s.actualOn != wasActualOn && dataStore_) dataStore_->notifyChanged(DataKeys::PoolDeviceOverrides);
         if (s.actualOn != wasActualOn || s.actualOnSinceMs == 0U) {
             s.actualOnSinceMs = nowMs;
         }
@@ -655,7 +675,15 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
         if (dataStore_) {
             PoolDeviceRuntimeStateEntry prevState{};
             if (poolDeviceRuntimeState(*dataStore_, i, prevState) && prevState.valid) {
-                if ((prevState.enabled != s.def.enabled) ||
+                if ((prevState.control.mode != s.control.mode) ||
+                    (prevState.control.available != s.control.available) ||
+                    (prevState.control.automatic != s.control.automatic) ||
+                    (prevState.control.supported != s.control.supported) ||
+                    (prevState.control.reason != s.control.reason) ||
+                    (prevState.control.value != s.control.value) ||
+                    (prevState.control.endsAtUtc != s.control.endsAtUtc) ||
+                    (prevState.control.remainingSec != s.control.remainingSec) ||
+                    (prevState.enabled != s.def.enabled) ||
                     (prevState.desiredOn != s.desiredOn) ||
                     (prevState.actualOn != s.actualOn) ||
                     (prevState.type != s.def.type) ||
@@ -680,6 +708,7 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
         if (dataStore_) {
             PoolDeviceRuntimeStateEntry rtState{};
             rtState.valid = true;
+            rtState.control = s.control;
             rtState.enabled = s.def.enabled;
             rtState.desiredOn = s.desiredOn;
             rtState.actualOn = s.actualOn;

@@ -262,6 +262,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::PoolLogic;
     cfgStore_ = &cfg;
+    overrideMutex_ = xSemaphoreCreateRecursiveMutexStatic(&overrideMutexStorage_);
     mqttSvc_ = services.get<MqttService>(ServiceId::Mqtt);
 
     // Runtime moduleName reassignment keeps the config tree grouped by branch
@@ -1050,6 +1051,11 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc->addButton(haSvc->ctx, &filtrationRecalc);
     }
     if (cmdSvc && cmdSvc->registerHandler) {
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.override.duration.set", &PoolLogicModule::cmdOverrideDuration_, this);
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.device.override", &PoolLogicModule::cmdOverride_, this);
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.device.override_on", &PoolLogicModule::cmdOverrideOn_, this);
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.device.override_off", &PoolLogicModule::cmdOverrideOff_, this);
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.device.release", &PoolLogicModule::cmdRelease_, this);
         cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.device.write", &PoolLogicModule::cmdDeviceWriteStatic_, this);
         cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.filtration.write", &PoolLogicModule::cmdFiltrationWriteStatic_, this);
         cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.filtration.recalc", &PoolLogicModule::cmdFiltrationRecalcStatic_, this);
@@ -1277,6 +1283,7 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
          swgControlModeStr_(swgControlMode_));
     normalizeDeviceSlots_();
     logDeviceSlotConfig_();
+    resetOverridePolicies_();
 
     ensureDailySlot_();
 
@@ -1341,8 +1348,8 @@ void PoolLogicModule::loop()
 {
     const uint32_t nowMs = millis();
     emitStartupActivityIfReady_(nowMs);
-
     if (!enabled_) {
+        resetOverridePolicies_();
         if (!bootControlReady_) {
             if (setPoolDeviceWritesEnabled_(true)) {
                 bootControlReady_ = true;
@@ -1383,7 +1390,10 @@ void PoolLogicModule::loop()
         return;
     }
 
-    runControlLoop_(nowMs);
+    {
+        OverrideLock lock(overrideMutex_);
+        runControlLoop_(nowMs);
+    }
     vTaskDelay(pdMS_TO_TICKS(200));
 }
 

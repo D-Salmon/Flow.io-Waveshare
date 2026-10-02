@@ -1,0 +1,505 @@
+---
+title: Filtration
+path: filtration
+icon: mdi:pump
+type: sections
+max_columns: 2
+sections:
+- type: grid
+  cards:
+  - type: heading
+    heading: Modes
+    heading_style: title
+  - type: entities
+    show_header_toggle: false
+    state_color: true
+    entities:
+    - entity: switch.fio_pl_modes_auto
+      name: Régulation automatique
+      icon: mdi:autorenew
+    - entity: switch.fio_pl_modes_winter
+      name: Mode hivernage
+      icon: mdi:snowflake
+    card_mod:
+      style: |
+        ha-card {
+          background: #FFFFFF;
+          color: #1C1C1E;
+          border: 1px solid #E3E3E8;
+          border-radius: 22px;
+          box-shadow: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          --primary-text-color: #1C1C1E;
+          --secondary-text-color: #8A8F99;
+          --paper-item-icon-color: #8A8F99;
+          --primary-color: #168AFF;
+          --state-switch-active-color: #168AFF;
+        }
+        #states { padding: 8px 16px; }
+        #states > div { margin: 0; padding: 12px 0; }
+        #states > div + div { border-top: 1px solid #F0F0F3; }
+        .card-header { font-size: 18px; font-weight: 650; padding-bottom: 4px; }
+    grid_options:
+      columns: 12
+      rows: auto
+- type: grid
+  cards:
+  - type: heading
+    heading: Fenêtre calculée
+    heading_style: title
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+    - type: custom:mushroom-legacy-template-card
+      entity: sensor.fio_pl_flt_start
+      primary: Démarrage calculé
+      secondary: "{% if has_value('sensor.fio_pl_flt_start') and is_number(states('sensor.fio_pl_flt_start'))
+        %}{{ '%02d:%02d' | format((states('sensor.fio_pl_flt_start') | float * 60)
+        | round | int // 60, (states('sensor.fio_pl_flt_start') | float * 60) | round
+        | int % 60) }}{% else %}Indisponible{% endif %}"
+      multiline_secondary: true
+      icon: mdi:clock-outline
+      icon_color: green
+      tap_action:
+        action: more-info
+      card_mod:
+        style: |
+          ha-card {
+            background: #FFFFFF;
+            color: #1C1C1E;
+            border: 1px solid #E3E3E8;
+            border-radius: 22px;
+            box-shadow: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --primary-text-color: #1C1C1E;
+            --secondary-text-color: #8A8F99;
+            --paper-item-icon-color: #8A8F99;
+            --primary-color: #168AFF;
+            --state-switch-active-color: #168AFF;
+          }
+          ha-card {
+            background: #F2F2F5;
+            border: none;
+            border-radius: 16px;
+            padding: 8px 2px;
+            --card-primary-font-size: 13px;
+            --card-primary-color: #8A8F99;
+            --card-primary-font-weight: 500;
+            --card-secondary-font-size: 22px;
+            --card-secondary-font-weight: 650;
+            --card-secondary-color: #1C1C1E;
+            --card-secondary-line-height: 1.4;
+          }
+    - type: custom:mushroom-legacy-template-card
+      entity: sensor.fio_pl_flt_stop
+      primary: Arrêt calculé
+      secondary: "{% if has_value('sensor.fio_pl_flt_stop') and is_number(states('sensor.fio_pl_flt_stop'))
+        %}{{ '%02d:%02d' | format((states('sensor.fio_pl_flt_stop') | float * 60)
+        | round | int // 60, (states('sensor.fio_pl_flt_stop') | float * 60) | round
+        | int % 60) }}{% else %}Indisponible{% endif %}"
+      multiline_secondary: true
+      icon: mdi:clock-outline
+      icon_color: green
+      tap_action:
+        action: more-info
+      card_mod:
+        style: |
+          ha-card {
+            background: #FFFFFF;
+            color: #1C1C1E;
+            border: 1px solid #E3E3E8;
+            border-radius: 22px;
+            box-shadow: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --primary-text-color: #1C1C1E;
+            --secondary-text-color: #8A8F99;
+            --paper-item-icon-color: #8A8F99;
+            --primary-color: #168AFF;
+            --state-switch-active-color: #168AFF;
+          }
+          ha-card {
+            background: #F2F2F5;
+            border: none;
+            border-radius: 16px;
+            padding: 8px 2px;
+            --card-primary-font-size: 13px;
+            --card-primary-color: #8A8F99;
+            --card-primary-font-weight: 500;
+            --card-secondary-font-size: 22px;
+            --card-secondary-font-weight: 650;
+            --card-secondary-color: #1C1C1E;
+            --card-secondary-line-height: 1.4;
+          }
+    grid_options:
+      columns: 12
+      rows: auto
+- type: grid
+  cards:
+  - type: heading
+    heading: Règles de calcul
+    heading_style: title
+  - type: entities
+    show_header_toggle: false
+    state_color: true
+    entities:
+    - entity: number.fio_pl_wat_temp_sp
+      name: Température de consigne
+      icon: mdi:thermometer
+      type: simple-entity
+      tap_action:
+        action: more-info
+    - entity: number.fio_pl_flt_start_min
+      name: Démarrage au plus tôt
+      icon: mdi:clock-outline
+      type: simple-entity
+      tap_action:
+        action: more-info
+    - entity: number.fio_pl_flt_stop_max
+      name: Arrêt au plus tard
+      icon: mdi:clock-outline
+      type: simple-entity
+      tap_action:
+        action: more-info
+    - entity: button.fio_pl_flt_recalc
+      name: Recalculer la fenêtre
+      icon: mdi:autorenew
+    card_mod:
+      style: |
+        ha-card {
+          background: #FFFFFF;
+          color: #1C1C1E;
+          border: 1px solid #E3E3E8;
+          border-radius: 22px;
+          box-shadow: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          --primary-text-color: #1C1C1E;
+          --secondary-text-color: #8A8F99;
+          --paper-item-icon-color: #8A8F99;
+          --primary-color: #168AFF;
+          --state-switch-active-color: #168AFF;
+        }
+        #states { padding: 8px 16px; }
+        #states > div { margin: 0; padding: 12px 0; }
+        #states > div + div { border-top: 1px solid #F0F0F3; }
+        .card-header { font-size: 18px; font-weight: 650; padding-bottom: 4px; }
+    grid_options:
+      columns: 12
+      rows: auto
+- type: grid
+  cards:
+  - type: heading
+    heading: Pompe de filtration
+    heading_style: title
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+    - type: entities
+      show_header_toggle: false
+      state_color: true
+      entities:
+      - entity: switch.fio_io_flt_pmp
+        name: Filtration
+        icon: mdi:pool
+      card_mod:
+        style: |
+          ha-card {
+            background: #FFFFFF;
+            color: #1C1C1E;
+            border: 1px solid #E3E3E8;
+            border-radius: 22px;
+            box-shadow: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --primary-text-color: #1C1C1E;
+            --secondary-text-color: #8A8F99;
+            --paper-item-icon-color: #8A8F99;
+            --primary-color: #168AFF;
+            --state-switch-active-color: #168AFF;
+          }
+          #states { padding: 8px 16px; }
+          #states > div { margin: 0; padding: 12px 0; }
+          #states > div + div { border-top: 1px solid #F0F0F3; }
+          .card-header { font-size: 18px; font-weight: 650; padding-bottom: 4px; }
+    - type: custom:mushroom-legacy-template-card
+      entity: sensor.fio_pd_flt_upt_mn
+      primary: Fonctionnement aujourd’hui
+      secondary: "{% if has_value('sensor.fio_pd_flt_upt_mn') and is_number(states('sensor.fio_pd_flt_upt_mn'))
+        %}{% set m = states('sensor.fio_pd_flt_upt_mn') | float  %}{{ (m / 1440) |
+        round(1) ~ ' j' if m >= 1440 else (m / 60) | round(1) ~ ' h' if m >= 60 else
+        m | round(0) | int ~ ' min' }}{% else %}Indisponible{% endif %}"
+      multiline_secondary: true
+      icon: mdi:timer-outline
+      icon_color: blue
+      tap_action:
+        action: more-info
+      card_mod:
+        style: |
+          ha-card {
+            background: #FFFFFF;
+            color: #1C1C1E;
+            border: 1px solid #E3E3E8;
+            border-radius: 22px;
+            box-shadow: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --primary-text-color: #1C1C1E;
+            --secondary-text-color: #8A8F99;
+            --paper-item-icon-color: #8A8F99;
+            --primary-color: #168AFF;
+            --state-switch-active-color: #168AFF;
+          }
+          ha-card {
+            background: #F2F2F5;
+            border: none;
+            border-radius: 16px;
+            padding: 8px 2px;
+            --card-primary-font-size: 13px;
+            --card-primary-color: #8A8F99;
+            --card-primary-font-weight: 500;
+            --card-secondary-font-size: 22px;
+            --card-secondary-font-weight: 650;
+            --card-secondary-color: #1C1C1E;
+            --card-secondary-line-height: 1.4;
+          }
+    - type: custom:mushroom-legacy-template-card
+      entity: number.fio_pd0_flow
+      primary: Débit
+      secondary: "{% if has_value('number.fio_pd0_flow') %}{{ states('number.fio_pd0_flow')
+        }} {{ state_attr('number.fio_pd0_flow', 'unit_of_measurement') or '' }}{%
+        else %}Indisponible{% endif %}"
+      multiline_secondary: true
+      icon: mdi:water-outline
+      icon_color: grey
+      tap_action:
+        action: more-info
+      card_mod:
+        style: |
+          ha-card {
+            background: #FFFFFF;
+            color: #1C1C1E;
+            border: 1px solid #E3E3E8;
+            border-radius: 22px;
+            box-shadow: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --primary-text-color: #1C1C1E;
+            --secondary-text-color: #8A8F99;
+            --paper-item-icon-color: #8A8F99;
+            --primary-color: #168AFF;
+            --state-switch-active-color: #168AFF;
+          }
+          ha-card {
+            background: #F2F2F5;
+            border: none;
+            border-radius: 16px;
+            padding: 8px 2px;
+            --card-primary-font-size: 13px;
+            --card-primary-color: #8A8F99;
+            --card-primary-font-weight: 500;
+            --card-secondary-font-size: 22px;
+            --card-secondary-font-weight: 650;
+            --card-secondary-color: #1C1C1E;
+            --card-secondary-line-height: 1.4;
+          }
+    - type: custom:mushroom-legacy-template-card
+      entity: number.fio_pd0_max_upt
+      primary: Temps max / jour
+      secondary: "{% if has_value('number.fio_pd0_max_upt') %}{{ states('number.fio_pd0_max_upt')
+        }} {{ state_attr('number.fio_pd0_max_upt', 'unit_of_measurement') or '' }}{%
+        else %}Indisponible{% endif %}"
+      multiline_secondary: true
+      icon: mdi:timer-outline
+      icon_color: grey
+      tap_action:
+        action: more-info
+      card_mod:
+        style: |
+          ha-card {
+            background: #FFFFFF;
+            color: #1C1C1E;
+            border: 1px solid #E3E3E8;
+            border-radius: 22px;
+            box-shadow: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --primary-text-color: #1C1C1E;
+            --secondary-text-color: #8A8F99;
+            --paper-item-icon-color: #8A8F99;
+            --primary-color: #168AFF;
+            --state-switch-active-color: #168AFF;
+          }
+          ha-card {
+            background: #F2F2F5;
+            border: none;
+            border-radius: 16px;
+            padding: 8px 2px;
+            --card-primary-font-size: 13px;
+            --card-primary-color: #8A8F99;
+            --card-primary-font-weight: 500;
+            --card-secondary-font-size: 22px;
+            --card-secondary-font-weight: 650;
+            --card-secondary-color: #1C1C1E;
+            --card-secondary-line-height: 1.4;
+          }
+    grid_options:
+      columns: 12
+      rows: auto
+- type: grid
+  cards:
+  - type: entities
+    show_header_toggle: false
+    state_color: true
+    entities:
+    - type: custom:fold-entity-row
+      open: false
+      head:
+        entity: sensor.fio_pdm_ovr_active
+        name: Équipements · Forçages temporaires
+        icon: mdi:hand-back-right-outline
+        tap_action:
+          action: fire-dom-event
+          fold_row: true
+      entities:
+      - entity: select.fio_pdm_ovr_target
+        name: Équipement
+      - entity: sensor.fio_pdm_ovr_state
+        name: État du forçage sélectionné
+      - type: attribute
+        entity: sensor.fio_pdm_ovr_state
+        attribute: actual_on
+        name: Marche réelle
+      - type: attribute
+        entity: sensor.fio_pdm_ovr_state
+        attribute: override_remaining_s
+        name: Temps restant (s)
+      - entity: number.fio_pdm_ovr_min
+        name: Durée du prochain forçage
+      - entity: button.fio_pdm_ovr_on
+        name: Forcer la marche
+      - entity: button.fio_pdm_ovr_off
+        name: Forcer l’arrêt
+      - entity: button.fio_pdm_ovr_release
+        name: Terminer le forçage
+    card_mod:
+      style: |
+        {% set status = namespace(forced=false) %}
+        {% set devices = state_attr('sensor.fio_pdm_ovr_active', 'actuators') or {} %}
+        {% if has_value('sensor.fio_pdm_ovr_active') %}
+          {% for id, device in devices.items() %}
+            {% if device.control_mode == 'forced' %}{% set status.forced = true %}{% endif %}
+          {% endfor %}
+        {% endif %}
+        ha-card {
+          background: {{ '#FFF2F2' if status.forced else 'var(--ha-card-background, var(--card-background-color))' }};
+          border-radius: 22px;
+          box-shadow: none;
+        }
+    grid_options:
+      columns: 12
+      rows: auto
+- type: grid
+  cards:
+  - type: heading
+    heading: Températures
+    heading_style: title
+  - type: custom:mini-graph-card
+    name: Eau / Air · 24 h
+    hours_to_show: 24
+    points_per_hour: 2
+    line_width: 2
+    height: 140
+    font_size: 90
+    show:
+      labels: true
+      legend: false
+      fill: fade
+      extrema: false
+    entities:
+    - entity: sensor.fio_io_wat_tmp
+      name: Eau
+      color: "#0A84FF"
+    - entity: sensor.fio_io_air_tmp
+      name: Air
+      color: "#FF9500"
+    card_mod:
+      style: |
+        ha-card {
+          background: #FFFFFF;
+          color: #1C1C1E;
+          border: 1px solid #E3E3E8;
+          border-radius: 22px;
+          box-shadow: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          --primary-text-color: #1C1C1E;
+          --secondary-text-color: #8A8F99;
+          --paper-item-icon-color: #8A8F99;
+          --primary-color: #168AFF;
+          --state-switch-active-color: #168AFF;
+        }
+    grid_options:
+      columns: 12
+      rows: auto
+  - type: history-graph
+    title: Eau / consigne · 24 h
+    hours_to_show: 24
+    entities:
+    - entity: sensor.fio_io_wat_tmp
+      name: Eau
+    - entity: number.fio_pl_wat_temp_sp
+      name: Consigne
+    card_mod:
+      style: |
+        ha-card {
+          background: #FFFFFF;
+          color: #1C1C1E;
+          border: 1px solid #E3E3E8;
+          border-radius: 22px;
+          box-shadow: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          --primary-text-color: #1C1C1E;
+          --secondary-text-color: #8A8F99;
+          --paper-item-icon-color: #8A8F99;
+          --primary-color: #168AFF;
+          --state-switch-active-color: #168AFF;
+        }
+    grid_options:
+      columns: 12
+      rows: auto
+- type: grid
+  cards:
+  - type: heading
+    heading: Informations complémentaires
+    heading_style: title
+  - type: entities
+    show_header_toggle: false
+    state_color: true
+    entities:
+    - entity: number.fio_pl_reg_dly_pid
+      name: Délai avant régulation
+      icon: mdi:timer-outline
+      type: simple-entity
+      tap_action:
+        action: more-info
+    - entity: sensor.fio_pl_has_rsn
+      name: Raison du chauffage
+      icon: mdi:chip
+    card_mod:
+      style: |
+        ha-card {
+          background: #FFFFFF;
+          color: #1C1C1E;
+          border: 1px solid #E3E3E8;
+          border-radius: 22px;
+          box-shadow: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          --primary-text-color: #1C1C1E;
+          --secondary-text-color: #8A8F99;
+          --paper-item-icon-color: #8A8F99;
+          --primary-color: #168AFF;
+          --state-switch-active-color: #168AFF;
+        }
+        #states { padding: 8px 16px; }
+        #states > div { margin: 0; padding: 12px 0; }
+        #states > div + div { border-top: 1px solid #F0F0F3; }
+        .card-header { font-size: 18px; font-weight: 650; padding-bottom: 4px; }
+    grid_options:
+      columns: 12
+      rows: auto

@@ -7,7 +7,10 @@
 #include "Core/Services/PoolInterlockState.h"
 #include "IIO.h"
 #include "PoolActuatorTypes.h"
+#include "ActuatorControlState.h"
 #include "Domain/DomainTypes.h"
+
+struct CommandRequest;
 
 /** Result code for PoolDeviceService calls. */
 enum PoolDeviceSvcStatus : uint8_t {
@@ -33,6 +36,7 @@ struct PoolDeviceSvcMeta {
     IoId ioId = IO_ID_INVALID;
     PoolDeviceCapabilities capabilities{};
     bool driverReady = false;
+    bool guidedOn = false;
     uint8_t outputCount = 0;
     IoId outputs[POOL_MAX_SPEED_STEPS]{};
     /** Domain actuator associated with this equipment, used for presentation. */
@@ -40,6 +44,7 @@ struct PoolDeviceSvcMeta {
     char runtimeId[8] = {0};
     char label[24] = {0};
     /** Configured nominal device flow, in litres per hour; zero means unknown. */
+    ActuatorControlState control{};
     float flowLPerHour = 0.0f;
 };
 
@@ -63,4 +68,12 @@ struct PoolDeviceService {
     PoolDeviceSvcStatus (*readState)(void* ctx, uint8_t slot, PoolDeviceFeedback* state);
     /** Opaque implementation context. */
     void* ctx;
+    /** Replace the controller safety policy atomically; unspecified slots use default policy. */
+    PoolDeviceSvcStatus (*setOverridePolicies)(void* ctx, const ActuatorOverridePolicy* policies, uint8_t count) = nullptr;
+    PoolDeviceSvcStatus (*releaseOverride)(void* ctx, uint8_t slot, ActuatorOverrideReason reason) = nullptr;
+    /** Compatibility adapters forward a command without duplicating lease ownership. */
+    bool (*overrideCommand)(void* ctx, const CommandRequest& request, char* reply, size_t length, ActuatorOverrideCommand action) = nullptr;
+    uint16_t (*overrideDuration)(void* ctx) = nullptr;
+    /** Apply an unlimited manual target and release its lease in one transaction. */
+    PoolDeviceSvcStatus (*setManualRunning)(void* ctx, uint8_t slot, uint8_t on) = nullptr;
 };

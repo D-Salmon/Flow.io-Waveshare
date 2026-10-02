@@ -22,6 +22,8 @@
 #include <freertos/semphr.h>
 #include "Drivers/PoolDeviceDriver.h"
 #include "Drivers/PoolDriverConfig.h"
+#include "Core/Control/TimedActuatorOverride.h"
+#include "Core/Control/ActuatorOverrideDuration.h"
 
 enum PoolDeviceType : uint8_t {
     POOL_DEVICE_FILTRATION = 0,
@@ -123,6 +125,15 @@ private:
         PoolDeviceTarget effective{};
         PoolDeviceFeedback feedback{};
         uint32_t revision = 0;
+        ActuatorControlState control{};
+        ActuatorOverridePolicy overridePolicy{};
+        TimedActuatorOverride overrideTimer;
+        PoolDeviceModule* owner = nullptr;
+        char overrideKey[16]{};
+        bool overrideBaseline = false;
+        bool overrideRestored = false;
+        uint64_t overrideRetryMs = 0;
+        char overrideOption[48]{};
         bool desiredOn = false;
         bool actualOn = false;
         PoolInterlockState interlockState = PoolInterlockState::Ready;
@@ -167,7 +178,34 @@ private:
     uint8_t activeCount_() const;
     PoolDeviceSvcStatus svcMetaImpl_(uint8_t slot, PoolDeviceSvcMeta* outMeta) const;
     PoolDeviceSvcStatus svcReadActualOnImpl_(uint8_t slot, uint8_t* outOn, uint32_t* outTsMs) const;
+    PoolDeviceSvcStatus svcSetOverridePoliciesImpl_(const ActuatorOverridePolicy* policies, uint8_t count);
+    PoolDeviceSvcStatus svcReleaseOverrideImpl_(uint8_t slot, ActuatorOverrideReason reason);
+    bool svcOverrideCommandImpl_(const CommandRequest&, char*, size_t, ActuatorOverrideCommand action);
+    uint16_t svcOverrideDurationImpl_() const;
+    void restoreOverrides_();
+    void registerOverrideHa_();
+    bool overrideSupported_(uint8_t slot) const;
+    uint32_t overrideBinding_(uint8_t slot) const;
+    bool overrideDependenciesSatisfied_(uint8_t slot) const;
+    uint64_t overrideUtc_() const;
+    bool resolveOverride_(uint8_t slot, bool safe, uint64_t now);
+    static bool saveOverride_(void*, const uint8_t*, size_t);
+    static bool saveOverrideDuration_(void*, const uint8_t*, size_t);
+    static bool cmdOverride_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideOn_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideOff_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideRelease_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideDuration_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideSelect_(void*, const CommandRequest&, char*, size_t);
+    bool buildOverrideSnapshot_(bool all, char*, size_t, uint32_t&) const;
+    ActuatorOverrideDuration overrideDuration_;
+    uint8_t overrideSelection_ = 0xFF;
+    uint32_t overridePublishMs_ = 0;
+    char overrideOptions_[1024]{};
     PoolDeviceSvcStatus svcSetRunningImpl_(uint8_t slot, uint8_t on);
+    PoolDeviceSvcStatus svcSetManualRunningImpl_(uint8_t slot, uint8_t on);
+    PoolDeviceSvcStatus setRunning_(uint8_t slot, uint8_t on, bool manual);
+    PoolDeviceSvcStatus setTarget_(uint8_t slot, const PoolDeviceTarget* target, bool manual);
     PoolDeviceSvcStatus svcSetWritesEnabledImpl_(uint8_t enabled);
     uint8_t svcWritesEnabledImpl_() const;
     PoolDeviceSvcStatus svcRefillTankImpl_(uint8_t slot, float remainingMl);
@@ -266,7 +304,12 @@ private:
         ServiceBinding::bind<&PoolDeviceModule::svcRefillTankImpl_>,
         ServiceBinding::bind<&PoolDeviceModule::svcSetTargetImpl_>,
         ServiceBinding::bind<&PoolDeviceModule::svcReadStateImpl_>,
-        this
+        this,
+        ServiceBinding::bind<&PoolDeviceModule::svcSetOverridePoliciesImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcReleaseOverrideImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcOverrideCommandImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcOverrideDurationImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcSetManualRunningImpl_>
     };
     DomainStatusServiceProvider domainStatusProvider_{};
     EventBus* eventBus_ = nullptr;

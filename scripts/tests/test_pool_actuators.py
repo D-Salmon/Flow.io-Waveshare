@@ -19,6 +19,13 @@ class PoolActuatorTests(unittest.TestCase):
                 result = subprocess.run(invocation, cwd=ROOT, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_override_discovery_and_duration(self):
+        self.compile_and_run("override_discovery.cpp", [],
+            [ROOT / ".pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src"])
+
+    def test_durable_timed_override(self):
+        self.compile_and_run("timed_actuator_override.cpp", [])
+
     def test_interlock_availability_and_diagnostics(self):
         self.compile_and_run("pool_interlock.cpp", [])
 

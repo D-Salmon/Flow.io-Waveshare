@@ -274,6 +274,12 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
 
     if (cmdSvc_ && cmdSvc_->registerHandler) {
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override", cmdOverride_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override_on", cmdOverrideOn_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override_off", cmdOverrideOff_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.release", cmdOverrideRelease_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override.duration.set", cmdOverrideDuration_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override.select", cmdOverrideSelect_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.setpoint", cmdPoolSetpoint_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.write", cmdPoolWrite_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.refill", cmdPoolRefill_, this);
@@ -581,6 +587,8 @@ void PoolDeviceModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
                                      runtimePersistBuf_[i]);
         }
     }
+    restoreOverrides_();
+    registerOverrideHa_();
     requestPeriodReconcile_();
 }
 

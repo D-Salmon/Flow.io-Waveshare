@@ -647,6 +647,7 @@ static const char* activityActorKindName_(uint8_t kind)
     switch ((ActorKind)kind) {
         case ActorKind::System: return "system";
         case ActorKind::User: return "user";
+        case ActorKind::Remote: return "remote";
         default: return "system";
     }
 }
@@ -2052,7 +2053,8 @@ void printRuntimeBoolWithSince_(Print& out,
                                 const char* key,
                                 bool value,
                                 bool hasSince,
-                                uint32_t sinceMs)
+                                uint32_t sinceMs,
+                                const ActuatorControlState* control = nullptr)
 {
     printRuntimeValuePrefix_(out, firstValue, id, key, "bool", nullptr);
     out.print(",\"value\":");
@@ -2060,6 +2062,12 @@ void printRuntimeBoolWithSince_(Print& out,
     if (hasSince) {
         out.print(",\"since_ms\":");
         out.print((unsigned long)sinceMs);
+    }
+    if (control) {
+        out.print(",\"control\":");
+        StaticJsonDocument<512> doc;
+        writeActuatorControlJson(doc, *control);
+        serializeJson(doc, out);
     }
     out.print('}');
 }
@@ -2355,7 +2363,7 @@ bool appendWaveshareLocalRuntimeValue_(Print& out,
                 wavesharePrintUnavailableByManifestType_(out, firstValue, id);
             } else {
                 const uint32_t sinceMs = (uint32_t)(millis() - state.actualOnSinceMs);
-                printRuntimeBoolWithSince_(out, firstValue, id, key, state.actualOn, true, sinceMs);
+                printRuntimeBoolWithSince_(out, firstValue, id, key, state.actualOn, true, sinceMs, &state.control);
             }
             return true;
         }
@@ -3630,6 +3638,10 @@ void wavesharePrintPoolDeviceJson_(Print& response, const WaveshareIoSummaryStat
     response.print(static_cast<unsigned>(state.poolMeta.blockReason));
     response.print(",\"block_reason\":");
     printJsonEscaped_(response, wavesharePoolDeviceBlockReasonLabel_(state.poolMeta.blockReason));
+    response.print(",\"control\":");
+    StaticJsonDocument<512> control;
+    writeActuatorControlJson(control, state.poolMeta.control);
+    serializeJson(control, response);
     response.print("}");
 }
 
@@ -7539,6 +7551,7 @@ void WebInterfaceModule::startServer_()
             if (idx) response->print(',');
             deviceDoc.clear();
             deviceDoc["value"] = devices[idx].slot;
+            writeActuatorControlJson(deviceDoc, devices[idx].control);
             deviceDoc["name"] = devices[idx].label[0] ? devices[idx].label : devices[idx].runtimeId;
             deviceDoc["deviceId"] = devices[idx].runtimeId;
             deviceDoc["domainSlot"] = devices[idx].commandSlot;

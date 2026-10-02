@@ -23,6 +23,8 @@ async function main() {
   assert(dashboardSwitchSource.includes('buildFlowSwitch('));
   assert(configSwitchSource.includes('buildFlowSwitch('));
 
+  const extraSource = sourceBetween('    function actuatorControlLabel(', '    async function executeRuntimeAction(')
+    + sourceBetween('    function decorateDashboardAlarmTile(', '    function buildRuntimeAlarmGrid(');
   const sharedSource = sourceBetween('    function setRuntimeActionText(', '    function buildRuntimeActionCell(');
   const sinceSource = sourceBetween('    function formatStateDurationMs(', '    function formatRuntimeDurationMs(');
   const browser = await chromium.launch({
@@ -33,11 +35,12 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 900, height: 520 } });
     await page.setContent('<html lang="fr"><body><main id="test-root"></main></body></html>');
     await page.addStyleTag({ content: fs.readFileSync(path.join(project, 'data/webinterface/app-core.css'), 'utf8') });
-    await page.evaluate(({ sharedSource, sinceSource, dashboardSwitchSource }) => {
+    await page.evaluate(({ sharedSource, sinceSource, dashboardSwitchSource, extraSource }) => {
       const script = document.createElement('script');
       script.textContent = `
         const dashboardDualStateTileViews = new WeakMap();
         function tr(_key, fallback) { return fallback; }
+        ${extraSource}
         ${sharedSource}
         ${sinceSource}
         ${dashboardSwitchSource}
@@ -60,7 +63,7 @@ async function main() {
         root.appendChild(window.configSwitch.element);
       `;
       document.body.appendChild(script);
-    }, { sharedSource, sinceSource, dashboardSwitchSource });
+    }, { sharedSource, sinceSource, dashboardSwitchSource, extraSource });
 
     const dashboard = page.getByRole('switch', { name: 'Mode automatique : Inactif' });
     const config = page.getByRole('switch', { name: 'Protection antigel' });
@@ -73,7 +76,8 @@ async function main() {
     assert.equal(await page.getByRole('switch', { name: 'Mode automatique : Actif' }).isChecked(), true);
     await config.check();
     assert.equal(await config.isChecked(), true, 'Configuration edits update immediately');
-    await page.waitForTimeout(250);
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.flow-switch-thumb')).every(
+      element => getComputedStyle(element).transform.endsWith(', 16, 0)')));
 
     const metrics = await page.locator('.flow-switch-visual').evaluateAll(elements => elements.map(element => {
       const track = element.querySelector('.flow-switch-track');
@@ -96,6 +100,47 @@ async function main() {
     const pendingDashboard = page.getByRole('switch', { name: 'Mode automatique : Application…' });
     assert.equal(await pendingDashboard.isDisabled(), true);
     assert.equal(await pendingDashboard.getAttribute('aria-busy'), 'true');
+    await page.evaluate(() => {
+      window.openedManagers = [];
+      window.equipmentCommands = [];
+      const options = {
+        action: { id: 'write' }, onAction: value => window.equipmentCommands.push(value),
+        onOpen: () => window.openedManagers.push('equipment'), openLabel: 'Gérer les équipements'
+      };
+      window.equipmentOptions = options;
+      window.equipmentTile = buildDashboardDualStateTile('Filtration', false, options);
+      window.equipmentTile.id = 'equipment-test';
+      document.getElementById('test-root').appendChild(window.equipmentTile);
+      const alarm = buildDashboardAlarmTile({label: 'Pression', conditionValue: true, latchValue: true,
+        onOpen: () => window.openedManagers.push('alarm'), openLabel: 'Gérer les alarmes'});
+      alarm.id = 'alarm-test';
+      document.getElementById('test-root').appendChild(alarm);
+    });
+    const equipment = page.locator('#equipment-test');
+    const openEquipment = equipment.getByRole('button');
+    const equipmentSwitch = equipment.getByRole('switch');
+    const titleBox = await equipment.locator('.status-dual-title').boundingBox();
+    await page.mouse.click(titleBox.x + 4, titleBox.y + titleBox.height / 2);
+    assert.deepEqual(await page.evaluate(() => window.equipmentCommands), []);
+    assert.deepEqual(await page.evaluate(() => window.openedManagers), ['equipment']);
+    await equipmentSwitch.click();
+    assert.deepEqual(await page.evaluate(() => window.equipmentCommands), [true]);
+    assert.deepEqual(await page.evaluate(() => window.openedManagers), ['equipment']);
+    await openEquipment.focus(); await page.keyboard.press('Enter');
+    assert.deepEqual(await page.evaluate(() => window.openedManagers), ['equipment', 'equipment']);
+    await equipmentSwitch.focus(); await page.keyboard.press('Space');
+    assert.deepEqual(await page.evaluate(() => window.equipmentCommands), [true, true]);
+    await page.evaluate(() => dashboardDualStateTileViews.get(window.equipmentTile).update(
+      'Filtration', true, {...window.equipmentOptions, pending: true}));
+    assert(await equipmentSwitch.isDisabled());
+    await openEquipment.click();
+    assert.deepEqual(await page.evaluate(() => window.equipmentCommands), [true, true]);
+    const alarmButton = page.locator('#alarm-test').getByRole('button');
+    await alarmButton.click(); await alarmButton.focus(); await page.keyboard.press('Space');
+    assert.deepEqual(await page.evaluate(() => window.openedManagers), ['equipment', 'equipment', 'equipment', 'alarm', 'alarm']);
+    await page.setViewportSize({width:390,height:844});
+    await openEquipment.click();
+    assert.deepEqual(await page.evaluate(() => window.equipmentCommands), [true, true]);
     console.log('Flow switch consolidation: shared green geometry, animation and context behavior passed');
   } finally {
     await browser.close();

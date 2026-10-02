@@ -17,6 +17,7 @@ struct HASensorEntry {
     bool hasEntityName;
     const char* availabilityTemplate;
     bool isText;
+    const char* attributesTemplate = nullptr; // Language-neutral attributes from the state topic.
 };
 
 /** @brief Static Home Assistant binary sensor discovery registration. */

@@ -81,7 +81,7 @@ async function main() {
     assert.equal(await page.locator('.runtime-counter-details').evaluate(element => element.open), false, 'Reset explanation starts collapsed');
     assert(!(await page.locator('dialog').textContent()).includes('flow.io'), 'The popup has no flow.io logo');
     assert.equal(await resetDevice('COMP08 (pd15)').locator('svg').count(), 1, 'Row actions use the compact reset icon');
-    assert.equal(await page.locator('thead th').count(), 7, 'Device, On/Off, four periods and action columns');
+    assert.equal(await page.locator('thead th').count(), 7, 'Device, state with optional setpoint, four periods and actions columns');
     assert.equal(config.buttonText, 'Gérer les équipements');
     assert(await row('Filtration (pd0)').getByRole('switch').isChecked());
     assert(!(await row('COMP08 (pd15)').getByRole('switch').isChecked()));

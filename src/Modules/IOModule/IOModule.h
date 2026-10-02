@@ -127,6 +127,9 @@ private:
     };
     AnalogOutput analogOutputs_[MaxAnalogOutputs]{};
     uint8_t outputOwners_[Limits::Io::MaxDigitalOutputs]{};
+    ActuatorControlState outputControl_[Limits::Io::MaxDigitalOutputs]{};
+    mutable portMUX_TYPE outputControlMux_ = portMUX_INITIALIZER_UNLOCKED;
+    IoStatus setOutputControlState_(IoId id, uint8_t owner, const ActuatorControlState* state);
     IoStatus claimOutputs_(const IoId* ids, uint8_t count, uint8_t owner);
     IoStatus ioWriteAnalog_(IoId id, float value, uint32_t tsMs, uint8_t owner);
     static void serialTask_(void* context);
@@ -393,7 +396,8 @@ private:
         ServiceBinding::bind<&IOModule::ioListInvalidSensors_>,
         ServiceBinding::bind<&IOModule::claimOutputs_>,
         ServiceBinding::bind<&IOModule::ioWriteAnalog_>,
-        this
+        this,
+        ServiceBinding::bind<&IOModule::setOutputControlState_>
     };
     IoCycleInfo* lastCycle_ = nullptr;
 

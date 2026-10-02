@@ -5,6 +5,7 @@
 
 #include "IOModule.h"
 #include "IOConfigDescriptorStorage.h"
+#include "Core/SpiRamJsonDocument.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
 #include "Core/ModuleLog.h"
 #include "Domain/Pool/PoolIds.h"
@@ -975,39 +976,50 @@ bool IOModule::runtimeSnapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& rout
     return false;
 }
 
+IoStatus IOModule::setOutputControlState_(IoId id, uint8_t owner, const ActuatorControlState* state)
+{
+    if (!state || id < IO_ID_DO_BASE || id >= IO_ID_DO_BASE + Limits::Io::MaxDigitalOutputs) return IO_ERR_INVALID_ARG;
+    const auto index = id - IO_ID_DO_BASE;
+    if (!owner || outputOwners_[index] != owner) return IO_ERR_OWNED;
+    portENTER_CRITICAL(&outputControlMux_);
+    const auto previous = outputControl_[index];
+    outputControl_[index] = *state;
+    portEXIT_CRITICAL(&outputControlMux_);
+    if (previous.mode != state->mode || previous.remainingSec != state->remainingSec ||
+        previous.endsAtUtc != state->endsAtUtc || previous.reason != state->reason ||
+        previous.supported != state->supported || previous.available != state->available ||
+        previous.automatic != state->automatic || previous.value != state->value) {
+        uint8_t slot = 0;
+        if (dataStore_ && findDigitalSlotByIoId_(id, slot) && digitalSlots_[slot].endpoint)
+            dataStore_->notifyChanged(static_cast<DataKey>(DATAKEY_IO_BASE + digitalSlots_[slot].endpoint->runtimeIndex));
+    }
+    return IO_OK;
+}
+
 bool IOModule::buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut, bool invalidAsUndefined) const
 {
-    if (!ep || !out || len == 0) return false;
-    if ((ep->capabilities() & IO_CAP_READ) == 0) return false;
-
-    IOEndpointValue v{};
-    bool ok = ep->read(v);
-    if (!ok) v.valid = false;
-
+    if (!ep || !out || !len || !(ep->capabilities() & IO_CAP_READ)) return false;
+    (void)invalidAsUndefined;
+    IOEndpointValue value{};
+    if (!ep->read(value)) value.valid = false;
+    SpiRamJsonDocument doc(1536);
+    if (!doc.capacity()) return false;
     const char* id = ep->id();
     const char* label = endpointLabel(ep->numericId);
-    int wrote = snprintf(out, len, "{\"id\":\"%s\",\"name\":\"%s\",\"available\":%s,\"value\":",
-                         (id && id[0] != '\0') ? id : "",
-                         (label && label[0] != '\0') ? label : ((id && id[0] != '\0') ? id : ""),
-                         v.valid ? "true" : "false");
-    if (wrote < 0 || (size_t)wrote >= len) return false;
-    size_t used = (size_t)wrote;
-
-    if (!v.valid) {
-        (void)invalidAsUndefined;
-        wrote = snprintf(out + used, len - used, "null");
-    } else if (v.valueType == IO_EP_VALUE_BOOL) {
-        wrote = snprintf(out + used, len - used, "%s", v.v.b ? "true" : "false");
-    } else if (v.valueType == IO_EP_VALUE_FLOAT) {
-        wrote = snprintf(out + used, len - used, "%.3f", (double)v.v.f);
-    } else if (v.valueType == IO_EP_VALUE_INT32) {
-        wrote = snprintf(out + used, len - used, "%ld", (long)v.v.i);
-    } else {
-        wrote = snprintf(out + used, len - used, "null");
+    doc["id"] = id ? id : "";
+    doc["name"] = label && label[0] ? label : id ? id : "";
+    doc["available"] = value.valid;
+    if (!value.valid) doc["value"] = nullptr;
+    else if (value.valueType == IO_EP_VALUE_BOOL) doc["value"] = value.v.b;
+    else if (value.valueType == IO_EP_VALUE_FLOAT) doc["value"] = value.v.f;
+    else if (value.valueType == IO_EP_VALUE_INT32) doc["value"] = value.v.i;
+    else doc["value"] = nullptr;
+    if (ep->numericId >= IO_ID_DO_BASE && ep->numericId < IO_ID_DO_BASE + Limits::Io::MaxDigitalOutputs) {
+        portENTER_CRITICAL(&outputControlMux_);
+        const auto control = outputControl_[ep->numericId - IO_ID_DO_BASE];
+        portEXIT_CRITICAL(&outputControlMux_);
+        writeActuatorControlJson(doc, control);
     }
-    if (wrote < 0 || (size_t)wrote >= (len - used)) return false;
-    used += (size_t)wrote;
-
     if (dataStore_ && ep->numericId >= IO_ID_DI_BASE && ep->numericId < IO_ID_DI_BASE + MAX_DIGITAL_INPUTS) {
         const uint8_t logical = ep->numericId - IO_ID_DI_BASE;
         ValueSnapshot count{}, rate{}, converted{};
@@ -1015,21 +1027,22 @@ bool IOModule::buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uin
         if (dataStore_->values.read(ValueIds::Digital + logical, count, &metadata) && metadata.type == ValueType::UInt64) {
             dataStore_->values.read(ValueIds::PulseRate + logical, rate);
             dataStore_->values.read(ValueIds::ConvertedRate + logical, converted);
-            char rateText[32] = "null", convertedText[32] = "null";
-            if (rate.quality == ValueQuality::Valid) snprintf(rateText, sizeof(rateText), "%.9g", double(rate.value.f));
-            if (converted.quality == ValueQuality::Valid) snprintf(convertedText, sizeof(convertedText), "%.17g", converted.value.d);
-            wrote = snprintf(out + used, len - used, ",\"count\":\"%llu\",\"rate\":%s,\"converted_rate\":%s,\"count_id\":%u,\"rate_id\":%u",
-                             (unsigned long long)count.value.u64, rateText, convertedText,
-                             unsigned(ValueIds::Digital + logical), unsigned(ValueIds::PulseRate + logical));
-            if (wrote < 0 || size_t(wrote) >= len - used) return false;
-            used += size_t(wrote);
+            char countText[24];
+            snprintf(countText, sizeof(countText), "%llu", (unsigned long long)count.value.u64);
+            doc["count"] = countText;
+            if (rate.quality == ValueQuality::Valid) doc["rate"] = rate.value.f;
+            else doc["rate"] = nullptr;
+            if (converted.quality == ValueQuality::Valid) doc["converted_rate"] = converted.value.d;
+            else doc["converted_rate"] = nullptr;
+            doc["count_id"] = ValueIds::Digital + logical;
+            doc["rate_id"] = ValueIds::PulseRate + logical;
         }
     }
-    wrote = snprintf(out + used, len - used, ",\"ts\":%lu}", (unsigned long)millis());
-    if (wrote < 0 || (size_t)wrote >= (len - used)) return false;
-
-    // Ensure one initial publish even if endpoint timestamp has not been set yet.
-    maxTsOut = (v.timestampMs == 0U) ? 1U : v.timestampMs;
+    doc["ts"] = millis();
+    if (doc.overflowed() || measureJson(doc) >= len) return false;
+    serializeJson(doc, out, len);
+    // Control changes are independent of the physical output timestamp.
+    maxTsOut = millis() ? millis() : 1U;
     return true;
 }
 

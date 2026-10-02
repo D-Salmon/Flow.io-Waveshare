@@ -14,6 +14,7 @@ constexpr size_t ACTOR_NAME_MAX = 32;
 enum class ActorKind : uint8_t {
     System = 0,  ///< Automation, scheduler, safety, boot or unauthenticated origin.
     User = 1,    ///< Signed-in human operator.
+    Remote = 2,  ///< Remote command without an authenticated human identity (MQTT).
 };
 
 /** @brief Identity responsible for an action. */
@@ -26,6 +27,14 @@ struct Actor {
 inline Actor systemActor()
 {
     return Actor{};
+}
+
+/** @brief Build the remote identity at the command transport boundary. */
+inline Actor remoteActor()
+{
+    Actor actor{};
+    actor.kind = ActorKind::Remote;
+    return actor;
 }
 
 /** @brief Build a User actor from an authenticated username. */

@@ -918,9 +918,14 @@ void PoolLogicModule::applyDeviceControl_(uint8_t deviceSlot,
     const bool desiredChanged = (desired != fsm.lastDesired);
     // When the actual state does not follow the requested state, retry at a
     // bounded cadence instead of spamming the downstream pool-device service.
-    const bool needRetry = (fsm.known && (fsm.on != desired) && (uint32_t)(nowMs - fsm.lastCmdMs) >= 5000U);
+    PoolDeviceSvcMeta meta{};
+    const bool haveMeta = poolSvc_ && poolSvc_->meta &&
+        poolSvc_->meta(poolSvc_->ctx, deviceSlot, &meta) == POOLDEV_SVC_OK;
+    const bool guidedMismatch = haveMeta && meta.guidedOn != desired;
+    const bool forced = haveMeta && meta.control.mode != ActuatorControlMode::Guided;
+    const bool needRetry = !forced && fsm.known && fsm.on != desired && (uint32_t)(nowMs - fsm.lastCmdMs) >= 5000U;
 
-    if (desiredChanged || needRetry) {
+    if (desiredChanged || guidedMismatch || needRetry) {
         if (writeDeviceDesired_(deviceSlot, desired)) {
             LOGI("%s %s", desired ? "Start" : "Stop", label ? label : "Pool Device");
             if (desiredChanged) {
@@ -970,7 +975,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         portEXIT_CRITICAL(&pendingMux_);
     }
     if (robotStopped) {
-        cleaningDone_ = true;
+        if (!robotWasForced_) cleaningDone_ = true;
         portENTER_CRITICAL(&pendingMux_);
         if (robotManualOverride_ && !robotManualDesired_) {
             robotManualOverride_ = false;
@@ -1228,13 +1233,13 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
     // Filtration arbitration intentionally applies safety, then manual mode,
     // then automatic scheduling/winter logic in that order.
-    bool filtrationDesiredBase = filtrationFsm_.on;
+    bool filtrationDesiredBase = guidedDeviceOn_(filtrationDeviceSlot_, filtrationFsm_.on);
     if (psiError_) {
         // Safety first: PSI alarms must stop filtration even in manual mode.
         filtrationDesiredBase = false;
     } else if (!autoMode_) {
         // Legacy-like manual mode: when auto_mode is off, keep filtration fully manual.
-        filtrationDesiredBase = filtrationFsm_.on;
+        filtrationDesiredBase = guidedDeviceOn_(filtrationDeviceSlot_, filtrationFsm_.on);
     } else {
         const bool timeSynced = timeSvc_ && timeSvc_->isSynced && timeSvc_->isSynced(timeSvc_->ctx);
         if (filtrationFsm_.on && !timeSynced) {
@@ -1255,7 +1260,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     // Robot and SWG remain derived outputs in auto mode. A manual robot request
     // is still arbitrated here so PoolLogic, not the HMI or PoolDeviceModule,
     // owns interlocks and duration limits.
-    bool robotDesired = robotFsm_.on;
+    bool robotDesired = guidedDeviceOn_(robotDeviceSlot_, robotFsm_.on);
     bool robotManualOverride = false;
     bool robotManualDesired = false;
     portENTER_CRITICAL(&pendingMux_);
@@ -1302,7 +1307,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         }
     }
 
-    bool swgDesired = swgFsm_.on;
+    bool swgDesired = guidedDeviceOn_(swgDeviceSlot_, swgFsm_.on);
     if (autoMode_) {
         swgDesired = false;
         if (isDisinfectionType_(DisinfectionSwg) && filtrationFsm_.on) {
@@ -1330,7 +1335,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         }
     }
 
-    bool heaterDesired = heaterFsm_.on;
+    bool heaterDesired = guidedDeviceOn_(heaterDeviceSlot_, heaterFsm_.on);
     if (!heaterAutoMode_) {
         resetHeatAssistSession();
         setHeatAssistFlag(kHeatAssistFlagFastCycle, false);
@@ -1488,8 +1493,8 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
     // Chemical dosing is computed last because it depends on the resolved
     // filtration state, alarm state, and sensor freshness.
-    bool phPumpDesired = phPumpFsm_.on;
-    bool orpPumpDesired = orpPumpFsm_.on;
+    bool phPumpDesired = guidedDeviceOn_(phPumpDeviceSlot_, phPumpFsm_.on);
+    bool orpPumpDesired = guidedDeviceOn_(orpPumpDeviceSlot_, orpPumpFsm_.on);
     if (phAutoMode_ || orpAutoMode_) {
         if (filtrationDesired) {
             if (phAutoMode_) {
@@ -1583,6 +1588,37 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         }
     }
 
+    // Temporary requests are resolved in PoolDevice, after the normal targets.
+    // Combine role constraints by slot: assigning two roles never weakens safety.
+    ActuatorOverridePolicy policies[POOL_DEVICE_MAX]{};
+    auto protect = [&](uint8_t slot, bool automatic, bool allowOn, bool allowOff = true) {
+        if (slot >= POOL_DEVICE_MAX) return;
+        auto& policy = policies[slot];
+        policy.automatic = policy.automatic || automatic;
+        policy.ready = bootControlReady_;
+        policy.allowOn = policy.allowOn && allowOn;
+        policy.allowOff = policy.allowOff && allowOff;
+    };
+    const bool flowSafe = !psiError_;
+    const bool freezeHold = filtrationFsm_.on && haveAirTemp && airTemp <= freezeHoldTempC_;
+    protect(filtrationDeviceSlot_, autoMode_, !psiError_, !freezeHold);
+    protect(robotDeviceSlot_, autoMode_, flowSafe);
+    protect(swgDeviceSlot_, autoMode_, flowSafe && haveWaterTemp && waterTemp >= secureElectroTempC_);
+    protect(heaterDeviceSlot_, heaterAutoMode_ && autoMode_, flowSafe && waterTempFresh && std::isfinite(waterTemp));
+    protect(phPumpDeviceSlot_, phAutoMode_, flowSafe && havePh && !phTankLowError_);
+    protect(orpPumpDeviceSlot_, orpAutoMode_, flowSafe && !chlorineTankLowError_ &&
+        (isDisinfectionType_(DisinfectionActiveOxygen) ? haveWaterTemp : haveOrp));
+    protect(fillingDeviceSlot_, true, haveLevel && poolLevelOn);
+    if (filtrationDeviceSlot_ < POOL_DEVICE_MAX) {
+        for (auto slot : {robotDeviceSlot_, swgDeviceSlot_, heaterDeviceSlot_, phPumpDeviceSlot_, orpPumpDeviceSlot_})
+            if (slot < POOL_DEVICE_MAX && slot != filtrationDeviceSlot_)
+                policies[slot].requiredOnMask |= uint16_t(1) << filtrationDeviceSlot_;
+    }
+    if (poolSvc_ && poolSvc_->setOverridePolicies)
+        poolSvc_->setOverridePolicies(poolSvc_->ctx, policies, POOL_DEVICE_MAX);
+    if (freezeHold && !psiError_) filtrationDesired = true;
+    if (psiError_) filtrationDesired = false;
+
     if (forceFiltrationReconcile) {
         // Auto mode changes arrive through ConfigChanged, so force one immediate
         // reconciliation in the loop regardless of the previous manual path.
@@ -1596,6 +1632,10 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
                         orpPumpFsm_,
                         orpPumpDesired,
                         nowMs);
+    PoolDeviceSvcMeta robotMeta{};
+    robotWasForced_ = poolSvc_ && poolSvc_->meta &&
+        poolSvc_->meta(poolSvc_->ctx, robotDeviceSlot_, &robotMeta) == POOLDEV_SVC_OK &&
+        robotMeta.control.mode != ActuatorControlMode::Guided;
     applyDeviceControl_(robotDeviceSlot_, "Robot Pump", robotFsm_, robotDesired, nowMs);
     applyDeviceControl_(swgDeviceSlot_, "SWG Pump", swgFsm_, swgDesired, nowMs);
     applyDeviceControl_(heaterDeviceSlot_, "Water Heater", heaterFsm_, heaterDesired, nowMs);

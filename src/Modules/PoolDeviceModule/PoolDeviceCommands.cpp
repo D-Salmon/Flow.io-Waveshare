@@ -241,8 +241,8 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
             writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::MissingValue); return false;
         }
         const PoolDeviceTarget target{requested, args["setpoint"].as<float>()};
-        st = svcSetTargetImpl_(slot, &target);
-    } else st = svcSetRunningImpl_(slot, requested ? 1U : 0U);
+        st = setTarget_(slot, &target, true);
+    } else st = svcSetManualRunningImpl_(slot, requested ? 1U : 0U);
     if (st != POOLDEV_SVC_OK) {
         ErrorCode code = ErrorCode::Failed;
         if (st == POOLDEV_SVC_ERR_UNKNOWN_SLOT) code = ErrorCode::UnknownSlot;

@@ -1,0 +1,93 @@
+# Package Home Assistant. Remplacer FLOWIO_PREFIX par <base>/<device>.
+# Hypothèse à confirmer : la filtration est le PoolDevice 0 (pd0).
+input_number:
+  fio_filtration_forcage_minutes:
+    name: Durée du forçage
+    min: 1
+    max: 1440
+    step: 1
+    initial: 30
+    mode: box
+    unit_of_measurement: min
+    icon: mdi:timer-outline
+
+mqtt:
+  sensor:
+    - name: FIO Filtration Forcage
+      unique_id: fio_filtration_forcage_mqtt
+      icon: mdi:hand-back-right-outline
+      state_topic: "FLOWIO_PREFIX/rt/pdm/state/pd0"
+      availability_topic: "FLOWIO_PREFIX/status"
+      availability_template: "{{ 'online' if value_json.online | default(false) else 'offline' }}"
+      payload_available: "online"
+      payload_not_available: "offline"
+      value_template: >-
+        {% set mode = value_json.control_mode | default('unknown') %}
+        {% if mode == 'forced' %}
+          {% set seconds = value_json.override_remaining_s | int(0) %}
+          {{ 'Marche forcée' if value_json.override_value else 'Arrêt forcé' }} · {{ '%02d:%02d:%02d' | format(seconds // 3600, (seconds % 3600) // 60, seconds % 60) }}
+        {% elif mode == 'waiting_time' %}
+          En attente de l’heure
+        {% elif mode == 'persistence_error' %}
+          Erreur de sauvegarde
+        {% elif mode == 'guided' %}
+          Aucun forçage
+        {% else %}
+          État inconnu
+        {% endif %}
+      json_attributes_topic: "FLOWIO_PREFIX/rt/pdm/state/pd0"
+
+script:
+  fio_filtration_forcage:
+    alias: FIO — Forçage temporaire filtration
+    description: Envoie une demande à Flow.io ; l’état MQTT confirme son application.
+    mode: single
+    fields:
+      operation:
+        name: Commande
+        required: true
+        selector:
+          select:
+            options:
+              - "on"
+              - "off"
+              - "release"
+    sequence:
+      - if:
+          - condition: template
+            value_template: "{{ operation | default('') not in ['on', 'off', 'release'] }}"
+        then:
+          - stop: Commande inconnue
+            error: true
+      - if:
+          - condition: template
+            value_template: >-
+              {{ operation != 'release' and
+                 (not has_value('sensor.fio_filtration_forcage') or
+                  state_attr('sensor.fio_filtration_forcage', 'override_available') != true) }}
+        then:
+          - stop: Forçage indisponible — vérifier PoolLogic, le mode automatique et l’heure.
+            error: true
+      - if:
+          - condition: template
+            value_template: >-
+              {{ operation != 'release' and
+                 not (1 <= states('input_number.fio_filtration_forcage_minutes') | int(0) <= 1440) }}
+        then:
+          - stop: La durée doit être comprise entre 1 et 1440 minutes.
+            error: true
+      - action: mqtt.publish
+        data:
+          topic: "FLOWIO_PREFIX/cmd"
+          qos: 0
+          retain: false
+          payload: >-
+            {% if operation == 'release' %}
+              {{ {'cmd': 'poollogic.device.release', 'args': {'slot': 0}} | to_json }}
+            {% else %}
+              {{ {'cmd': 'poollogic.device.override', 'args': {
+                'slot': 0,
+                'value': operation == 'on',
+                'duration_s': (states('input_number.fio_filtration_forcage_minutes') | int) * 60
+              }} | to_json }}
+            {% endif %}

@@ -431,6 +431,15 @@ def _validate_action_dialog(display_config, actions, path):
     if not isinstance(options_url, str) or not re.fullmatch(r"/api/runtime/[a-z][a-z0-9_]*", options_url):
         raise RuntimeError(f"actionDialog invalid optionsUrl in {path}")
     by_id = {action["id"]: action for action in actions}
+    if "overrideActions" in dialog:
+        bindings = dialog["overrideActions"]
+        if not isinstance(bindings, dict) or set(bindings) != {"on", "off", "release"}:
+            raise RuntimeError(f"actionDialog invalid overrideActions in {path}")
+        for role, input_type in (("on", "uint32"), ("off", "uint32"), ("release", "none")):
+            action = by_id.get(bindings[role])
+            if (not action or action["presentation"] != "button" or action["input"]["type"] != input_type or
+                    (action.get("target") or {}).get("type") != "uint32"):
+                raise RuntimeError(f"actionDialog invalid override action binding in {path}: {role}")
     for column in columns:
         if column.get("type") == "setpoint":
             action = by_id.get(column.get("action"))
@@ -574,7 +583,7 @@ def _collect_entries_for_locale(modules_root: Path, locale: str, numeric_by_name
                     if (not isinstance(target, dict) or target.get("type") != "uint32" or
                         not isinstance(target.get("name"), str) or
                         not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", target["name"]) or
-                        target["name"] == normalized_input.get("name") or normalized_input["type"] == "none"):
+                        target["name"] == normalized_input.get("name")):
                         raise RuntimeError(f"invalid action target in {path}: {target!r}")
                     normalized_actions[-1]["target"] = target
 

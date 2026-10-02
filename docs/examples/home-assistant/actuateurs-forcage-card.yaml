@@ -1,0 +1,51 @@
+type: entities
+show_header_toggle: false
+state_color: true
+entities:
+  - type: custom:fold-entity-row
+    open: false
+    head:
+      entity: sensor.fio_pdm_ovr_active
+      name: Équipements · Forçages temporaires
+      icon: mdi:hand-back-right-outline
+      tap_action:
+        action: fire-dom-event
+        fold_row: true
+    entities:
+      - entity: select.fio_pdm_ovr_target
+        name: Équipement
+      - entity: sensor.fio_pdm_ovr_state
+        name: État du forçage sélectionné
+      - type: attribute
+        entity: sensor.fio_pdm_ovr_state
+        attribute: actual_on
+        name: Marche réelle
+      - type: attribute
+        entity: sensor.fio_pdm_ovr_state
+        attribute: override_remaining_s
+        name: Temps restant (s)
+      - entity: number.fio_pdm_ovr_min
+        name: Durée du prochain forçage
+      - entity: button.fio_pdm_ovr_on
+        name: Forcer la marche
+      - entity: button.fio_pdm_ovr_off
+        name: Forcer l’arrêt
+      - entity: button.fio_pdm_ovr_release
+        name: Terminer le forçage
+card_mod:
+  style: |
+    {% set status = namespace(forced=false) %}
+    {% set devices = state_attr('sensor.fio_pdm_ovr_active', 'actuators') or {} %}
+    {% if has_value('sensor.fio_pdm_ovr_active') %}
+      {% for id, device in devices.items() %}
+        {% if device.control_mode == 'forced' %}{% set status.forced = true %}{% endif %}
+      {% endfor %}
+    {% endif %}
+    ha-card {
+      background: {{ '#FFF2F2' if status.forced else 'var(--ha-card-background, var(--card-background-color))' }};
+      border-radius: 22px;
+      box-shadow: none;
+    }
+grid_options:
+  columns: 12
+  rows: auto

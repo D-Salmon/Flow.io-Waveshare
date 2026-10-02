@@ -14,7 +14,7 @@ const context = vm.createContext({
   document: { createElement: () => ({}) },
   tr: (_key, fallback) => fallback,
 });
-for (const name of ['ioSummaryStateLabel', 'ioSummaryStateClass', 'createIoStateBadge', 'createIoDeviceStateBadge']) {
+for (const name of ['ioSummaryStateLabel', 'ioSummaryStateClass', 'createIoStateBadge', 'createIoDeviceStateBadgeBase', 'actuatorControlLabel', 'formatActivityActor', 'createIoDeviceStateBadge']) {
   vm.runInContext(extract(name), context);
 }
 function badge(interlock_state, overrides = {}, state = 'active') {
@@ -33,3 +33,13 @@ assert.equal(badge(0, { actual_on: true }).textContent, 'Actif');
 assert.equal(badge(1, { enabled: false }, 'manually_disabled').textContent, 'Désactivé manuellement');
 assert.equal(context.createIoDeviceStateBadge({ state: 'error' }).textContent, 'Erreur');
 console.log('I/O interlock presentation: OK');
+
+const normal = { override_supported: true, control_mode: 'guided' };
+assert.equal(context.actuatorControlLabel(normal, false), '', 'Dashboard omits the normal guided label');
+assert.equal(context.actuatorControlLabel(normal), 'Guidé', 'Equipment dialog retains its explicit mode');
+assert.match(context.actuatorControlLabel({ ...normal, control_mode: 'forced', override_value: true, override_remaining_s: 90 }, false), /Marche forcée.*1:30/);
+assert.match(context.actuatorControlLabel({ ...normal, control_mode: 'forced', override_value: false, override_remaining_s: 60 }, false), /Arrêt forcé.*1:00/);
+assert.equal(context.formatActivityActor({ actor_kind: 'user', actor: 'Christophe' }), 'par Christophe');
+assert.equal(context.formatActivityActor({ actor_kind: 'remote', actor: '' }), 'Remote (MQTT)');
+assert.equal(context.formatActivityActor({ actor_kind: 'system', actor: '' }), 'Système');
+console.log('Override dashboard labels and activity attribution: OK');

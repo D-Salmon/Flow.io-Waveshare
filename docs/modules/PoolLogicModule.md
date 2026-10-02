@@ -43,6 +43,15 @@ modifie pas cet automatisme dans les commandes existantes. Le robot utilise
 son override manuel ; les commandes de chauffage et d'électrolyse ne changent
 pas les modes automatiques. Le popup ne définit pas de règles supplémentaires.
 
+## Forçage temporaire persistant
+
+Tous les PoolDevices ON/OFF compatibles disposent de commandes `pooldevice.override`
+et `pooldevice.release`. PoolDevice possède les temporisateurs ; PoolLogic fournit
+les contraintes de sécurité et conserve les anciennes commandes par rôle comme
+adaptateurs. Le forçage conserve les modes automatiques, expire automatiquement
+et reprend après reboot pour la durée restante. Le MQTT Discovery expose un
+panneau commun de sept entités et les états individuels dans les attributs. Voir [le fonctionnement, les protections et le contrat MQTT](TimedActuatorOverrides.md).
+
 ## Dépendances
 
 - `loghub`

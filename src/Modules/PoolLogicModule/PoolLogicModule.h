@@ -8,6 +8,7 @@
  */
 
 #include "Core/Module.h"
+#include <freertos/semphr.h>
 #include "Core/RuntimeUi.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/RuntimeSnapshotProvider.h"
@@ -430,6 +431,29 @@ private:
                                                 &orpPumpDeviceSlot_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint8_t,0> heaterDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::HeaterSlot), "heater_slot", "poollogic/devices", ConfigType::UInt8,
                                                &heaterDeviceSlot_, ConfigPersistence::Persistent, 0};
+
+    // Serializes temporary override commands with the control loop (never a spinlock).
+    struct OverrideLock {
+        SemaphoreHandle_t mutex;
+        explicit OverrideLock(SemaphoreHandle_t value) : mutex(value) { xSemaphoreTakeRecursive(mutex, portMAX_DELAY); }
+        ~OverrideLock() { xSemaphoreGiveRecursive(mutex); }
+        OverrideLock(const OverrideLock&) = delete;
+        OverrideLock& operator=(const OverrideLock&) = delete;
+    };
+    StaticSemaphore_t overrideMutexStorage_{};
+    SemaphoreHandle_t overrideMutex_ = nullptr;
+    bool robotWasForced_ = false;
+    bool guidedDeviceOn_(uint8_t slot, bool observed) const;
+    bool buildOverrideSnapshot_(uint8_t index, char* out, size_t len, uint32_t& maxTsOut) const;
+    void resetOverridePolicies_();
+    using OverrideCommand = ActuatorOverrideCommand;
+    bool handleOverride_(const CommandRequest& req, char* reply, size_t replyLen, OverrideCommand command);
+    static bool cmdOverride_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideOn_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideOff_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdRelease_(void*, const CommandRequest&, char*, size_t);
+    static bool cmdOverrideDuration_(void*, const CommandRequest&, char*, size_t);
+
 
     // Services and adapters
     ConfigStore* cfgStore_ = nullptr;

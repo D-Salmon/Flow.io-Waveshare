@@ -32,6 +32,18 @@ inline void button(JsonObject root, const char* commandTopic, const char* payloa
     root["ret"] = false; // A reset must never be replayed on reconnect.
 }
 
+inline void sensor(JsonObject root, const char* stateTopic, const char* valueTemplate,
+                   bool isText, const char* attributesTemplate = nullptr)
+{
+    root["stat_t"] = stateTopic;
+    root["val_tpl"] = valueTemplate;
+    if (!isText) root["stat_cla"] = "measurement";
+    if (attributesTemplate && attributesTemplate[0]) {
+        root["json_attr_t"] = stateTopic;
+        root["json_attr_tpl"] = attributesTemplate;
+    }
+}
+
 inline void binarySensor(JsonObject root, const char* stateTopic,
                          const char* valueTemplate, const char* attributesTemplate)
 {

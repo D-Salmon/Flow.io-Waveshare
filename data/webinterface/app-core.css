@@ -2,7 +2,7 @@
 :root[data-theme="dark"]{color-scheme:dark;--bg:#07111f;--surface:#111c2b;--surface-soft:#172437;--border:#2c405a;--text:#edf5ff;--text-muted:#a9b9cf;--primary:#67c6ff;--primary-soft:#133656;--success:#5ee08f;--warning:#ffc857;--danger:#ff7b93;--shadow:0 12px 30px rgba(0,0,0,0.32);--sidebar-bg:#0c1726;--sidebar-divider:#223650;--menu-inactive-fg:#a9b5c8;--menu-hover-fg:#edf5ff;--menu-hover-bg:#16263a;--menu-active-bg:rgba(43,183,198,0.22);--menu-active-edge:#45c9d4;--menu-active-fg:#4edce5;--panel-frame-bg:var(--surface);--panel-frame-border:var(--border);--panel-frame-title:var(--text);--panel-frame-text:var(--text-muted);--btn-grad-start:#1687d8;--btn-grad-end:#28c2d1;--btn-grad-hover-start:#3aa4f4;--btn-grad-hover-end:#46d8e2;--btn-border:#3c75a5;--btn-border-hover:#61bdf2;--term-bg:#030912;--term-fg:#dbeafe;--panel-card-bg:var(--surface);--panel-soft-bg:var(--surface-soft);--panel-shell-bg:#0d1828;--state-ok-bg:rgba(94,224,143,0.12);--state-ok-ring:rgba(94,224,143,0.22);--state-alert-bg:rgba(255,123,147,0.13);--state-alert-ring:rgba(255,123,147,0.24);--state-muted-fg:#9bacbf;--state-muted-bg:#26364a;--state-muted-ring:rgba(169,185,207,0.22);}
 *{box-sizing:border-box;}
 .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}
-body{margin:0;min-height:100vh;font-family:"Inter","Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
 @keyframes skeleton-shimmer{
   0%{background-position:200% 0;}
   100%{background-position:-200% 0;}
@@ -1294,3 +1294,76 @@ body.web-icons-disabled .control-field-apply{font-size:15px;font-weight:800;lett
 .history-controls select { max-width: 100%; padding: 10px; border-radius: 8px; background: var(--surface, transparent); color: inherit; border: 1px solid currentColor; }
 #historyStatus { min-height: 1.5em; }
 @media (max-width: 600px) { .history-table th, .history-table td { padding: 10px 8px; } }
+
+/* Compact actuator rows; editing shares the reset confirmation row. */
+.runtime-override-control { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; text-align:left; }
+.runtime-override-status { font-size:.8rem; }
+.runtime-override-status.is-forced { color:var(--warning,#a65d00); }
+.runtime-management-dialog .runtime-counter-table-scroll { container-type:inline-size; }
+.runtime-management-dialog .runtime-counter-table .runtime-override-row > td { text-align:left; }
+.runtime-override-panel { box-sizing:border-box; position:sticky; left:8px; width:calc(100cqw - 16px); max-width:100%; padding:12px; white-space:normal; text-align:left; }
+.runtime-override-controls { display:flex; align-items:flex-start; gap:20px; }
+.runtime-override-fields { display:grid; grid-template-columns:auto auto; gap:20px; flex:1; }
+.runtime-override-fields fieldset { margin:0; padding:0; border:0; min-width:0; }
+.runtime-override-fields legend,.runtime-override-custom { font-size:12px; color:var(--text-muted); margin-bottom:8px; }
+.runtime-override-choices { display:flex; flex-wrap:wrap; gap:6px; }
+.runtime-management-dialog .runtime-override-choices button[aria-pressed="true"],
+.runtime-management-dialog .runtime-override-footer button.primary { background:var(--primary); color:var(--md-on-primary,#fff); border-color:var(--primary); }
+.runtime-override-custom { display:flex; align-items:center; gap:8px; margin-top:12px; }
+.runtime-override-custom input { width:90px; }
+.runtime-override-hint { font-size:12px; color:var(--text-muted); margin:16px 0 0; }
+.runtime-override-footer { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:22px; flex-shrink:0; }
+.runtime-override-release { margin-top:12px; }
+.runtime-management-dialog .runtime-override-row,.runtime-management-dialog .runtime-counter-device.is-override-selected { background:color-mix(in srgb,var(--danger) 8%,var(--surface)); }
+.io-control-state { display:inline-flex; flex-direction:column; gap:.2rem; }
+.runtime-action-switch-control > [hidden],.runtime-override-control [hidden],.runtime-override-panel [hidden] { display:none !important; }
+@media(max-width:600px) { .runtime-override-controls { flex-direction:column; gap:16px; } .runtime-override-fields { grid-template-columns:1fr; gap:16px; width:100%; } .runtime-override-footer { margin-top:0; flex-wrap:wrap; width:100%; } .runtime-override-panel { padding:8px 0; } }
+
+/* The tile opens management; only the separate switch changes the actuator. */
+.has-management-action { position:relative; }
+.has-management-action > button.dashboard-tile-open { position:absolute; inset:0; z-index:1; width:100%; height:100%; margin:0; padding:0; border:0; border-radius:inherit; background:transparent; box-shadow:none; cursor:pointer; }
+.has-management-action > button.dashboard-tile-open:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+.status-dual-tile > .dashboard-tile-switch { grid-column:2; grid-row:1 / span 4; z-index:2; }
+
+/* Equipment overview: reference card with header, metrics table and actions. */
+.runtime-equipment-dialog{width:min(1400px,calc(100% - 32px));padding:0;background:var(--surface);border-radius:22px;}
+.runtime-equipment-dialog .runtime-management-header{align-items:center;margin:0 0 16px;padding:20px 24px;}
+.runtime-equipment-header-status{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.runtime-equipment-dialog .runtime-management-actions .runtime-management-close{width:40px;height:40px;min-width:0;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-muted);}
+.runtime-equipment-dialog .runtime-management-actions .runtime-management-close:hover{color:var(--danger);border-color:var(--danger);background:var(--surface-soft);}
+.runtime-equipment-dialog .runtime-management-actions .runtime-management-close svg{width:18px;height:18px;}
+.runtime-equipment-dialog h2{font-size:16px;line-height:1.3;font-weight:600;letter-spacing:.2px;margin:0;}
+.runtime-equipment-subtitle{margin:3px 0 0;color:var(--text-muted);font-size:12.5px;}
+.runtime-equipment-dialog .runtime-counter-count{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface-soft);color:var(--text-muted);font-size:12px;font-weight:600;white-space:nowrap;}
+.runtime-equipment-dialog .runtime-counter-count::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 4px color-mix(in srgb,var(--success) 16%,transparent);}
+.runtime-equipment-dialog .runtime-management-panel{padding:0;border:0;border-radius:0;}
+.runtime-equipment-dialog .runtime-counter-table{min-width:900px;}
+.runtime-equipment-dialog .runtime-counter-table th,.runtime-equipment-dialog .runtime-counter-table td{padding:14px 24px;text-align:right;border-radius:0;vertical-align:middle;}
+.runtime-equipment-dialog .runtime-counter-table thead th{padding:11px 24px;background:var(--surface-soft);color:var(--text-muted);font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;}
+.runtime-equipment-dialog .runtime-counter-table th:first-child{width:25%;min-width:210px;text-align:left;}
+.runtime-equipment-dialog .runtime-counter-table th:nth-child(2),.runtime-equipment-dialog .runtime-counter-table td:nth-child(2){text-align:left;}
+.runtime-equipment-dialog .runtime-counter-table th:last-child,.runtime-equipment-dialog .runtime-counter-table td:last-child{width:auto;}
+.runtime-equipment-dialog .runtime-management-name{gap:14px;}
+.runtime-equipment-dialog .runtime-management-identity{flex-direction:column;align-items:flex-start;gap:2px;}
+.runtime-equipment-dialog .runtime-management-identity > span:first-child{font-size:14px;font-weight:600;max-width:250px;}
+.runtime-equipment-dialog .runtime-counter-device-id{font-size:11px;letter-spacing:.3px;}
+.runtime-equipment-dialog .runtime-management-icon{width:34px;height:34px;border-radius:10px;}
+.runtime-equipment-dialog .runtime-management-icon svg{width:17px;height:17px;}
+.runtime-equipment-dialog .runtime-counter-duration{font-size:13.5px;font-weight:600;letter-spacing:.2px;line-height:1.25;}
+.runtime-equipment-dialog .runtime-counter-volume{font-size:11.5px;line-height:1.25;margin-top:3px;}
+.runtime-equipment-dialog .runtime-counter-secondary .runtime-counter-duration{color:var(--text);}
+.runtime-equipment-dialog .runtime-counter-table td.is-empty .runtime-counter-duration,
+.runtime-equipment-dialog .runtime-counter-table td.is-empty .runtime-counter-volume{color:color-mix(in srgb,var(--text-muted) 40%,var(--surface));}
+.runtime-equipment-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;}
+.runtime-equipment-row-actions .runtime-override-control{flex-direction:column;align-items:flex-end;}
+.runtime-equipment-dialog .runtime-counter-reset{width:34px;height:34px;flex-shrink:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-muted);}
+.runtime-equipment-dialog .runtime-counter-reset svg{width:16px;height:16px;}
+.runtime-equipment-dialog .runtime-counter-reset:hover{color:var(--primary);border-color:var(--primary);background:var(--surface-soft);}
+.runtime-equipment-dialog .runtime-override-open{display:inline-flex;align-items:center;gap:6px;height:34px;min-height:34px;padding:0 14px;border:1px solid var(--primary-soft);border-radius:10px;background:var(--primary-soft);color:var(--primary);font-size:12.5px;font-weight:600;white-space:nowrap;}
+.runtime-equipment-dialog .runtime-override-open:hover{background:color-mix(in srgb,var(--primary) 14%,var(--surface));border-color:var(--primary);}
+.runtime-equipment-dialog .runtime-override-open svg{width:15px;height:15px;color:#f5b301;}
+.runtime-equipment-dialog .runtime-override-status{font-size:11px;}
+.runtime-equipment-dialog .runtime-management-footer{padding:14px 24px;align-items:center;flex-wrap:wrap;}
+.runtime-equipment-dialog .runtime-action-switch-control{flex-wrap:nowrap;gap:10px;}
+@media(max-width:800px){.runtime-equipment-header-status{width:100%;justify-content:space-between;flex-wrap:wrap;gap:10px;}.runtime-equipment-dialog .runtime-management-actions{width:auto;flex-wrap:wrap;}}
+@media(max-width:600px){.runtime-equipment-dialog .runtime-management-header{padding:16px;margin-bottom:12px;}.runtime-equipment-dialog h2{font-size:16px;}.runtime-equipment-dialog .runtime-management-footer{padding:12px 16px;}.runtime-equipment-dialog .runtime-counter-count{font-size:11px;padding:6px 10px;}.runtime-equipment-subtitle{font-size:12px;}.runtime-equipment-dialog .runtime-counter-table th,.runtime-equipment-dialog .runtime-counter-table td{padding:12px 16px;}.runtime-equipment-dialog .runtime-counter-table thead th{padding:10px 16px;}}

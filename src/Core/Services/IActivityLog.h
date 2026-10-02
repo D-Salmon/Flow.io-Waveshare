@@ -74,6 +74,8 @@ enum class ActivityCode : uint16_t {
     PoolLogicDeviceStopRequested = 121,
     PoolLogicDeviceStarted = 122,
     PoolLogicDeviceStopped = 123,
+    PoolLogicOverrideOnRequested = 124,
+    PoolLogicOverrideOffRequested = 125,
     PoolLogicFiltrationWindowCalculated = 130,
     PoolLogicPhRegulationEnabled = 140,
     PoolLogicOrpRegulationEnabled = 141,

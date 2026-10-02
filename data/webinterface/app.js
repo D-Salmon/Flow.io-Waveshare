@@ -2175,6 +2175,10 @@
     let flowCfgCurrentModule = '';
     let flowCfgCurrentData = {};
     let flowCfgCurrentPdmExtension = null;
+    let flowCfgPoolDeviceOptions = null;
+    let flowCfgPoolDeviceOptionsTs = 0;
+    const flowCfgPoolDeviceOptionsTtlMs = 20000;
+    let activeDependencyMaskPopover = null;
     let flowCfgChildrenCache = {};
     let flowCfgPath = [];
     let flowCfgExpandedNodes = new Set();
@@ -2183,6 +2187,7 @@
     let flowCfgDocsLoaded = false;
     let flowCfgDocIndex = null;
     let flowCfgDocIndexUnavailable = false;
+    const cfgDocWildcardModuleKey = '__wildcard';
     const flowCfgDocModuleCache = new Map();
     const flowCfgDocModuleLoadPromises = new Map();
     let flowCfgDocIndexPromise = null;
@@ -7153,22 +7158,18 @@
           subtitle.className = 'runtime-equipment-subtitle';
           subtitle.textContent = tr('equipment.subtitle', 'Contrôle et suivi de consommation');
           heading.append(title, subtitle);
-        } else heading.append(title, count);
+        } else heading.append(title);
         buttons.classList.add('runtime-management-actions');
         close.classList.add('runtime-management-close');
-        if (equipmentLayout) {
-          close.replaceChildren(buildRuntimeActionIcon('close'));
-          close.setAttribute('aria-label', tr('dashboard.action.close', 'Fermer'));
-        } else close.prepend(buildRuntimeActionIcon('check'));
+        close.replaceChildren(buildRuntimeActionIcon('close'));
+        close.setAttribute('aria-label', tr('dashboard.action.close', 'Fermer'));
         resetAll.classList.add('runtime-management-all-action');
         resetAll.prepend(buildRuntimeActionIcon(equipmentLayout ? 'reset' : 'check'));
         buttons.append(resetAll, close);
-        if (equipmentLayout) {
-          const status = document.createElement('div');
-          status.className = 'runtime-equipment-header-status';
-          status.append(count, buttons);
-          header.append(heading, status);
-        } else header.append(heading, buttons);
+        const status = document.createElement('div');
+        status.className = 'runtime-management-status';
+        status.append(count, buttons);
+        header.append(heading, status);
         const panel = document.createElement('div');
         panel.className = 'runtime-management-panel';
         const footer = document.createElement('div');
@@ -7393,7 +7394,6 @@
           cells.forEach((cell) => row.appendChild(cell.element));
           const view = { target, row, name, indicator, label, deviceId, cells, iconHost,
             iconKind: null, reset: null, override: null };
-          if (alarmLayout && rowViews.length % 2 === 1) row.classList.add('is-alternate');
           rowViews.push(view);
           const actionCell = document.createElement('td');
           const rowActions = document.createElement('div');
@@ -10968,6 +10968,7 @@
     async function ensureCfgDocsForModule(moduleName) {
       await loadCfgDocI18nBundle(webUiLocale, false);
       await getCfgDocForModule(moduleName);
+      await getCfgDocForModule(cfgDocWildcardModuleKey);
       const baseSources = [];
       if (flowCfgDocIndex) {
         const idxSource = normalizeDocSource({ docs: flowCfgDocIndex.docs || {}, meta: flowCfgDocIndex.meta || {} });
@@ -11303,6 +11304,198 @@
       });
 
       return { input, trigger };
+    }
+
+    function dependencyMaskSlotFromModule(moduleName) {
+      const clean = nettoyerNomFlowCfg(moduleName).toLowerCase();
+      const match = clean.match(/^pdm\/pd(\d{1,2})$/);
+      if (!match) return -1;
+      const slot = Number.parseInt(match[1], 10);
+      return (Number.isFinite(slot) && slot >= 0 && slot <= 15) ? slot : -1;
+    }
+
+    function dependencyMaskOutputRef(option) {
+      const outputs = (option && Array.isArray(option.outputs)) ? option.outputs : [];
+      if (outputs.length === 0) return '';
+      const output = Number.parseInt(outputs[0], 10);
+      return Number.isFinite(output) ? poolLogicDeviceSlotRef(output) : '';
+    }
+
+    function dependencyMaskOptionLabel(option) {
+      const slot = Number.parseInt(option && option.value, 10);
+      const ref = dependencyMaskOutputRef(option);
+      const fallbackRef = ref || (Number.isFinite(slot) ? ('pd' + String(slot)) : '');
+      const name = (option && typeof option.name === 'string' && option.name.trim().length > 0)
+        ? option.name.trim()
+        : '';
+      return name ? (fallbackRef + ' \u2014 ' + name) : fallbackRef;
+    }
+
+    function dependencyMaskTriggerSummary(entries, mask) {
+      const selected = entries
+        .filter((option) => (mask & (1 << Number.parseInt(option.value, 10))) !== 0)
+        .map((option) => dependencyMaskOutputRef(option) || ('pd' + String(option.value)));
+      if (selected.length === 0) {
+        return { text: tr('config.dependsMask.none', 'Aucune'), full: '' };
+      }
+      if (selected.length <= 3) {
+        const text = selected.join(', ');
+        return { text, full: text };
+      }
+      const text = selected.length + ' ' + tr('config.dependsMask.suffix', 'dépendances');
+      return { text, full: selected.join(', ') };
+    }
+
+    function updateDependencyMaskTrigger(trigger, entries, mask) {
+      if (!trigger) return;
+      const summary = dependencyMaskTriggerSummary(entries, mask);
+      trigger.textContent = summary.text;
+      trigger.title = summary.full || summary.text;
+      trigger.setAttribute('aria-label', tr('config.dependsMask.aria', 'Dépendances : ') + summary.text);
+    }
+
+    function closeDependencyMaskPopover() {
+      if (!activeDependencyMaskPopover) return;
+      const state = activeDependencyMaskPopover;
+      activeDependencyMaskPopover = null;
+      if (state.outsideHandler) {
+        document.removeEventListener('mousedown', state.outsideHandler, true);
+      }
+      if (state.keyHandler) {
+        document.removeEventListener('keydown', state.keyHandler, true);
+      }
+      if (state.repositionHandler) {
+        window.removeEventListener('resize', state.repositionHandler, true);
+        window.removeEventListener('scroll', state.repositionHandler, true);
+      }
+      if (state.popover && state.popover.parentNode) {
+        state.popover.parentNode.removeChild(state.popover);
+      }
+      if (state.trigger) {
+        state.trigger.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    function positionDependencyMaskPopover(popover, anchorEl) {
+      if (!popover || !anchorEl) return;
+      const anchorRect = anchorEl.getBoundingClientRect();
+      const popRect = popover.getBoundingClientRect();
+      const margin = 12;
+      let left = anchorRect.left;
+      let top = anchorRect.bottom + 8;
+      left = Math.max(margin, Math.min(left, window.innerWidth - popRect.width - margin));
+      if (top + popRect.height > window.innerHeight - margin) {
+        top = Math.max(margin, anchorRect.top - popRect.height - 8);
+      }
+      popover.style.left = Math.round(left) + 'px';
+      popover.style.top = Math.round(top) + 'px';
+    }
+
+    function openDependencyMaskPopover(trigger, popover) {
+      if (!trigger || !popover) return;
+      closeDependencyMaskPopover();
+      document.body.appendChild(popover);
+      trigger.setAttribute('aria-expanded', 'true');
+      positionDependencyMaskPopover(popover, trigger);
+
+      const outsideHandler = (event) => {
+        const target = event && event.target;
+        if (popover.contains(target) || trigger.contains(target)) return;
+        closeDependencyMaskPopover();
+      };
+      const keyHandler = (event) => {
+        if (event && event.key === 'Escape') {
+          closeDependencyMaskPopover();
+        }
+      };
+      const repositionHandler = () => {
+        if (!activeDependencyMaskPopover || activeDependencyMaskPopover.popover !== popover) return;
+        positionDependencyMaskPopover(popover, trigger);
+      };
+
+      document.addEventListener('mousedown', outsideHandler, true);
+      document.addEventListener('keydown', keyHandler, true);
+      window.addEventListener('resize', repositionHandler, true);
+      window.addEventListener('scroll', repositionHandler, true);
+      activeDependencyMaskPopover = { popover, trigger, outsideHandler, keyHandler, repositionHandler };
+    }
+
+    function buildDependencyMaskEditor(doc, key, value, moduleName) {
+      const allOptions = Array.isArray(flowCfgPoolDeviceOptions) ? flowCfgPoolDeviceOptions : [];
+      const currentSlot = dependencyMaskSlotFromModule(moduleName);
+      const entries = allOptions.filter((option) => Number.parseInt(option && option.value, 10) !== currentSlot);
+
+      let mask = 0;
+      const parsedMask = Number.parseInt(value, 10);
+      if (Number.isFinite(parsedMask)) mask = Math.max(0, Math.trunc(parsedMask)) & 0xFFFF;
+
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.className = 'control-input dependency-mask-input';
+      input.dataset.key = key;
+      input.dataset.kind = 'int';
+      input.dataset.label = (doc && typeof doc.label === 'string' && doc.label.length > 0) ? doc.label : key;
+      input.value = String(mask);
+      storeConfigFieldInitialValue(input, mask);
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'control-input dependency-mask-trigger';
+      trigger.setAttribute('aria-haspopup', 'dialog');
+      trigger.setAttribute('aria-expanded', 'false');
+
+      const popover = document.createElement('div');
+      popover.className = 'dependency-mask-popover';
+      popover.setAttribute('role', 'dialog');
+
+      entries.forEach((option) => {
+        const slot = Number.parseInt(option.value, 10);
+        if (!Number.isFinite(slot)) return;
+        const optionRow = document.createElement('label');
+        optionRow.className = 'dependency-mask-option';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.value = String(slot);
+        box.checked = (mask & (1 << slot)) !== 0;
+        box.addEventListener('change', () => {
+          if (box.checked) mask |= (1 << slot);
+          else mask &= ~(1 << slot);
+          mask &= 0xFFFF;
+          input.value = String(mask);
+          updateDependencyMaskTrigger(trigger, entries, mask);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        const optionText = document.createElement('span');
+        optionText.textContent = dependencyMaskOptionLabel(option);
+        optionRow.appendChild(box);
+        optionRow.appendChild(optionText);
+        popover.appendChild(optionRow);
+      });
+
+      if (entries.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dependency-mask-empty';
+        empty.textContent = tr('config.dependsMask.empty', 'Aucun autre appareil disponible.');
+        popover.appendChild(empty);
+      }
+
+      updateDependencyMaskTrigger(trigger, entries, mask);
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (activeDependencyMaskPopover && activeDependencyMaskPopover.trigger === trigger) {
+          closeDependencyMaskPopover();
+          return;
+        }
+        openDependencyMaskPopover(trigger, popover);
+      });
+
+      const root = document.createElement('div');
+      root.className = 'dependency-mask-control';
+      root.appendChild(trigger);
+      root.appendChild(input);
+      return { element: root, input };
     }
 
     function formatConfigValueForDisplay(value, displayFormat, doc) {
@@ -11657,7 +11850,10 @@
     function flowCfgSetControlsLocked(locked) {
       const page = document.getElementById('page-control');
       if (!page) return;
-      const nodes = page.querySelectorAll('.cfg-tree button,.control-fields input,.control-fields select,.control-fields textarea,.control-field-apply,#flowCfgApply,#flowCfgRefresh');
+      if (locked) {
+        closeDependencyMaskPopover();
+      }
+      const nodes = page.querySelectorAll('.cfg-tree button,.control-fields input,.control-fields select,.control-fields textarea,.dependency-mask-trigger,.control-field-apply,#flowCfgApply,#flowCfgRefresh');
       nodes.forEach((node) => {
         if (!node) return;
         if (locked) {
@@ -11839,6 +12035,7 @@
       const appendMode = !!opts.append;
       if (!appendMode) {
         closeColorPickerPopover();
+        closeDependencyMaskPopover();
         containerEl.innerHTML = '';
       }
       const data = (dataObj && typeof dataObj === 'object') ? dataObj : {};
@@ -11957,6 +12154,12 @@
           inputEl = select;
           inputEl.dataset.module = moduleName;
           valueWrap.appendChild(select);
+        } else if (doc && doc.widget === 'depends_on_mask') {
+          const editor = buildDependencyMaskEditor(doc, key, value, moduleName);
+          inputEl = editor.input;
+          inputEl.dataset.module = moduleName;
+          valueWrap.classList.add('control-value-wrap-mask');
+          valueWrap.appendChild(editor.element);
         } else if (typeof value === 'boolean') {
           row.classList.add('control-row-bool');
           const switchView = buildFlowSwitch({
@@ -12169,12 +12372,33 @@
       return 'Extension PoolDevice - ' + label + ' (pd' + String(slot) + ')';
     }
 
+    async function ensureFlowCfgPoolDeviceOptions(forceReload) {
+      const now = Date.now();
+      if (!forceReload && flowCfgPoolDeviceOptions &&
+          (now - flowCfgPoolDeviceOptionsTs) < flowCfgPoolDeviceOptionsTtlMs) {
+        return flowCfgPoolDeviceOptions;
+      }
+      try {
+        const res = await fetchWithBusyRetry('/api/runtime/pooldevice_options', { cache: 'no-store' });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !payload || payload.ok !== true || !Array.isArray(payload.options)) {
+          if (!flowCfgPoolDeviceOptions) flowCfgPoolDeviceOptions = [];
+          return flowCfgPoolDeviceOptions;
+        }
+        flowCfgPoolDeviceOptions = payload.options;
+        flowCfgPoolDeviceOptionsTs = now;
+        return flowCfgPoolDeviceOptions;
+      } catch (err) {
+        if (!flowCfgPoolDeviceOptions) flowCfgPoolDeviceOptions = [];
+        return flowCfgPoolDeviceOptions;
+      }
+    }
+
     async function loadFlowCfgPdmExtensionData(moduleName, dataObj) {
       const output = flowCfgIoOutputSlotIndex(moduleName, dataObj);
       if (output < 0) return null;
-      const optionsResponse = await fetchWithBusyRetry('/api/runtime/pooldevice_options', { cache: 'no-store' });
-      const options = await optionsResponse.json();
-      const device = (options.options || []).find((item) => Array.isArray(item.outputs) && item.outputs.includes(output));
+      const options = await ensureFlowCfgPoolDeviceOptions();
+      const device = options.find((item) => Array.isArray(item.outputs) && item.outputs.includes(output));
       const pdmModule = device ? 'pdm/pd' + device.value : '';
       if (!pdmModule) return null;
       try {
@@ -12252,6 +12476,9 @@
         const pdmModule = flowCfgPdmModuleForIoOutput(m, data.data);
         if (pdmModule) {
           await ensureCfgDocsForModule(pdmModule);
+        }
+        if (pdmModule || dependencyMaskSlotFromModule(m) >= 0) {
+          await ensureFlowCfgPoolDeviceOptions();
         }
         if (isWaveshareProfile() && m === 'poollogic/devices') {
           await loadPoolLogicDeviceSlotLabels(true);

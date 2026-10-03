@@ -2373,8 +2373,7 @@ bool IOModule::expanderUsable_(IOExpanderId expanderId) const
 
 uint8_t IOModule::expanderAddress_(IOExpanderId expanderId) const
 {
-    const IOExpanderConfig* cfg = expanderConfig_(expanderId);
-    return cfg ? cfg->address : 0;
+    return expanderId < IO_MAX_EXPANDERS ? expanderI2cAddresses_[expanderId] : 0;
 }
 
 uint8_t IOModule::expanderMaskDefault_(IOExpanderId expanderId) const
@@ -2487,27 +2486,6 @@ bool IOModule::validateExpanderTopology_()
                      (unsigned)port.portId);
                 topologyValid = false;
             }
-        }
-    }
-
-    for (uint8_t i = 0; i < IO_MAX_EXPANDERS; ++i) {
-        if (!runtimeExpanders_[i].configValid || !expanderEnabled_(i)) continue;
-        const uint8_t address = expanderAddress_(i);
-        if (address < 0x08U || address > 0x77U) {
-            LOGE("Invalid I2C address expander=%u addr=0x%02X", (unsigned)i, address);
-            runtimeExpanders_[i].configValid = false;
-            continue;
-        }
-        for (uint8_t previous = 0; previous < i; ++previous) {
-            const IOExpanderSpec* previousSpec = expanderSpec_(previous);
-            if (!previousSpec || !expanderEnabled_(previous)) continue;
-            if (expanderAddress_(previous) != address) continue;
-            LOGE("I2C address collision expanders=%u/%u addr=0x%02X",
-                 (unsigned)previous,
-                 (unsigned)i,
-                 address);
-            runtimeExpanders_[previous].configValid = false;
-            runtimeExpanders_[i].configValid = false;
         }
     }
 
@@ -2717,6 +2695,8 @@ bool IOModule::resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uin
 bool IOModule::configureRuntime_()
 {
     if (runtimeReady_) return true;
+    for (auto& address : analogI2cAddresses_) address = 0;
+    for (auto& address : expanderI2cAddresses_) address = 0;
     if (!cfgData_.enabled) return false;
     if (!validateExpanderTopology_()) {
         LOGE("I/O topology validation failed");
@@ -2860,10 +2840,7 @@ bool IOModule::configureRuntime_()
                  i2cBus_->beginScl(),
                  (unsigned long)i2cBus_->beginFrequencyHz());
         }
-        const bool ads48Present = i2cBus_->probe(0x48);
-        const bool ads49Present = i2cBus_->probe(0x49);
-        LOGI("ADS1115 probe 0x48: %s", ads48Present ? "found" : "not found");
-        LOGI("ADS1115 probe 0x49: %s", ads49Present ? "found" : "not found");
+        resolveI2cAddresses_(needAnalogSource);
     }
 
     for (uint8_t i = 0; i < MAX_DIGITAL_SLOTS; ++i) {
@@ -3140,78 +3117,41 @@ bool IOModule::configureRuntime_()
     }
 
     Ads1115DriverConfig adsInternalCfg{};
-    adsInternalCfg.address = cfgData_.adsInternalAddr;
+    adsInternalCfg.address = analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE];
     adsInternalCfg.gain = (uint8_t)cfgData_.adsGain;
     adsInternalCfg.dataRate = (uint8_t)cfgData_.adsRate;
     adsInternalCfg.pollMs = (cfgData_.adsPollMs < 20) ? 20 : (uint32_t)cfgData_.adsPollMs;
     adsInternalCfg.differentialPairs = false;
 
     Ads1115DriverConfig adsExternalCfg = adsInternalCfg;
-    adsExternalCfg.address = cfgData_.adsExternalAddr;
+    adsExternalCfg.address = analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF];
     adsExternalCfg.differentialPairs = true;
 
-    if (needAnalogSource[IO_SRC_SHT40] || cfgData_.sht40Enabled) {
-        const bool present = i2cBus_->probe(cfgData_.sht40Address);
-        LOGI("SHT40 probe 0x%02X: %s", cfgData_.sht40Address, present ? "found" : "not found");
-    }
-
-    if (needAnalogSource[IO_SRC_BMP280] || cfgData_.bmp280Enabled) {
-        const bool present = i2cBus_->probe(cfgData_.bmp280Address);
-        LOGI("BMP280 probe 0x%02X: %s", cfgData_.bmp280Address, present ? "found" : "not found");
-    }
-
-    if (needAnalogSource[IO_SRC_BME680] || cfgData_.bme680Enabled) {
-        const bool present = i2cBus_->probe(cfgData_.bme680Address);
-        LOGI("BME680 probe 0x%02X: %s", cfgData_.bme680Address, present ? "found" : "not found");
-    }
-
-    if (needAnalogSource[IO_SRC_INA226] || cfgData_.ina226Enabled) {
-        const bool present = i2cBus_->probe(cfgData_.ina226Address);
-        LOGI("INA226 probe 0x%02X: %s", cfgData_.ina226Address, present ? "found" : "not found");
-    }
-
-    if (needPcfOutput || needTcaOutput || needMcpInput || needMcpOutput) {
-        for (uint8_t expIdx = 0; expIdx < IO_MAX_EXPANDERS; ++expIdx) {
-            const IOExpanderSpec* spec = expanderSpec_(expIdx);
-            if (!spec || !expanderUsable_(spec->expanderId)) continue;
-            const uint8_t address = expanderAddress_(spec->expanderId);
-            const bool present = i2cBus_->probe(address);
-            const char* name = (spec->kind == IO_EXPANDER_KIND_TCA9554) ? "TCA9554" :
-                               (spec->kind == IO_EXPANDER_KIND_PCF8574) ? "PCF8574" :
-                               (spec->kind == IO_EXPANDER_KIND_MCP23017) ? "MCP23017" : "expander";
-            LOGI("%s probe expander=%u addr=0x%02X: %s",
-                 name,
-                 (unsigned)spec->expanderId,
-                 address,
-                 present ? "found" : "not found");
-        }
-    }
-
-    if (needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE]) {
+    if (needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE] && analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE] != 0) {
         IAnalogSourceDriver* driver = allocAdsDriver_("ads_internal", i2cBus_, adsInternalCfg);
         if (!driver) {
             LOGW("ADS internal pool exhausted");
         } else
         if (!makeAnalogProvider(driver).begin()) {
-            LOGW("ADS internal not detected at 0x%02X", cfgData_.adsInternalAddr);
+            LOGW("ADS internal not detected at 0x%02X", analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE]);
         } else {
             analogProviders_[IO_SRC_ADS_INTERNAL_SINGLE] = makeAnalogProvider(driver);
-            if (cfgData_.adsInternalAddr == 0x49) {
+            if (analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE] == 0x49) {
                 LOGI("ADS1115 found at 0x49 (internal)");
             }
         }
     }
 
-    if (needAnalogSource[IO_SRC_ADS_EXTERNAL_DIFF]) {
+    if (needAnalogSource[IO_SRC_ADS_EXTERNAL_DIFF] && analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF] != 0) {
         IAnalogSourceDriver* driver = allocAdsDriver_("ads_external", i2cBus_, adsExternalCfg);
         if (!driver) {
             LOGW("ADS external pool exhausted");
         } else
         if (!makeAnalogProvider(driver).begin()) {
-            LOGW("ADS external not detected at 0x%02X", cfgData_.adsExternalAddr);
+            LOGW("ADS external not detected at 0x%02X", analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF]);
         } else {
             analogProviders_[IO_SRC_ADS_EXTERNAL_DIFF] = makeAnalogProvider(driver);
-            if (cfgData_.adsExternalAddr == 0x49) {
+            if (analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF] == 0x49) {
                 LOGI("ADS1115 found at 0x49 (external)");
             }
         }
@@ -3254,9 +3194,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_SHT40]) {
         if (!cfgData_.sht40Enabled) {
             LOGW("SHT40 required by analog slots but disabled");
-        } else {
+        } else if (analogI2cAddresses_[IO_SRC_SHT40] != 0) {
             Sht40DriverConfig shtCfg{};
-            shtCfg.address = cfgData_.sht40Address;
+            shtCfg.address = analogI2cAddresses_[IO_SRC_SHT40];
             shtCfg.pollMs = (cfgData_.sht40PollMs < 250) ? 250U : (uint32_t)cfgData_.sht40PollMs;
 
             IAnalogSourceDriver* driver = allocSht40Driver_("sht40", i2cBus_, shtCfg);
@@ -3274,9 +3214,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_BMP280]) {
         if (!cfgData_.bmp280Enabled) {
             LOGW("BMP280 required by analog slots but disabled");
-        } else {
+        } else if (analogI2cAddresses_[IO_SRC_BMP280] != 0) {
             Bmp280DriverConfig bmpCfg{};
-            bmpCfg.address = cfgData_.bmp280Address;
+            bmpCfg.address = analogI2cAddresses_[IO_SRC_BMP280];
             bmpCfg.pollMs = (cfgData_.bmp280PollMs < 100) ? 100U : (uint32_t)cfgData_.bmp280PollMs;
 
             IAnalogSourceDriver* driver = allocBmp280Driver_("bmp280", i2cBus_, bmpCfg);
@@ -3294,9 +3234,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_BME680]) {
         if (!cfgData_.bme680Enabled) {
             LOGW("BME680 required by analog slots but disabled");
-        } else {
+        } else if (analogI2cAddresses_[IO_SRC_BME680] != 0) {
             Bme680DriverConfig bmeCfg{};
-            bmeCfg.address = cfgData_.bme680Address;
+            bmeCfg.address = analogI2cAddresses_[IO_SRC_BME680];
             bmeCfg.pollMs = (cfgData_.bme680PollMs < 250) ? 250U : (uint32_t)cfgData_.bme680PollMs;
 
             IAnalogSourceDriver* driver = allocBme680Driver_("bme680", i2cBus_, bmeCfg);
@@ -3314,9 +3254,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_INA226]) {
         if (!cfgData_.ina226Enabled) {
             LOGW("INA226 required by analog slots but disabled");
-        } else {
+        } else if (analogI2cAddresses_[IO_SRC_INA226] != 0) {
             Ina226DriverConfig inaCfg{};
-            inaCfg.address = cfgData_.ina226Address;
+            inaCfg.address = analogI2cAddresses_[IO_SRC_INA226];
             inaCfg.pollMs = (cfgData_.ina226PollMs < 100) ? 100U : (uint32_t)cfgData_.ina226PollMs;
             inaCfg.shuntOhms = (cfgData_.ina226ShuntOhms > 0.0f) ? cfgData_.ina226ShuntOhms : 0.1f;
 
@@ -3553,6 +3493,7 @@ IMaskOutputDriver* IOModule::beginMaskExpander_(IOExpanderId expanderId, uint8_t
 
     rt.beginAttempted = true;
     const uint8_t address = expanderAddress_(expanderId);
+    if (!address) return nullptr;
     if (expectedKind == IO_EXPANDER_KIND_PCF8574) {
         rt.pcf = static_cast<Pcf8574Driver*>(allocPcfDriver_("pcf8574", i2cBus_, address));
         if (!rt.pcf) return nullptr;
@@ -3590,6 +3531,7 @@ Mcp23017Driver* IOModule::beginMcpExpander_(IOExpanderId expanderId)
 
     rt.beginAttempted = true;
     const uint8_t address = expanderAddress_(expanderId);
+    if (!address) return nullptr;
     rt.mcp = allocMcpDriver_("mcp23017", i2cBus_, address);
     if (!rt.mcp) return nullptr;
     rt.beginOk = rt.mcp->begin();
@@ -3680,25 +3622,32 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(dsPollVar_, kCfgModuleId, kCfgBranchIoDs18b20);
     cfg.registerVar(digitalPollVar_, kCfgModuleId, kCfgBranchIoGpio);
     cfg.registerVar(adsInternalAddrVar_, kCfgModuleId, kCfgBranchIoAdsInt);
+    cfg.registerVar(adsInternalSecondaryAddrVar_, kCfgModuleId, kCfgBranchIoAdsInt);
     cfg.registerVar(adsExternalAddrVar_, kCfgModuleId, kCfgBranchIoAdsExt);
+    cfg.registerVar(adsExternalSecondaryAddrVar_, kCfgModuleId, kCfgBranchIoAdsExt);
     cfg.registerVar(adsGainVar_, kCfgModuleId, kCfgBranchIoAds1115);
     cfg.registerVar(adsRateVar_, kCfgModuleId, kCfgBranchIoAds1115);
     cfg.registerVar(sht40EnabledVar_, kCfgModuleId, kCfgBranchIoSht40);
     cfg.registerVar(sht40AddressVar_, kCfgModuleId, kCfgBranchIoSht40);
+    cfg.registerVar(sht40SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoSht40);
     cfg.registerVar(sht40PollVar_, kCfgModuleId, kCfgBranchIoSht40);
     cfg.registerVar(bmp280EnabledVar_, kCfgModuleId, kCfgBranchIoBmp280);
     cfg.registerVar(bmp280AddressVar_, kCfgModuleId, kCfgBranchIoBmp280);
+    cfg.registerVar(bmp280SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoBmp280);
     cfg.registerVar(bmp280PollVar_, kCfgModuleId, kCfgBranchIoBmp280);
     cfg.registerVar(bme680EnabledVar_, kCfgModuleId, kCfgBranchIoBme680);
     cfg.registerVar(bme680AddressVar_, kCfgModuleId, kCfgBranchIoBme680);
+    cfg.registerVar(bme680SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoBme680);
     cfg.registerVar(bme680PollVar_, kCfgModuleId, kCfgBranchIoBme680);
     cfg.registerVar(ina226EnabledVar_, kCfgModuleId, kCfgBranchIoIna226);
     cfg.registerVar(ina226AddressVar_, kCfgModuleId, kCfgBranchIoIna226);
+    cfg.registerVar(ina226SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoIna226);
     cfg.registerVar(ina226PollVar_, kCfgModuleId, kCfgBranchIoIna226);
     cfg.registerVar(ina226ShuntOhmsVar_, kCfgModuleId, kCfgBranchIoIna226);
 #define FLOW_IO_REGISTER_EXPANDER_CFG(INDEX, BRANCH) \
     cfg.registerVar(exp##INDEX##EnabledVar_, kCfgModuleId, BRANCH); \
     cfg.registerVar(exp##INDEX##AddressVar_, kCfgModuleId, BRANCH); \
+    cfg.registerVar(exp##INDEX##SecondaryAddressVar_, kCfgModuleId, BRANCH); \
     cfg.registerVar(exp##INDEX##MaskDefaultVar_, kCfgModuleId, BRANCH);
     FLOW_IO_REGISTER_EXPANDER_CFG(0, kCfgBranchIoExp0)
     FLOW_IO_REGISTER_EXPANDER_CFG(1, kCfgBranchIoExp1)

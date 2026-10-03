@@ -25,22 +25,28 @@ struct IOModuleConfig {
     int32_t dsPollMs = FLOW_MODDEF_IO_DS;
     int32_t digitalPollMs = FLOW_MODDEF_IO_DIN;
     uint8_t adsInternalAddr = FLOW_WIRDEF_IO_AIAD;
+    uint8_t adsInternalSecondaryAddr = 0;
     uint8_t adsExternalAddr = FLOW_WIRDEF_IO_AEAD;
+    uint8_t adsExternalSecondaryAddr = 0;
     int32_t adsGain = FLOW_MODDEF_IO_AGAI;
     int32_t adsRate = FLOW_MODDEF_IO_ARAT;
     bool sht40Enabled = false;
     uint8_t sht40Address = 0x44;
+    uint8_t sht40SecondaryAddress = 0;
     int32_t sht40PollMs = 2000;
     bool bmp280Enabled =
         true;
     uint8_t bmp280Address = 0x76;
+    uint8_t bmp280SecondaryAddress = 0;
     int32_t bmp280PollMs = 1000;
     bool bme680Enabled = true;
     uint8_t bme680Address = 0x77;
+    uint8_t bme680SecondaryAddress = 0;
     int32_t bme680PollMs = 2000;
     bool ina226Enabled =
         true;
     uint8_t ina226Address = 0x40;
+    uint8_t ina226SecondaryAddress = 0x44;
     int32_t ina226PollMs = 500;
     float ina226ShuntOhms = 0.1f;
     bool traceEnabled = FLOW_MODDEF_IO_TREN;
@@ -99,6 +105,7 @@ struct IOExpanderSpec {
 struct IOExpanderConfig {
     bool enabled = false;
     uint8_t address = 0;
+    uint8_t secondaryAddress = 0;
     uint8_t maskDefault = 0;
 };
 

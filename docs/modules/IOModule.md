@@ -112,6 +112,50 @@ Les `IoBackend` visibles dans le service sont:
 - `IO_BACKEND_BME680`
 - `IO_BACKEND_INA226`
 
+## Adresses I2C primaire et secondaire
+
+Chaque driver I2C configurable du module IO (`ads1115_int`, `ads1115_ext`,
+`sht40`, `bmp280`, `bme680`, `ina226`, `expander00..03`) expose deux champs
+persistants dans l'interface de configuration :
+
+- `address` : adresse primaire ; la clé NVS existante est conservée.
+- `secondary_address` : adresse de secours ; `0x00` désactive le secours.
+
+L'INA226 utilise par défaut `0x40` puis `0x44`. Les autres secondaires sont
+initialement désactivées. Les changements prennent effet au redémarrage.
+Les adresses non nulles doivent être comprises entre `0x08` et `0x77` et être
+compatibles avec le composant. Le driver SHT40 actuel accepte uniquement `0x44`.
+
+Avant toute initialisation des drivers, une résolution commune réserve les
+primaires de tous les drivers activés, même sans binding ou sans réponse du
+composant. Les ADS1115, sans interrupteur d'activation dédié, sont activés par
+leurs bindings. Les drivers désactivés ne réservent aucune adresse.
+
+La primaire est choisie si elle répond. Sinon, la secondaire peut être choisie
+si elle répond et n'est ni une primaire réservée ni demandée par un autre
+driver ayant besoin de son secours. Deux primaires identiques ou deux secours
+concurrents sont refusés pour tous les participants concernés, avec diagnostic
+dans les logs. L'ordre d'initialisation ne décide jamais du propriétaire.
+Une erreur de configuration d'adresse désactive l'attribution pour ce driver.
+
+Ainsi, avec INA226 `0x40/0x44` et SHT40 `0x44/0x00`, un SHT40 activé réserve
+`0x44` et empêche le secours INA226. S'il est désactivé, l'INA226 peut utiliser
+`0x44` lorsque `0x40` ne répond pas. Si les deux adresses répondent, l'INA226
+reste à `0x40` et le SHT40 activé utilise `0x44`.
+
+L'adresse retenue est uniquement un état runtime : elle ne remplace jamais la
+configuration persistante et tous les échanges suivants l'utilisent. Un échec
+d'initialisation du composant ne libère pas sa réservation et ne provoque pas
+une réattribution à un autre driver. L'INA226 vérifie son identité avant les
+écritures de configuration et borne l'attente de première conversion à 150 ms.
+Un acquittement du bus ne constitue pas une identification de composant.
+
+Cette résolution concerne les drivers du module IO. Les périphériques internes
+à adresse fixe des autres modules (RTC et panneau de LED HMI) conservent leur
+configuration matérielle ; leurs adresses ne doivent pas être attribuées à un
+driver IO. Deux composants physiques partageant une adresse sur le même bus
+nécessitent toujours une correction du câblage ou de l'adressage matériel.
+
 ## Modèle de binding actuel
 
 Le module ne déduit pas seul le câblage métier. Le binding est fourni par le profil Waveshare.

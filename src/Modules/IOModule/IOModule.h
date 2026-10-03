@@ -247,6 +247,9 @@ private:
     bool expanderEnabled_(IOExpanderId expanderId) const;
     bool expanderUsable_(IOExpanderId expanderId) const;
     uint8_t expanderAddress_(IOExpanderId expanderId) const;
+    void resolveI2cAddresses_(const bool* needAnalogSource);
+    uint8_t analogI2cAddresses_[IO_SRC_COUNT]{};
+    uint8_t expanderI2cAddresses_[IO_MAX_EXPANDERS]{};
     uint8_t expanderMaskDefault_(IOExpanderId expanderId) const;
     bool expanderOutputsInverted_(IOExpanderId expanderId) const;
     bool validateExpanderTopology_();
@@ -469,30 +472,37 @@ private:
     ConfigVariable<int32_t,0> dsPollVar_ { NVS_KEY(NvsKeys::Io::IO_DS),"poll_ms","io/drivers/ds18b20",ConfigType::Int32,&cfgData_.dsPollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> digitalPollVar_ { NVS_KEY(NvsKeys::Io::IO_DIN),"poll_ms","io/drivers/gpio",ConfigType::Int32,&cfgData_.digitalPollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<uint8_t,0> adsInternalAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AIAD),"address","io/drivers/ads1115_int",ConfigType::UInt8,&cfgData_.adsInternalAddr,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> adsInternalSecondaryAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AISA),"secondary_address","io/drivers/ads1115_int",ConfigType::UInt8,&cfgData_.adsInternalSecondaryAddr,ConfigPersistence::Persistent,0 };
     ConfigVariable<uint8_t,0> adsExternalAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AEAD),"address","io/drivers/ads1115_ext",ConfigType::UInt8,&cfgData_.adsExternalAddr,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> adsExternalSecondaryAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AESA),"secondary_address","io/drivers/ads1115_ext",ConfigType::UInt8,&cfgData_.adsExternalSecondaryAddr,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> adsGainVar_ { NVS_KEY(NvsKeys::Io::IO_AGAI),"gain","io/drivers/ads1115",ConfigType::Int32,&cfgData_.adsGain,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> adsRateVar_ { NVS_KEY(NvsKeys::Io::IO_ARAT),"rate","io/drivers/ads1115",ConfigType::Int32,&cfgData_.adsRate,ConfigPersistence::Persistent,0 };
     ConfigVariable<bool,0> sht40EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_SHTEN),"enabled","io/drivers/sht40",ConfigType::Bool,&cfgData_.sht40Enabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<uint8_t,0> sht40AddressVar_ { NVS_KEY(NvsKeys::Io::IO_SHTAD),"address","io/drivers/sht40",ConfigType::UInt8,&cfgData_.sht40Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> sht40SecondaryAddressVar_ { NVS_KEY(NvsKeys::Io::IO_SHTSA),"secondary_address","io/drivers/sht40",ConfigType::UInt8,&cfgData_.sht40SecondaryAddress,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> sht40PollVar_ { NVS_KEY(NvsKeys::Io::IO_SHTPL),"poll_ms","io/drivers/sht40",ConfigType::Int32,&cfgData_.sht40PollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<bool,0> bmp280EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_BMPEN),"enabled","io/drivers/bmp280",ConfigType::Bool,&cfgData_.bmp280Enabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<uint8_t,0> bmp280AddressVar_ { NVS_KEY(NvsKeys::Io::IO_BMPAD),"address","io/drivers/bmp280",ConfigType::UInt8,&cfgData_.bmp280Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> bmp280SecondaryAddressVar_ { NVS_KEY(NvsKeys::Io::IO_BMPSA),"secondary_address","io/drivers/bmp280",ConfigType::UInt8,&cfgData_.bmp280SecondaryAddress,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> bmp280PollVar_ { NVS_KEY(NvsKeys::Io::IO_BMPPL),"poll_ms","io/drivers/bmp280",ConfigType::Int32,&cfgData_.bmp280PollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<bool,0> bme680EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_BMEEN),"enabled","io/drivers/bme680",ConfigType::Bool,&cfgData_.bme680Enabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<uint8_t,0> bme680AddressVar_ { NVS_KEY(NvsKeys::Io::IO_BMEAD),"address","io/drivers/bme680",ConfigType::UInt8,&cfgData_.bme680Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> bme680SecondaryAddressVar_ { NVS_KEY(NvsKeys::Io::IO_BMESA),"secondary_address","io/drivers/bme680",ConfigType::UInt8,&cfgData_.bme680SecondaryAddress,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> bme680PollVar_ { NVS_KEY(NvsKeys::Io::IO_BMEPL),"poll_ms","io/drivers/bme680",ConfigType::Int32,&cfgData_.bme680PollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<bool,0> ina226EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_INAEN),"enabled","io/drivers/ina226",ConfigType::Bool,&cfgData_.ina226Enabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<uint8_t,0> ina226AddressVar_ { NVS_KEY(NvsKeys::Io::IO_INAAD),"address","io/drivers/ina226",ConfigType::UInt8,&cfgData_.ina226Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> ina226SecondaryAddressVar_ { NVS_KEY(NvsKeys::Io::IO_INASA),"secondary_address","io/drivers/ina226",ConfigType::UInt8,&cfgData_.ina226SecondaryAddress,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> ina226PollVar_ { NVS_KEY(NvsKeys::Io::IO_INAPL),"poll_ms","io/drivers/ina226",ConfigType::Int32,&cfgData_.ina226PollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<float,0> ina226ShuntOhmsVar_ { NVS_KEY(NvsKeys::Io::IO_INASH),"shunt_ohms","io/drivers/ina226",ConfigType::Float,&cfgData_.ina226ShuntOhms,ConfigPersistence::Persistent,0 };
-#define FLOW_IO_EXPANDER_CFG_DECL(INDEX, SLOT_STR, KEYEN, KEYAD, KEYMK) \
+#define FLOW_IO_EXPANDER_CFG_DECL(INDEX, SLOT_STR, KEYEN, KEYAD, KEYSA, KEYMK) \
     ConfigVariable<bool,0> exp##INDEX##EnabledVar_{NVS_KEY(NvsKeys::Io::KEYEN),"enabled","io/drivers/expander" SLOT_STR,ConfigType::Bool,&expanderCfg_[INDEX].enabled,ConfigPersistence::Persistent,0}; \
     ConfigVariable<uint8_t,0> exp##INDEX##AddressVar_{NVS_KEY(NvsKeys::Io::KEYAD),"address","io/drivers/expander" SLOT_STR,ConfigType::UInt8,&expanderCfg_[INDEX].address,ConfigPersistence::Persistent,0}; \
+    ConfigVariable<uint8_t,0> exp##INDEX##SecondaryAddressVar_{NVS_KEY(NvsKeys::Io::KEYSA),"secondary_address","io/drivers/expander" SLOT_STR,ConfigType::UInt8,&expanderCfg_[INDEX].secondaryAddress,ConfigPersistence::Persistent,0}; \
     ConfigVariable<uint8_t,0> exp##INDEX##MaskDefaultVar_{NVS_KEY(NvsKeys::Io::KEYMK),"mask_default","io/drivers/expander" SLOT_STR,ConfigType::UInt8,&expanderCfg_[INDEX].maskDefault,ConfigPersistence::Persistent,0};
-    FLOW_IO_EXPANDER_CFG_DECL(0, "00", IO_X0EN, IO_X0AD, IO_X0MK)
-    FLOW_IO_EXPANDER_CFG_DECL(1, "01", IO_X1EN, IO_X1AD, IO_X1MK)
-    FLOW_IO_EXPANDER_CFG_DECL(2, "02", IO_X2EN, IO_X2AD, IO_X2MK)
-    FLOW_IO_EXPANDER_CFG_DECL(3, "03", IO_X3EN, IO_X3AD, IO_X3MK)
+    FLOW_IO_EXPANDER_CFG_DECL(0, "00", IO_X0EN, IO_X0AD, IO_X0SA, IO_X0MK)
+    FLOW_IO_EXPANDER_CFG_DECL(1, "01", IO_X1EN, IO_X1AD, IO_X1SA, IO_X1MK)
+    FLOW_IO_EXPANDER_CFG_DECL(2, "02", IO_X2EN, IO_X2AD, IO_X2SA, IO_X2MK)
+    FLOW_IO_EXPANDER_CFG_DECL(3, "03", IO_X3EN, IO_X3AD, IO_X3SA, IO_X3MK)
 #undef FLOW_IO_EXPANDER_CFG_DECL
     ConfigVariable<bool,0> traceEnabledVar_ { NVS_KEY(NvsKeys::Io::IO_TREN),"trace_enabled","io/debug",ConfigType::Bool,&cfgData_.traceEnabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> tracePeriodVar_ { NVS_KEY(NvsKeys::Io::IO_TRMS),"trace_period_ms","io/debug",ConfigType::Int32,&cfgData_.tracePeriodMs,ConfigPersistence::Persistent,0 };

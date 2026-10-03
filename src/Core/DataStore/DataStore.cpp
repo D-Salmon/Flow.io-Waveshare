@@ -5,22 +5,15 @@
 #include "Core/DataStore/DataStore.h"
 #include "Core/ModuleId.h"
 
-void DataStore::publishChanged(DataKey key)
-{
-    if (!_bus) return;
-    DataChangedPayload p{ key };
-    _bus->post(EventId::DataChanged, &p, sizeof(p), ModuleId::DataStore);
-}
-
 void DataStore::notifyChanged(DataKey key)
 {
-    if (!startupChanges_.mark(key)) publishChanged(key);
+    pendingChanges_.mark(key);
 }
 
-void DataStore::flushStartupChanges(uint16_t budget)
+void DataStore::flushPendingChanges(uint16_t budget)
 {
     if (!_bus) return;
-    startupChanges_.drain(budget, [this](DataKey key) {
+    pendingChanges_.tryDrain(budget, [this](DataKey key) {
         const DataChangedPayload payload{key};
         return _bus->tryPost(EventId::DataChanged, &payload, sizeof(payload), ModuleId::DataStore);
     });

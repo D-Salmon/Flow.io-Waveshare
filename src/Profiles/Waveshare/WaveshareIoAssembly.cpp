@@ -1,5 +1,5 @@
 #include "Profiles/Waveshare/WaveshareIoAssembly.h"
-#include "Profiles/Waveshare/PoolDeviceHaCommand.h"
+#include "Profiles/Waveshare/PoolRoleHaDiscovery.h"
 #include "Profiles/Waveshare/WaveshareIoLayout.h"
 
 #include <Arduino.h>
@@ -92,9 +92,7 @@ struct FlowIoDiscoveryHeap {
     char analogValueTpl[kFlowIoAnalogHaSlots][128]{};
     char analogStateSuffix[kFlowIoAnalogHaSlots][24]{};
     char digitalStateSuffix[sizeof(kDigitalHaSpecs) / sizeof(kDigitalHaSpecs[0])][24]{};
-    char switchStateSuffix[Limits::Io::MaxPoolDevices][24]{};
-    char switchPayloadOn[Limits::Io::MaxPoolDevices][Limits::IoHaSwitchPayloadBuf]{};
-    char switchPayloadOff[Limits::Io::MaxPoolDevices][Limits::IoHaSwitchPayloadBuf]{};
+    PoolRoleHaDiscovery::Storage poolRoles{};
 };
 
 FlowIoDiscoveryHeap* gDiscoveryHeap = nullptr;
@@ -134,7 +132,12 @@ void releaseDiscoveryHeapIfReady(ModuleInstances& modules)
     heap_caps_free(gDiscoveryHeap);
     gDiscoveryHeap = nullptr;
     gDiscoveryHeapReleaseWaitLogged = false;
-    WAVESHARE_HA_BOOT_TRACE("flow.io discovery heap released after HA one-shot publish");
+    Board::SerialMap::logSerial().printf(
+        "[waveshare] HA discovery released bytes=%u internal_free=%lu internal_largest=%lu psram_free=%lu\r\n",
+        unsigned(sizeof(FlowIoDiscoveryHeap)),
+        (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
     (void)modules;
 #endif
@@ -420,38 +423,22 @@ void syncSwitches(const DomainSpec& domain, ModuleInstances& modules)
         const PoolDevicePreset& device = domain.poolDevices[i];
         const DomainSlotPreset* commandSlot = findDomainSlotById(domain, device.commandSlot);
         if (!commandSlot) continue;
-        snprintf(
-            gDiscoveryHeap->switchStateSuffix[i],
-            sizeof(gDiscoveryHeap->switchStateSuffix[i]),
-            "rt/pdm/state/pd%u",
-            (unsigned)device.id
-        );
-        const bool payloadOk =
-            formatPoolDeviceHaWritePayload(gDiscoveryHeap->switchPayloadOn[i],
-                                           sizeof(gDiscoveryHeap->switchPayloadOn[i]),
-                                           device.id, true) &&
-            formatPoolDeviceHaWritePayload(gDiscoveryHeap->switchPayloadOff[i],
-                                           sizeof(gDiscoveryHeap->switchPayloadOff[i]),
-                                           device.id, false);
-
-        if (!payloadOk) {
-            requireSetup(false, "ha switch payload");
-            continue;
-        }
+        requireSetup(device.id < PoolIds::DeviceCount, "HA pool role index");
+        const auto& role = gDiscoveryHeap->poolRoles.roles[device.id];
 
         const HASwitchEntry entry{
             "io",
             device.objectSuffix,
             commandSlot->displayName,
-            gDiscoveryHeap->switchStateSuffix[i],
+            role.state,
             "{% if value_json.on %}ON{% else %}OFF{% endif %}",
             MqttTopics::SuffixCmd,
-            gDiscoveryHeap->switchPayloadOn[i],
-            gDiscoveryHeap->switchPayloadOff[i],
+            role.on,
+            role.off,
             device.haIcon,
             nullptr
         };
-        (void)modules.haService->addSwitch(modules.haService->ctx, &entry);
+        requireSetup(modules.haService->addSwitch(modules.haService->ctx, &entry), "HA pool role switch");
     }
 }
 
@@ -603,6 +590,25 @@ void registerIoHomeAssistant(AppContext& ctx, ModuleInstances& modules)
 {
     modules.haService = ctx.services.get<HAService>(ServiceId::Ha);
     if (!modules.haService) return;
+
+    // All onConfigLoaded callbacks have completed; capture effective assignments once.
+    const auto* poolConfig = ctx.services.get<PoolConfigurationService>(ServiceId::PoolConfiguration);
+    PoolDeviceAssignments assignments{};
+    requireSetup(poolConfig && poolConfig->getDeviceAssignments &&
+                 poolConfig->getDeviceAssignments(poolConfig->ctx, &assignments),
+                 "HA PoolLogic device assignments");
+    requireSetup(ensureDiscoveryHeap(), "ha discovery heap");
+    requireSetup(PoolRoleHaDiscovery::prepare(gDiscoveryHeap->poolRoles, assignments,
+                                             Limits::Io::MaxPoolDevices), "HA pool role topics");
+    requireSetup(PoolRoleHaDiscovery::registerEntries(*modules.haService, gDiscoveryHeap->poolRoles),
+                 "HA pool role entities");
+    Board::SerialMap::logSerial().printf(
+        "[waveshare] HA boot roles filtration=pd%u ph=pd%u disinfection=pd%u robot=pd%u "
+        "fill=pd%u swg=pd%u heater=pd%u discovery_bytes=%u\r\n",
+        unsigned(assignments.filtration), unsigned(assignments.phPump),
+        unsigned(assignments.disinfectionPump), unsigned(assignments.robot),
+        unsigned(assignments.filling), unsigned(assignments.chlorineGenerator),
+        unsigned(assignments.heater), unsigned(sizeof(FlowIoDiscoveryHeap)));
 
     syncAnalogSensors(modules);
     syncDigitalInputBinarySensors(modules);

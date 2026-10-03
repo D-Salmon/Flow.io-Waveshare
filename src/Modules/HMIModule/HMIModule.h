@@ -7,6 +7,7 @@
 #include "App/BuildFlags.h"
 #include "Core/I2cBus.h"
 #include "Core/Module.h"
+#include "Core/DataStore/PendingDataKeys.h"
 #include "Core/NvsKeys.h"
 #include "Core/ServiceBinding.h"
 #include "Core/EventBus/EventBus.h"
@@ -219,6 +220,8 @@ private:
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
+    void handleEvent_(const Event& e);
+    PendingDataKeys pendingDataKeys_;
     void handleDriverEvent_(const HmiEvent& e);
     bool requestRefresh_();
     bool openConfigHome_();

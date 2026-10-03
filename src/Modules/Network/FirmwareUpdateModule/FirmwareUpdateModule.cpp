@@ -4,6 +4,7 @@
  */
 
 #include "FirmwareUpdateModule.h"
+#include "Core/CounterPersistence.h"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -874,6 +875,13 @@ bool FirmwareUpdateModule::setConfig_(const char* updateHost,
     return true;
 }
 
+bool FirmwareUpdateModule::saveCountersBeforeUpdate_(char* errOut, size_t errOutLen)
+{
+    if (saveCounterCheckpoint(services_)) return true;
+    writeSimpleError_(errOut, errOutLen, "counter checkpoint failed; update/reboot cancelled");
+    return false;
+}
+
 bool FirmwareUpdateModule::startUpdate_(FirmwareUpdateTarget target,
                                         const char* url,
                                         uint32_t* operationIdOut,
@@ -945,6 +953,12 @@ bool FirmwareUpdateModule::startUpdate_(FirmwareUpdateTarget target,
     if (nextOperationId_ == 0U) nextOperationId_ = 1U;
     portEXIT_CRITICAL(&lock_);
 
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) {
+        portENTER_CRITICAL(&lock_);
+        updateStartPending_ = false;
+        portEXIT_CRITICAL(&lock_);
+        return false;
+    }
     if (!persistReceipt_(target, job.operationId, FirmwareUpdateReceiptState::Running)) {
         portENTER_CRITICAL(&lock_);
         updateStartPending_ = false;
@@ -1140,6 +1154,7 @@ bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOu
                "rebooting",
                job.operationId);
     delay(1800);
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) return false;
     ESP.restart();
     return true;
 }
@@ -1318,6 +1333,7 @@ bool FirmwareUpdateModule::runNextionUpdate_(const UpdateJob& job, char* errOut,
                "rebooting after nextion update",
                job.operationId);
     delay(1800);
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) return false;
     ESP.restart();
     return true;
 }
@@ -1454,6 +1470,7 @@ bool FirmwareUpdateModule::runSpiffsUpdate_(const UpdateJob& job, char* errOut, 
                "rebooting",
                job.operationId);
     delay(1800);
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) return false;
     ESP.restart();
     return true;
 }
@@ -1585,6 +1602,10 @@ bool FirmwareUpdateModule::beginLocalRelease_(const char* manifestJson,
     portEXIT_CRITICAL(&lock_);
 
     localRelease_ = candidate;
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) {
+        resetLocalRelease_();
+        return false;
+    }
     if (!persistReceipt_(FirmwareUpdateTarget::Waveshare,
                          candidate.operationId,
                          FirmwareUpdateReceiptState::Running)) {
@@ -1853,6 +1874,7 @@ bool FirmwareUpdateModule::commitLocalRelease_(uint32_t transactionId,
         failLocalRelease_("failed to select release boot partition");
         return writeSimpleError_(errOut, errOutLen, "failed to select release boot partition");
     }
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) return false;
     if (!persistReceipt_(FirmwareUpdateTarget::Waveshare,
                          localRelease_.operationId,
                          FirmwareUpdateReceiptState::RebootPending)) {
@@ -2360,6 +2382,12 @@ void FirmwareUpdateModule::loop()
         }
     }
     if (localReleaseRebootDue) {
+        if (!saveCounterCheckpoint(services_)) {
+            SemaphoreGuard transactionGuard(localReleaseMutex_);
+            localRelease_.rebootPending = false;
+            failLocalRelease_("counter checkpoint failed; reboot cancelled");
+            return;
+        }
         LOGI("[UPGRADE] reboot");
         ESP.restart();
     }

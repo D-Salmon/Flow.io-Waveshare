@@ -2072,6 +2072,246 @@
       "label_t": "cfgdocs.io.input.a31.binding_port.label",
       "help_t": "cfgdocs.io.input.a31.binding_port.help",
       "enum_set": "flowio_binding_port_analog"
+    },
+    "io/input/i00/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i00.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i00.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 64
+        },
+        "confirmation_t": "cfgdocs.io.input.i00.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i01/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i01.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i01.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 65
+        },
+        "confirmation_t": "cfgdocs.io.input.i01.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i02/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i02.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i02.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 66
+        },
+        "confirmation_t": "cfgdocs.io.input.i02.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i03/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i03.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i03.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 67
+        },
+        "confirmation_t": "cfgdocs.io.input.i03.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i04/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i04.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i04.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 68
+        },
+        "confirmation_t": "cfgdocs.io.input.i04.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i05/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i05.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i05.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 69
+        },
+        "confirmation_t": "cfgdocs.io.input.i05.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i06/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i06.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i06.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 70
+        },
+        "confirmation_t": "cfgdocs.io.input.i06.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i07/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i07.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i07.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 71
+        },
+        "confirmation_t": "cfgdocs.io.input.i07.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i08/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i08.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i08.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 72
+        },
+        "confirmation_t": "cfgdocs.io.input.i08.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i09/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i09.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i09.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 73
+        },
+        "confirmation_t": "cfgdocs.io.input.i09.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i10/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i10.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i10.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 74
+        },
+        "confirmation_t": "cfgdocs.io.input.i10.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i11/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i11.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i11.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 75
+        },
+        "confirmation_t": "cfgdocs.io.input.i11.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i12/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i12.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i12.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 76
+        },
+        "confirmation_t": "cfgdocs.io.input.i12.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i13/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i13.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i13.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 77
+        },
+        "confirmation_t": "cfgdocs.io.input.i13.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i14/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i14.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i14.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 78
+        },
+        "confirmation_t": "cfgdocs.io.input.i14.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
+    },
+    "io/input/i15/counter_reset": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.input.i15.counter_reset.label",
+      "help_t": "cfgdocs.io.input.i15.counter_reset.help",
+      "widget": "action",
+      "counter_only": true,
+      "action": {
+        "endpoint": "/api/io/counter/reset",
+        "params": {
+          "id": 79
+        },
+        "confirmation_t": "cfgdocs.io.input.i15.counter_reset.confirm",
+        "success_t": "config.counter_reset.success"
+      }
     }
   }
 }

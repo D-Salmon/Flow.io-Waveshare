@@ -15,6 +15,14 @@ class ValueTests(unittest.TestCase):
                 'test/host/history_json.cpp', '-o', str(binary)], cwd=ROOT, check=True)
             subprocess.run([str(binary)], cwd=ROOT, check=True)
 
+    def test_pending_data_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = pathlib.Path(tmp) / 'pending-keys'
+            subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                '-fsanitize=undefined,address', '-g', '-pthread', '-Itest/host/value_stubs', '-Isrc', '-Iinclude',
+                'test/host/pending_data_keys.cpp', '-o', str(binary)], cwd=ROOT, check=True)
+            subprocess.run([str(binary)], cwd=ROOT, check=True)
+
     def test_eventbus_startup(self):
         with tempfile.TemporaryDirectory() as tmp:
             binary = pathlib.Path(tmp) / 'eventbus'

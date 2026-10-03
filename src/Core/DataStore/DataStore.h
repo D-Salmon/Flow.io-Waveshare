@@ -4,7 +4,7 @@
  * @brief Runtime data store with EventBus notifications.
  */
 #include <stdint.h>
-#include "StartupDataChanges.h"
+#include "PendingDataKeys.h"
 #include <string.h>
 
 #include "Core/DataModel.h"
@@ -43,13 +43,11 @@ public:
     /** @brief Notify a data key change. */
     void notifyChanged(DataKey key);
     /** Called only by the EventBus task after all config callbacks finished. */
-    void flushStartupChanges(uint16_t budget);
+    void flushPendingChanges(uint16_t budget);
 
 private:
-    StartupDataChanges startupChanges_;
+    PendingDataKeys pendingChanges_;
     RuntimeData _rt{};
     EventBus* _bus = nullptr;
 
-private:
-    void publishChanged(DataKey key);
 };

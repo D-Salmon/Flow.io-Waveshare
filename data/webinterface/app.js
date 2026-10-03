@@ -780,10 +780,36 @@
       updateThemeToggleUi(currentTheme);
     }
 
+    function createRequestLimiter(limit) {
+      let active = 0;
+      const pending = [];
+      function startNext() {
+        while (active < limit && pending.length) {
+          const job = pending.shift();
+          active += 1;
+          Promise.resolve().then(job.run).then(job.resolve, job.reject).finally(() => {
+            active -= 1;
+            startNext();
+          });
+        }
+      }
+      return (run) => new Promise((resolve, reject) => {
+        pending.push({ run, resolve, reject });
+        startNext();
+      });
+    }
+
+    const limitJsonRead = createRequestLimiter(2);
+
     async function fetchJsonResponse(url, options, fetchImpl) {
-      const res = await fetchWithBusyRetry(url, options, fetchImpl);
-      const data = await res.json().catch(() => null);
-      return { res, data };
+      const readResponse = async () => {
+        const res = await fetchWithBusyRetry(url, options, fetchImpl);
+        const data = await res.json().catch(() => null);
+        return { res, data };
+      };
+      // Hold admission through body consumption, not merely receipt of headers.
+      const method = String((options && options.method) || 'GET').toUpperCase();
+      return method === 'GET' ? limitJsonRead(readResponse) : readResponse();
     }
 
     function extractApiErrorMessage(data, fallback) {
@@ -11144,8 +11170,7 @@
         if (!moduleName || !nameKey) return;
         try {
           const url = '/api/flowcfg/module?name=' + encodeURIComponent(moduleName);
-          const res = await fetchWithBusyRetry(url, { cache: 'no-store' });
-          const payload = await res.json().catch(() => null);
+          const { res, data: payload } = await fetchJsonResponse(url, { cache: 'no-store' });
           if (!res.ok || !payload || payload.ok !== true || !payload.data || typeof payload.data !== 'object') {
             cache[slot] = '';
             return;
@@ -11776,6 +11801,7 @@
 
     function isCounterModeOnlyConfigField(moduleName, key, doc) {
       if (!isDigitalInputConfigModule(moduleName)) return false;
+      if (doc && doc.counter_only === true) return true;
       const cleanKey = normalizeDigitalInputConfigKey(moduleName, key);
       if (!cleanKey || cleanKey === 'mode') return false;
       if (cleanKey === 'counter_total' || cleanKey === 'edge_mode') return true;
@@ -12030,6 +12056,42 @@
       return { element: root, input: stored };
     }
 
+    function buildConfigAction(doc) {
+      const wrap = document.createElement('div');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'secondary';
+      button.textContent = doc.label;
+      const status = document.createElement('span');
+      status.className = 'control-help';
+      status.setAttribute('role', 'status');
+      const action = doc.action;
+      button.addEventListener('click', async () => {
+        if (button.disabled || !window.confirm(cfgDocTr(action.confirmation_t, doc.help))) return;
+        button.disabled = true;
+        status.textContent = cfgDocTr('config.action.pending', 'En cours…');
+        try {
+          // An action may be destructive: never automatically replay its POST.
+          const response = await fetch(action.endpoint, {
+            method: 'POST',
+            body: new URLSearchParams(action.params || {}),
+            cache: 'no-store'
+          });
+          const result = await response.json();
+          if (!response.ok || !result || result.ok !== true) throw new Error('Action failed');
+          status.textContent = cfgDocTr(action.success_t, 'Action effectuée et sauvegardée.');
+        } catch (error) {
+          status.textContent = cfgDocTr('config.action.failed',
+            'Action non confirmée. Vérifiez la valeur du compteur avant de réessayer.');
+        } finally {
+          button.disabled = false;
+        }
+      });
+      wrap.appendChild(button);
+      wrap.appendChild(status);
+      return wrap;
+    }
+
     function renderConfigFields(containerEl, moduleName, dataObj, options) {
       const opts = options || {};
       const appendMode = !!opts.append;
@@ -12101,7 +12163,9 @@
         const valueWrap = document.createElement('div');
         valueWrap.className = 'control-value-wrap';
 
-        if (doc && doc.widget === 'pool-driver') {
+        if (doc && doc.widget === 'action' && doc.action) {
+          valueWrap.appendChild(buildConfigAction(doc));
+        } else if (doc && doc.widget === 'pool-driver') {
           const editor = buildPoolDriverEditor(value);
           inputEl = editor.input;
           inputEl.dataset.key = key; inputEl.dataset.kind = 'string'; inputEl.dataset.module = moduleName;

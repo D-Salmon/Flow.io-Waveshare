@@ -1873,6 +1873,15 @@ bool HMIModule::ensureConfigMenuReady_()
 
 void HMIModule::onEvent_(const Event& e)
 {
+    if (e.id == EventId::DataChanged && e.payload && e.len >= sizeof(DataChangedPayload)) {
+        pendingDataKeys_.mark(static_cast<const DataChangedPayload*>(e.payload)->id);
+        return;
+    }
+    handleEvent_(e);
+}
+
+void HMIModule::handleEvent_(const Event& e)
+{
     bool ledDirty = false;
     uint32_t homePublishMask = 0U;
 
@@ -2968,6 +2977,15 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen)
 
 void HMIModule::loop()
 {
+    pendingDataKeys_.drain(8, [this](DataKey key) {
+        const DataChangedPayload payload{key};
+        Event event{};
+        event.id = EventId::DataChanged;
+        event.payload = &payload;
+        event.len = sizeof(payload);
+        handleEvent_(event);
+    });
+
     const uint32_t wsLedNow = millis();
     applyWs2812AutoWifiProfile_();
     ws2812StatusLed_.tick(wsLedNow);

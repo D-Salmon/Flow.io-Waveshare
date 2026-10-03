@@ -267,12 +267,27 @@ Elle peut toutefois surprendre si l'on s'attend à ce que `rising` et `falling` 
 
 ### Persistance NVS du cumul compteur
 
-Pour les entrées digitales en mode compteur, le cumul long terme `counter_total` est persisté en NVS selon deux conditions complémentaires:
+Le compte courant est conservé en RAM dans `DigitalSlot::pulse.count` (entier 64 bits), puis publié dans le DataStore. Le total converti applique le coefficient `c0` à ce compte.
 
-- immédiatement dès qu'au moins `32` nouvelles impulsions ont été accumulées depuis la dernière écriture réussie
-- au plus tard toutes les `3 minutes` si la valeur a changé depuis la dernière écriture réussie, même si le seuil des `32` impulsions n'a pas été atteint
+`IOPulsePersistence.cpp` sauvegarde les comptes, générations et jetons de remise à zéro dans le blob NVS `pulse_v1`, via les `Preferences` du `ConfigStore`. Malgré le nom `writeRuntimeBlob`, cette sauvegarde utilise la partition NVS, pas la partition distincte `runtime`.
 
-Cette politique limite l'usure NVS tout en réduisant la perte potentielle de cumul après redémarrage sur des compteurs à faible fréquence.
+- Une sauvegarde asynchrone est demandée toutes les heures si les données ont changé (`PulseCheckpoint::PeriodMs = 3600000`). Après un échec, une nouvelle tentative est prévue après une minute.
+- Une demande de reboot (`system.reboot`, redémarrage après provisioning) attend la confirmation d'une sauvegarde immédiate. Les demandes d'OTA distante et de release locale font de même avant de commencer, puis une nouvelle sauvegarde est confirmée avant le redémarrage final pour inclure les impulsions reçues pendant la mise à jour.
+- La tâche IO relit les compteurs matériels et transmet le snapshot à la tâche de persistance. Les appelants attendent au maximum deux secondes. Une erreur de lecture, d'écriture, un délai dépassé ou une opération concurrente empêche le reboot/l'OTA demandé ; l'appelant reçoit une erreur. Sans compteur actif, aucune écriture n'est nécessaire.
+- Une écriture déjà en cours reste propriétaire de son reçu même si l'appelant cesse d'attendre. Une demande de remise à zéro qui n'a pas encore été commencée expire au bout du délai ; elle ne s'exécute pas tardivement.
+- Les mises à jour OTA habituelles conservent la NVS. Au démarrage, le dernier compte sauvegardé est restauré. Les impulsions reçues après le snapshot final ou pendant le redémarrage ne sont pas garanties.
+- Les coupures d'alimentation et redémarrages d'urgence restent soumis au dernier checkpoint réussi : jusqu'à environ une heure de perte en fonctionnement normal, davantage en cas d'échec de sauvegarde. Le watchdog conserve son redémarrage de secours si la commande de reboot contrôlé échoue.
+- Un effacement de la NVS ou de toute la flash supprime la sauvegarde. Si `pulse_v1` est absent, le cumul repart à zéro : aucune migration des anciens totaux flottants n'est effectuée. Un blob présent mais invalide est signalé comme une erreur, sans effacement silencieux.
+
+### Remise à zéro depuis la Configuration
+
+Le champ technique `counter_reset` est représenté par un bouton traduit « Remettre le compteur à zéro », visible uniquement en mode compteur. Les métadonnées de configuration déclarent un widget `action`, son endpoint, son identifiant numérique d'entrée et ses textes ; le frontend utilise un rendu générique.
+
+La confirmation identifie l'entrée concernée et avertit de l'effacement du cumul. L'action n'est pas incluse dans l'enregistrement ordinaire de configuration. Le bouton est désactivé pendant l'opération et le POST n'est jamais répété automatiquement. Le succès n'est affiché qu'après confirmation de l'écriture NVS ; en cas de réponse incertaine, l'interface invite à vérifier le compteur avant de réessayer.
+
+`POST /api/io/counter/reset` (`id` numérique, formulaire URL-encoded) appelle la commande `io.counter.reset` (`{"id":64}` pour I00). Le firmware valide l'identifiant et le mode effectif, puis exécute la remise à zéro dans la tâche IO. Le cumul nul et sa génération sont sauvegardés ensemble ; les autres entrées sont conservées. Les impulsions suivantes continuent à être comptées. Le jeton de configuration historique reste compatible mais n'est pas modifié par cette commande.
+
+Les tests `scripts/tests/test_pulse_persistence.py` et `scripts/tests/test_counter_reset_action.cjs` couvrent la persistance, les erreurs/délais/concurrences, la restauration, la confirmation UI et l'absence de répétition automatique.
 
 ## DataStore
 

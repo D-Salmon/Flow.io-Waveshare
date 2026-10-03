@@ -2,6 +2,7 @@
 
 #include "Core/EventBus/EventPayloads.h"
 #include "Core/ConfigBranchRef.h"
+#include "PendingMqttRoutes.h"
 #include "Core/ServiceRegistry.h"
 #include "Core/Services/Services.h"
 #include <stddef.h>
@@ -18,7 +19,7 @@
  */
 class MqttConfigRouteProducer {
 public:
-    static constexpr uint8_t MaxRoutes = 96;
+    static constexpr uint8_t MaxRoutes = PendingMqttRoutes::Capacity;
 
     using CustomBuildFn = MqttBuildResult (*)(void* owner, uint16_t messageId, MqttBuildContext& ctx);
 
@@ -71,6 +72,7 @@ private:
     bool eventsSubscribed_ = false;
     bool configLoaded_ = false;
     bool mqttReadyLatched_ = false;
+    PendingMqttRoutes requestedRoutes_;
     bool pendingFlags_[MaxRoutes]{};
     bool needsEnqueueFlags_[MaxRoutes]{};
     uint32_t retryDueMs_ = 0;
@@ -104,7 +106,7 @@ private:
     void reportMetrics_(uint32_t nowMs);
     void runRetryTick_(uint32_t nowMs);
     bool enqueueByRoute_(uint8_t idx, MqttPublishPriority prio);
-    void refreshReadyGateAndMaybeSync_(bool triggerOnSteadyReady);
+    void refreshReadyGateAndMaybeSync_();
     static MqttPublishPriority routePriority_(const Route& route);
 
     void onEvent_(const Event& e);

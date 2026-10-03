@@ -11,6 +11,7 @@
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 #include <esp_heap_caps.h>
+#include <esp_memory_utils.h>
 #include <new>
 #include "Core/SpiRamJsonDocument.h"
 
@@ -77,8 +78,10 @@ bool PoolDeviceModule::ensureStorage_()
     const bool ok = stateMutex_ && runtimePersistBuf_ && slots_ && cfgDriverVar_ && cfgEnabledVar_ && cfgDependsVar_ && cfgFlowVar_ &&
                     cfgTankCapVar_ && cfgTankInitVar_ && cfgMaxUptimeVar_;
     if (ok) {
-        LOGI("PoolDevice scalable storage ready slots=%u persist_bytes=%u",
+        LOGI("PoolDevice scalable storage ready slots=%u slot_bytes=%u slots_psram=%u persist_bytes=%u",
              (unsigned)POOL_DEVICE_MAX,
+             (unsigned)(POOL_DEVICE_MAX * sizeof(PoolDeviceSlot)),
+             (unsigned)esp_ptr_external_ram(slots_),
              (unsigned)runtimePersistCapacity_());
     } else {
         LOGE("PoolDevice scalable storage allocation failed");
@@ -285,229 +288,6 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.refill", cmdPoolRefill_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset", cmdPoolResetUptime_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset_all", cmdPoolResetUptimeAll_, this);
-    }
-    if (haSvc_ && haSvc_->addSensor) {
-        if (slots_[PoolIds::DeviceChlorinePump].used) {
-            const HASensorEntry s0{
-                "pooldev", "pd_chl_pmp_upt", "Pump uptime Chlorine",
-                "rt/pdm/metrics/pd2", "{{ value_json.running.day_s | int(0) }}",
-                nullptr, "mdi:timer-outline", "s"
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s0);
-            const HASensorEntry s0b{
-                "pooldev", "pd_chl_tnk_rem", "Tank remaining Chlorine",
-                "rt/pdm/metrics/pd2", "{{ ((value_json.tank.remaining_ml | float(0)) / 1000) | round(2) }}",
-                nullptr, "mdi:water-check", "L"
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s0b);
-        }
-        if (slots_[PoolIds::DevicePhPump].used) {
-            const HASensorEntry s1{
-                "pooldev", "pd_ph_pmp_upt", "Pump uptime pH",
-                "rt/pdm/metrics/pd1", "{{ value_json.running.day_s | int(0) }}",
-                nullptr, "mdi:timer-outline", "s"
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s1);
-            const HASensorEntry s1b{
-                "pooldev", "pd_ph_tnk_rem", "Tank remaining pH",
-                "rt/pdm/metrics/pd1", "{{ ((value_json.tank.remaining_ml | float(0)) / 1000) | round(2) }}",
-                nullptr, "mdi:beaker-check-outline", "L", false
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s1b);
-        }
-        if (slots_[PoolIds::DeviceFillPump].used) {
-            const HASensorEntry s2{
-                "pooldev", "pd_fill_upt_mn", "Pump uptime Fill",
-                "rt/pdm/metrics/pd4", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
-                nullptr, "mdi:timer-outline", "mn"
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s2);
-        }
-        if (slots_[PoolIds::DeviceFiltrationPump].used) {
-            const HASensorEntry s3{
-                "pooldev", "pd_flt_upt_mn", "Pump uptime Filtration",
-                "rt/pdm/metrics/pd0", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
-                nullptr, "mdi:timer-outline", "mn"
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s3);
-        }
-        if (slots_[PoolIds::DeviceChlorineGenerator].used) {
-            const HASensorEntry s4{
-                "pooldev", "pd_chl_gen_upt", "Pump uptime Chlorine Generator",
-                "rt/pdm/metrics/pd5", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
-                nullptr, "mdi:timer-outline", "mn"
-            };
-            (void)haSvc_->addSensor(haSvc_->ctx, &s4);
-        }
-    }
-
-    if (haSvc_ && haSvc_->addNumber) {
-        if (slots_[0].used) {
-            const HANumberEntry n0{
-                "pooldev", "pd0_flow", "Filtration Pump Flowrate",
-                "cfg/pdm/pd0", "{{ value_json.flow_l_h }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd0\\\":{\\\"flow_l_h\\\":{{ value | float(0) }}}}",
-                0.0f, 3.0f, 0.1f, "slider", "config", "mdi:water-sync", "L/h"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n0);
-            const HANumberEntry n0b{
-                "pooldev", "pd0_max_upt", "Max Uptime Filtration Pump",
-                "cfg/pdm/pd0", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd0\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
-                0.0f, 1440.0f, 1.0f, "box", "config", "mdi:timer-cog-outline", "mn"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n0b);
-        }
-        if (slots_[1].used) {
-            const HANumberEntry n1{
-                "pooldev", "pd1_flow", "pH Pump Flowrate",
-                "cfg/pdm/pd1", "{{ value_json.flow_l_h }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd1\\\":{\\\"flow_l_h\\\":{{ value | float(0) }}}}",
-                0.0f, 3.0f, 0.1f, "slider", "config", "mdi:water-sync", "L/h"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n1);
-        }
-        if (slots_[2].used) {
-            const HANumberEntry n2{
-                "pooldev", "pd2_flow", "Chlorine Pump Flowrate",
-                "cfg/pdm/pd2", "{{ value_json.flow_l_h }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd2\\\":{\\\"flow_l_h\\\":{{ value | float(0) }}}}",
-                0.0f, 3.0f, 0.1f, "slider", "config", "mdi:water-sync", "L/h"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n2);
-        }
-        if (slots_[PoolIds::DevicePhPump].used) {
-            const HANumberEntry n3{
-                "pooldev", "pd1_max_upt", "Max Uptime pH Pump",
-                "cfg/pdm/pd1", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd1\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
-                1.0f, 120.0f, 1.0f, "box", "config", "mdi:timer-cog-outline", "mn"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n3);
-        }
-        if (slots_[PoolIds::DeviceChlorinePump].used) {
-            const HANumberEntry n4{
-                "pooldev", "pd2_max_upt", "Max Uptime Chlorine Pump",
-                "cfg/pdm/pd2", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd2\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
-                1.0f, 120.0f, 1.0f, "box", "config", "mdi:timer-cog-outline", "mn"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n4);
-        }
-        if (slots_[PoolIds::DeviceFillPump].used) {
-            const HANumberEntry n4b{
-                "pooldev", "pd4_max_upt", "Max Uptime Fill Pump",
-                "cfg/pdm/pd4", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd4\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
-                0.0f, 120.0f, 1.0f, "box", "config", "mdi:timer-cog-outline", "mn"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n4b);
-        }
-        if (slots_[PoolIds::DeviceChlorineGenerator].used) {
-            const HANumberEntry n5{
-                "pooldev", "pd5_max_upt", "Max Uptime Chlorine Generator",
-                "cfg/pdm/pd5", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
-                MqttTopics::SuffixCfgSet, "{\\\"pdm/pd5\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
-                0.0f, 1440.0f, 1.0f, "box", "config", "mdi:timer-cog-outline", "mn"
-            };
-            (void)haSvc_->addNumber(haSvc_->ctx, &n5);
-        }
-    }
-    if (haSvc_ && haSvc_->addButton) {
-        if (slots_[PoolIds::DevicePhPump].used) {
-            const HAButtonEntry refillPhTank{
-                "pooldev",
-                "pd_refill_ph",
-                "Fill pH Tank",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pool.refill\",\"args\":{\"slot\":1}}",
-                "config",
-                "mdi:beaker-plus-outline"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &refillPhTank);
-        }
-        if (slots_[PoolIds::DeviceChlorinePump].used) {
-            const HAButtonEntry refillChlorineTank{
-                "pooldev",
-                "pd_refill_chl",
-                "Fill Chlorine Tank",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pool.refill\",\"args\":{\"slot\":2}}",
-                "config",
-                "mdi:water-plus"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &refillChlorineTank);
-        }
-        if (slots_[PoolIds::DeviceFiltrationPump].used) {
-            const HAButtonEntry resetFiltrationUptime{
-                "pooldev",
-                "pd_reset_upt_flt",
-                "Reset Uptime Filtration Pump",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pooldevice.uptime.reset\",\"args\":{\"slot\":0}}",
-                "diagnostic",
-                "mdi:timer-refresh-outline"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &resetFiltrationUptime);
-        }
-        if (slots_[PoolIds::DevicePhPump].used) {
-            const HAButtonEntry resetPhUptime{
-                "pooldev",
-                "pd_reset_upt_ph",
-                "Reset Uptime pH Pump",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pooldevice.uptime.reset\",\"args\":{\"slot\":1}}",
-                "diagnostic",
-                "mdi:timer-refresh-outline"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &resetPhUptime);
-        }
-        if (slots_[PoolIds::DeviceChlorinePump].used) {
-            const HAButtonEntry resetChlorineUptime{
-                "pooldev",
-                "pd_reset_upt_chl",
-                "Reset Uptime Chlorine Pump",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pooldevice.uptime.reset\",\"args\":{\"slot\":2}}",
-                "diagnostic",
-                "mdi:timer-refresh-outline"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &resetChlorineUptime);
-        }
-        if (slots_[PoolIds::DeviceFillPump].used) {
-            const HAButtonEntry resetFillUptime{
-                "pooldev",
-                "pd_reset_upt_fill",
-                "Reset Uptime Fill Pump",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pooldevice.uptime.reset\",\"args\":{\"slot\":4}}",
-                "diagnostic",
-                "mdi:timer-refresh-outline"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &resetFillUptime);
-        }
-        if (slots_[PoolIds::DeviceChlorineGenerator].used) {
-            const HAButtonEntry resetGeneratorUptime{
-                "pooldev",
-                "pd_reset_upt_chl_gen",
-                "Reset Uptime Chlorine Generator",
-                MqttTopics::SuffixCmd,
-                "{\"cmd\":\"pooldevice.uptime.reset\",\"args\":{\"slot\":5}}",
-                "diagnostic",
-                "mdi:timer-refresh-outline"
-            };
-            (void)haSvc_->addButton(haSvc_->ctx, &resetGeneratorUptime);
-        }
-        const HAButtonEntry resetAllUptime{
-            "pooldev",
-            "pd_reset_upt_all",
-            "Reset Uptime All Pool Devices",
-            MqttTopics::SuffixCmd,
-            "{\"cmd\":\"pooldevice.uptime.reset_all\"}",
-            "diagnostic",
-            "mdi:timer-refresh-outline"
-        };
-        (void)haSvc_->addButton(haSvc_->ctx, &resetAllUptime);
     }
 
     uint8_t count = 0;

@@ -235,6 +235,7 @@
     "runtimeui.pooldev.reset.countText": "{count} équipements",
     "runtimeui.pooldev.setpoint": "Consigne",
     "cfgdocs.pooldev.driver.label": "Commande équipement",
-    "cfgdocs.pooldev.driver.help": "Raccordement et protocole de l’équipement. Appliqué au redémarrage."
+    "cfgdocs.pooldev.driver.help": "Raccordement et protocole de l’équipement. Appliqué au redémarrage.",
+    "cfgmods.pdm.label": "PoolDevice"
   }
 }

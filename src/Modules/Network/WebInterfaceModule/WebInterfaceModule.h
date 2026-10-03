@@ -151,7 +151,7 @@ private:
     void noteWsActivity_();
     void noteServerStarted_();
     static void onHttpActivityHook_(void* ctx);
-    void scheduleReboot_(uint32_t delayMs, const char* reason);
+    void scheduleReboot_(AsyncWebServerRequest* request, uint32_t delayMs, const char* reason);
     uint8_t wsActiveSource_() const;
     void setWsActiveSource_(uint8_t source);
     void refreshIoResponseCaches_();

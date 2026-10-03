@@ -57,9 +57,22 @@ struct PoolOperatingConfiguration {
     uint32_t orpAutoModeSinceMs = 0;
 };
 
+/** Effective PoolLogic device assignments, read after configuration is loaded. */
+struct PoolDeviceAssignments {
+    uint8_t filtration = UINT8_MAX;
+    uint8_t phPump = UINT8_MAX;
+    uint8_t disinfectionPump = UINT8_MAX;
+    uint8_t robot = UINT8_MAX;
+    uint8_t filling = UINT8_MAX;
+    uint8_t chlorineGenerator = UINT8_MAX;
+    uint8_t heater = UINT8_MAX;
+};
+
 struct PoolConfigurationService {
     bool (*getCharacteristics)(void* ctx, PoolCharacteristics* outCharacteristics);
     bool (*getOperatingConfiguration)(void* ctx,
                                       PoolOperatingConfiguration* outConfiguration);
     void* ctx;
+    // Boot-time consumer: HA discovery freezes this mapping until the next boot.
+    bool (*getDeviceAssignments)(void* ctx, PoolDeviceAssignments* outAssignments) = nullptr;
 };

@@ -1,3 +1,4 @@
+import json
 import runpy
 import unittest
 from pathlib import Path
@@ -8,6 +9,18 @@ MODULE = runpy.run_path(str(SCRIPT), init_globals={"Import": lambda name: None, 
 
 
 class ConfigDocsWaveshareSlotTests(unittest.TestCase):
+    def test_pool_devices_cover_all_sixteen_outputs(self):
+        root = SCRIPT.parents[1]
+        manifest = json.loads((root / "src/Modules/PoolLogicModule/text/cfgmods.fr.json").read_text())
+        result = MODULE["_apply_profile_specific_io_enum_sets"](manifest["meta"], "waveshare")
+        entries = result["enum_sets"]["poollogic_device_slot"]
+        self.assertEqual(list(range(16)), [item["value"] for item in entries])
+        self.assertEqual("pd15 -> d15 [15]", entries[-1]["label"])
+        docs = {f"pdm/pd{slot}/enabled": {} for slot in range(17)}
+        MODULE["_prune_pool_device_docs"](docs, MODULE["WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT"])
+        self.assertEqual(16, len(docs))
+        self.assertIn("pdm/pd15/enabled", docs)
+
     def test_waveshare_analog_configuration_keeps_a20_and_prunes_a21(self):
         docs = {
             "io/input/a15/a15_name": {},

@@ -186,6 +186,16 @@ bool PoolLogicModule::serviceGetPoolCharacteristics_(void* ctx,
     return self && outCharacteristics && self->getPoolCharacteristics_(*outCharacteristics);
 }
 
+bool PoolLogicModule::serviceGetDeviceAssignments_(void* ctx, PoolDeviceAssignments* outAssignments)
+{
+    const auto* self = static_cast<const PoolLogicModule*>(ctx);
+    if (!self || !outAssignments || !self->deviceAssignmentsReady_) return false;
+    *outAssignments = {self->filtrationDeviceSlot_, self->phPumpDeviceSlot_,
+                       self->orpPumpDeviceSlot_, self->robotDeviceSlot_,
+                       self->fillingDeviceSlot_, self->swgDeviceSlot_, self->heaterDeviceSlot_};
+    return true;
+}
+
 bool PoolLogicModule::getPoolCharacteristics_(PoolCharacteristics& outCharacteristics) const
 {
     outCharacteristics = PoolCharacteristics{};
@@ -1234,6 +1244,9 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
     startupActivityPending_ = true;
     startupActivitySinceMs_ = millis();
 
+    // Discovery also needs validated assignments when automatic regulation is disabled.
+    normalizeDeviceSlots_();
+    deviceAssignmentsReady_ = true;
     if (!enabled_) return;
 
     if (disinfectionType_ > DisinfectionDisabled) {
@@ -1281,7 +1294,6 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
     LOGI("PoolLogic disinfection=%s swg_control=%s",
          disinfectionTypeStr_(disinfectionType_),
          swgControlModeStr_(swgControlMode_));
-    normalizeDeviceSlots_();
     logDeviceSlotConfig_();
     resetOverridePolicies_();
 

@@ -38,7 +38,10 @@ enum IoStatus : uint8_t {
     IO_ERR_NOT_READY = 5,
     IO_ERR_HW = 6,
     IO_ERR_DISABLED = 7,
-    IO_ERR_OWNED = 8
+    IO_ERR_OWNED = 8,
+    IO_ERR_BUSY = 9,
+    IO_ERR_TIMEOUT = 10,
+    IO_ERR_PERSISTENCE = 11
 };
 
 /** Runtime value type transported by I/O APIs. */
@@ -237,4 +240,7 @@ struct IOServiceV2 {
     void* ctx;
     /** Publish the owning controller state without changing the physical output. */
     IoStatus (*setOutputControlState)(void* ctx, IoId id, uint8_t owner, const ActuatorControlState* state) = nullptr;
+    /** Task-owned reset/checkpoint, confirmed in NVS before success; bounded wait. */
+    IoStatus (*resetCounter)(void* ctx, IoId id) = nullptr;
+    IoStatus (*saveCounters)(void* ctx) = nullptr;
 };

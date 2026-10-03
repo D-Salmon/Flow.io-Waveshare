@@ -9,7 +9,7 @@
 #include "Core/Actor.h"
 
 /** @brief Maximum number of registered commands. */
-constexpr uint8_t MAX_COMMANDS = 64;
+constexpr uint8_t MAX_COMMANDS = 80;
 
 /** @brief Command invocation context. */
 struct CommandRequest {

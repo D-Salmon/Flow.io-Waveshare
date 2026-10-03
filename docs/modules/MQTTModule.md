@@ -207,3 +207,7 @@ Exemple:
 `MQTT_CLIENT: mqtt_message_receive: transport_read() error: errno=128`
 - erreur transport bas niveau TCP/TLS côté client IDF
 - déclenche en pratique une déconnexion puis le cycle de reconnexion/backoff du module
+
+## Synchronisation différée des configurations
+
+`MqttConfigRouteProducer` conserve les demandes de publication dans une boîte fixe de 96 routes, avec priorité maximale par route et protection des accès concurrents. Les callbacks de configuration et `requestFullSync` enregistrent uniquement les demandes. La tâche MQTT vérifie sa disponibilité, déclenche une synchronisation à la reconnexion, puis traite au plus deux nouvelles demandes par producteur et par passage. Les refus de la file MQTT utilisent le mécanisme existant de réessai. Le producteur n’a plus d’abonnement `DataChanged` pour déclencher la synchronisation complète depuis l’EventBus.

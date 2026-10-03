@@ -1292,7 +1292,6 @@ bool IOModule::tickDigitalInputs_(void* ctx, uint32_t nowMs)
         if (self->digitalSlots_[i].kind != DIGITAL_SLOT_INPUT) continue;
         (void)self->processDigitalInputDefinition_(i, nowMs);
     }
-    self->checkpointPulses_(nowMs);
     self->pollPulseOutputs_(nowMs);
     return true;
 }
@@ -3649,6 +3648,11 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::Io;
     if (!ensureScalableStorage_() || !ensureConfigDescriptorStorage_()) return;
 
+    const auto* commands = services.get<CommandService>(ServiceId::Command);
+    if (!commands || !commands->registerHandler ||
+        !commands->registerHandler(commands->ctx, "io.counter.reset", &IOModule::cmdResetCounter_, this)) {
+        LOGE("Failed to register io.counter.reset");
+    }
     cfgStore_ = &cfg;
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
@@ -3758,6 +3762,11 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void IOModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services)
 {
+    const auto* commands = services.get<CommandService>(ServiceId::Command);
+    if (!commands || !commands->registerHandler ||
+        !commands->registerHandler(commands->ctx, "io.counter.reset", &IOModule::cmdResetCounter_, this)) {
+        LOGE("Failed to register io.counter.reset");
+    }
     cfgStore_ = &cfg;
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
@@ -3854,6 +3863,7 @@ void IOModule::loop()
     const uint32_t nowMs = millis();
 
     const IoStatus st = ioTick_(nowMs);
+    if (!servicePulseRequest_(nowMs)) checkpointPulses_(nowMs);
     if (st != IO_OK) {
         if (!cfgData_.enabled || !runtimeReady_) {
             vTaskDelay(pdMS_TO_TICKS(500));

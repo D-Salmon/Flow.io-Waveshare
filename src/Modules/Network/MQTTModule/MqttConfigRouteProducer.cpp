@@ -63,7 +63,6 @@ void MqttConfigRouteProducer::configure(void* owner,
 
     if (!eventsSubscribed_ && eventBus_) {
         eventBus_->subscribe(EventId::ConfigChanged, &MqttConfigRouteProducer::onEventStatic_, this);
-        eventBus_->subscribe(EventId::DataChanged, &MqttConfigRouteProducer::onEventStatic_, this);
         eventsSubscribed_ = true;
     }
 
@@ -79,9 +78,9 @@ void MqttConfigRouteProducer::configure(void* owner,
     }
 
     // One side of the gate is now true: module config is loaded/configured.
-    // If MQTT is already ready, this path triggers the initial full sync immediately.
+    // The transport task publishes only after the MQTT readiness gate opens.
     configLoaded_ = true;
-    refreshReadyGateAndMaybeSync_(true);
+    requestFullSync(MqttPublishPriority::Low);
 }
 
 int8_t MqttConfigRouteProducer::findRouteByMessage_(uint16_t messageId) const
@@ -289,7 +288,7 @@ bool MqttConfigRouteProducer::enqueueByRoute_(uint8_t idx, MqttPublishPriority p
     return false;
 }
 
-void MqttConfigRouteProducer::refreshReadyGateAndMaybeSync_(bool triggerOnSteadyReady)
+void MqttConfigRouteProducer::refreshReadyGateAndMaybeSync_()
 {
     if (!dsSvc_ || !dsSvc_->store) {
         mqttReadyLatched_ = false;
@@ -301,7 +300,7 @@ void MqttConfigRouteProducer::refreshReadyGateAndMaybeSync_(bool triggerOnSteady
     mqttReadyLatched_ = readyNow;
     if (!readyNow) return;
     if (!producerRegistered_ || !configLoaded_) return;
-    if (rising || triggerOnSteadyReady) {
+    if (rising) {
         requestFullSync(MqttPublishPriority::Low);
     }
 }
@@ -309,7 +308,7 @@ void MqttConfigRouteProducer::refreshReadyGateAndMaybeSync_(bool triggerOnSteady
 void MqttConfigRouteProducer::requestFullSync(MqttPublishPriority prio)
 {
     for (uint8_t i = 0; i < routeCount_; ++i) {
-        (void)enqueueByRoute_(i, prio);
+        requestedRoutes_.mark(i, prio);
     }
 }
 
@@ -321,16 +320,6 @@ void MqttConfigRouteProducer::onEventStatic_(const Event& e, void* ctx)
 
 void MqttConfigRouteProducer::onEvent_(const Event& e)
 {
-    if (e.id == EventId::DataChanged) {
-        const DataChangedPayload* p = (const DataChangedPayload*)e.payload;
-        if (!p) return;
-        if (p->id != DATAKEY_MQTT_READY) return;
-        // Other side of the gate: MQTT ready changed. Sync only when both
-        // configLoaded and mqttReady are validated.
-        refreshReadyGateAndMaybeSync_(false);
-        return;
-    }
-
     if (e.id == EventId::ConfigChanged) {
         const ConfigChangedPayload* p = (const ConfigChangedPayload*)e.payload;
         if (!p) return;
@@ -353,7 +342,7 @@ void MqttConfigRouteProducer::onEvent_(const Event& e)
             if (!localMatch) continue;
 
             const MqttPublishPriority prio = routePriority_(routes_[i]);
-            (void)enqueueByRoute_(i, prio);
+            requestedRoutes_.mark(i, prio);
         }
     }
 }
@@ -463,6 +452,13 @@ void MqttConfigRouteProducer::tickStatic_(void* ctx, uint32_t nowMs)
 
 void MqttConfigRouteProducer::onTransportTick_(uint32_t nowMs)
 {
+    refreshReadyGateAndMaybeSync_();
+    if (mqttReadyLatched_ && producerRegistered_ && configLoaded_) {
+        requestedRoutes_.drain(2, [this](uint8_t idx, MqttPublishPriority priority) {
+            // Refused jobs are retained by the existing transport retry mechanism.
+            (void)enqueueByRoute_(idx, priority);
+        });
+    }
     runRetryTick_(nowMs);
     reportMetrics_(nowMs);
 }

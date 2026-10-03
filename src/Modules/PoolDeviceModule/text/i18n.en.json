@@ -236,6 +236,7 @@
     "runtimeui.pooldev.reset.countText": "{count} devices",
     "runtimeui.pooldev.setpoint": "Setpoint",
     "cfgdocs.pooldev.driver.label": "Equipment control",
-    "cfgdocs.pooldev.driver.help": "Equipment wiring and protocol. Applied after restart."
+    "cfgdocs.pooldev.driver.help": "Equipment wiring and protocol. Applied after restart.",
+    "cfgmods.pdm.label": "PoolDevice"
   }
 }

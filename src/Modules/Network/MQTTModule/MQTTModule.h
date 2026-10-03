@@ -8,6 +8,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/DataStore/PendingDataKeys.h"
 #include "Core/NvsKeys.h"
 #include "Core/ConfigTypes.h"
 #include "Core/ErrorCodes.h"
@@ -324,6 +325,8 @@ private:
     void buildTopics_();
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
+    void handleEvent_(const Event& e);
+    PendingDataKeys pendingDataKeys_;
 
     // Transport
     void connectMqtt_();

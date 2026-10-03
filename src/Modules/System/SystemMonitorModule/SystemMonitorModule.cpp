@@ -995,6 +995,10 @@ void SystemMonitorModule::pollWebWatchdog_(uint32_t now)
     WebInterfaceHealth health{};
     if (!webInterfaceSvc_->getHealth(webInterfaceSvc_->ctx, &health)) return;
 
+    // Sample after the snapshot: the web task may have advanced since poll entry.
+    // Unsigned subtraction then also handles a millis() wrap between samples.
+    const uint32_t healthNowMs = millis();
+
     if (!health.started || health.paused) {
         webWatchdogConsecutiveFailures_ = 0U;
         webWatchdogRebootIssued_ = false;
@@ -1005,20 +1009,19 @@ void SystemMonitorModule::pollWebWatchdog_(uint32_t now)
         (cfgData_.webWatchdogStaleMs > (int32_t)kWebWatchdogMinStaleMs)
             ? (uint32_t)cfgData_.webWatchdogStaleMs
             : kWebWatchdogMinStaleMs;
-    const uint32_t loopAgeMs = (health.lastLoopMs > 0U) ? (uint32_t)(now - health.lastLoopMs) : UINT32_MAX;
+    const uint32_t loopAgeMs = (health.lastLoopMs > 0U) ? (uint32_t)(healthNowMs - health.lastLoopMs) : UINT32_MAX;
     const bool loopStale = (health.lastLoopMs == 0U) || (loopAgeMs > staleMs);
 
     const uint16_t activeClients = (uint16_t)(health.wsSerialClients + health.wsLogClients);
-    uint32_t lastClientActivityMs = health.lastWsActivityMs;
-    if (health.lastHttpActivityMs > lastClientActivityMs) {
-        lastClientActivityMs = health.lastHttpActivityMs;
-    }
-    const uint32_t clientIdleMs =
-        (activeClients == 0U)
-            ? 0U
-            : ((lastClientActivityMs > 0U) ? (uint32_t)(now - lastClientActivityMs) : UINT32_MAX);
+    const uint32_t wsIdleMs = health.lastWsActivityMs > 0U
+        ? (uint32_t)(healthNowMs - health.lastWsActivityMs) : UINT32_MAX;
+    const uint32_t httpIdleMs = health.lastHttpActivityMs > 0U
+        ? (uint32_t)(healthNowMs - health.lastHttpActivityMs) : UINT32_MAX;
+    // Compare elapsed ages, not raw timestamps, across millis() rollover.
+    const uint32_t clientIdleMs = activeClients == 0U ? 0U
+        : (wsIdleMs < httpIdleMs ? wsIdleMs : httpIdleMs);
     const bool clientsStale =
-        (activeClients > 0U) && ((lastClientActivityMs == 0U) || (clientIdleMs > (staleMs * kWebWatchdogClientIdleFactor)));
+        (activeClients > 0U) && (clientIdleMs > (staleMs * kWebWatchdogClientIdleFactor));
 
     // A connected but idle WS/HTTP client is normal (dashboard open, no user action).
     // Reboot escalation must only happen when the web loop itself stops progressing.

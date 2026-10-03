@@ -321,15 +321,17 @@ RuntimeRouteClass PoolDeviceModule::runtimeSnapshotClass(uint8_t idx) const
 bool PoolDeviceModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 {
     if (idx < 2) return key == DataKeys::PoolDeviceOverrides;
+    // Reject unrelated events before taking the device mutex or scanning slots.
+    if (key < DATAKEY_POOL_DEVICE_STATE_BASE ||
+        key >= DATAKEY_POOL_DEVICE_METRICS_BASE + POOL_DEVICE_MAX) return false;
     uint8_t slotIdx = 0xFF;
     bool metrics = false;
     if (!snapshotRouteFromIndex_(idx, slotIdx, metrics)) return false;
-    if (!slotRuntimePublishable_(slotIdx)) return false;
 
     const DataKey expected = metrics
         ? (DataKey)(DATAKEY_POOL_DEVICE_METRICS_BASE + slotIdx)
         : (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + slotIdx);
-    return key == expected;
+    return key == expected && slotRuntimePublishable_(slotIdx);
 }
 
 bool PoolDeviceModule::buildRuntimeSnapshot(uint8_t idx, char* out, size_t len, uint32_t& maxTsOut) const

@@ -19,6 +19,10 @@ class PoolActuatorTests(unittest.TestCase):
                 result = subprocess.run(invocation, cwd=ROOT, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_role_discovery_boot_assignments(self):
+        self.compile_and_run("pool_role_ha_discovery.cpp", [],
+            [ROOT / "include", ROOT / ".pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src"])
+
     def test_override_discovery_and_duration(self):
         self.compile_and_run("override_discovery.cpp", [],
             [ROOT / ".pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src"])

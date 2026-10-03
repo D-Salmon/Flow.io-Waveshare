@@ -65,11 +65,12 @@ public:
         return MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     }
 
-    uint8_t dependencyCount() const override { return 3; }
+    uint8_t dependencyCount() const override { return 4; }
     ModuleId dependency(uint8_t i) const override {
         if (i == 0) return ModuleId::LogHub;
         if (i == 1) return ModuleId::DataStore;
         if (i == 2) return ModuleId::ConfigStore;
+        if (i == 3) return ModuleId::Command;
         return ModuleId::Unknown;
     }
 
@@ -217,7 +218,20 @@ private:
     bool findDigitalSlotByLogical_(uint8_t kind, uint8_t logicalIdx, uint8_t& slotIdxOut) const;
     bool findDigitalSlotByIoId_(IoId id, uint8_t& slotIdxOut) const;
     bool loadPulseCheckpoint_();
-    void checkpointPulses_(uint32_t nowMs);
+    void checkpointPulses_(uint32_t nowMs, bool force = false);
+    bool servicePulseRequest_(uint32_t nowMs);
+    IoStatus requestPulseSave_(IoId resetId);
+    IoStatus resetCounter_(IoId id);
+    static bool cmdResetCounter_(void* ctx, const CommandRequest& req, char* reply, size_t len);
+    IoStatus saveCounters_();
+    enum class PulseRequestState : uint8_t { Idle, Requested, Saving, Complete };
+    std::atomic<PulseRequestState> pulseRequestState_{PulseRequestState::Idle};
+    std::atomic_flag pulseRequestCaller_ = ATOMIC_FLAG_INIT;
+    static constexpr uint32_t PulseRequestTimeoutMs = 2000U;
+    uint32_t pulseRequestStartedMs_ = 0;
+    IoId pulseRequestResetId_ = IO_ID_INVALID;
+    IoStatus pulseRequestResult_ = IO_OK;
+    bool pulseRequestSubmitted_ = false;
     PulseCheckpoint::State pulsePersisted_{}, pulsePending_{};
     PersistenceReceipt pulseReceipt_{};
     uint32_t pulseLastAttemptMs_ = 0, pulseCheckpointWrites_ = 0, pulseCheckpointFailures_ = 0;
@@ -397,7 +411,9 @@ private:
         ServiceBinding::bind<&IOModule::claimOutputs_>,
         ServiceBinding::bind<&IOModule::ioWriteAnalog_>,
         this,
-        ServiceBinding::bind<&IOModule::setOutputControlState_>
+        ServiceBinding::bind<&IOModule::setOutputControlState_>,
+        ServiceBinding::bind<&IOModule::resetCounter_>,
+        ServiceBinding::bind<&IOModule::saveCounters_>
     };
     IoCycleInfo* lastCycle_ = nullptr;
 

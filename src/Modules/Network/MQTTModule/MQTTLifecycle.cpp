@@ -249,6 +249,15 @@ void MQTTModule::onEventStatic_(const Event& e, void* user)
 
 void MQTTModule::onEvent_(const Event& e)
 {
+    if (e.id == EventId::DataChanged && e.payload && e.len >= sizeof(DataChangedPayload)) {
+        pendingDataKeys_.mark(static_cast<const DataChangedPayload*>(e.payload)->id);
+        return;
+    }
+    handleEvent_(e);
+}
+
+void MQTTModule::handleEvent_(const Event& e)
+{
     if (e.id == EventId::DataChanged) {
         const uint32_t t0 = micros();
         const DataChangedPayload* p = (const DataChangedPayload*)e.payload;
@@ -534,6 +543,15 @@ void MQTTModule::onStart(ConfigStore&, ServiceRegistry&)
 
 void MQTTModule::loop()
 {
+    pendingDataKeys_.drain(8, [this](DataKey key) {
+        const DataChangedPayload payload{key};
+        Event event{};
+        event.id = EventId::DataChanged;
+        event.payload = &payload;
+        event.len = sizeof(payload);
+        handleEvent_(event);
+    });
+
     if (!txStorage_) {
         vTaskDelay(pdMS_TO_TICKS(Limits::Mqtt::Timing::DisabledDelayMs));
         return;

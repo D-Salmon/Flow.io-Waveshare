@@ -291,12 +291,8 @@ void EventBus::dispatch(uint16_t maxEvents) {
             }
         }
 
-        const bool postCritical = (winDropCount > 0U) ||
-                                  (winMaxDropBurst > 0U) ||
-                                  (totalDrop > 0U) ||
-                                  (totalDropFromIsr > 0U) ||
-                                  (totalDropTooLarge > 0U) ||
-                                  (totalDropNoQueue > 0U);
+        // Totals remain visible, but only losses in this window merit a warning.
+        const bool postCritical = (winDropCount > 0U) || (winMaxDropBurst > 0U);
         if (postCritical) {
             Log::warn(LOG_MODULE_ID,
                       "post stats 5s: drops=%lu max_burst=%lu ok_total=%lu drop_total=%lu isr=%lu too_large=%lu no_queue=%lu",

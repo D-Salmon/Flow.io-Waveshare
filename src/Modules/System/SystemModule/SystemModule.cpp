@@ -3,6 +3,7 @@
  * @brief Implementation file.
  */
 #include "SystemModule.h"
+#include "Core/CounterPersistence.h"
 #include "Board/BoardSpec.h"
 #include "Core/ErrorCodes.h"
 #include "Core/EventBus/EventPayloads.h"
@@ -72,6 +73,13 @@ bool SystemModule::cmdPing(void*, const CommandRequest&, char* reply, size_t rep
 
 bool SystemModule::cmdReboot(void* userCtx, const CommandRequest&, char* reply, size_t replyLen) {
     SystemModule* self = static_cast<SystemModule*>(userCtx);
+    if (self && !saveCounterCheckpoint(self->services_)) {
+        LOGE("System reboot cancelled: counter checkpoint failed");
+        (void)writeOkReply_(reply, replyLen,
+                            "{\"ok\":false,\"err\":{\"code\":\"CounterCheckpointFailed\"}}",
+                            "system.reboot");
+        return false;
+    }
     if (!self || !self->scheduleRestart_(500U, "system.reboot")) {
         if (!writeErrorJson(reply, replyLen, ErrorCode::Failed, "system.reboot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");

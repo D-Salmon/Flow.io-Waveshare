@@ -562,16 +562,14 @@ def _apply_profile_specific_io_enum_sets(meta: dict, profile: str, tft_enabled: 
     slot_entries = enum_sets.get(slot_key)
     if profile == "waveshare" and isinstance(slot_entries, list):
         current = [item for item in slot_entries if isinstance(item, dict)]
-        slot_labels_waveshare = {slot: f"pd{slot} -> d{slot:02d} [{slot}]" for slot in range(8)}
         current_by_value: Dict[int, dict] = {}
         for entry in current:
             value = _to_int(entry.get("value"))
             if value is not None:
                 current_by_value[value] = entry
         relabeled: List[dict] = []
-        for value in range(8):
-            entry = current_by_value.get(value, {"value": value})
-            relabeled.append(sanitize_enum_entry(entry, slot_labels_waveshare[value]))
+        for value, entry in sorted(current_by_value.items()):
+            relabeled.append(sanitize_enum_entry(entry, f"pd{value} -> d{value:02d} [{value}]"))
         enum_sets[slot_key] = relabeled
 
     return meta
@@ -624,8 +622,8 @@ def main() -> None:
             digital_last=WAVESHARE_DIGITAL_INPUT_LAST_SLOT,
             output_last=WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT,
         )
-        _prune_pool_device_docs(cfgdocs_docs, last_slot=7)
-        _prune_pool_device_docs(cfgmods_docs, last_slot=7)
+        _prune_pool_device_docs(cfgdocs_docs, last_slot=WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT)
+        _prune_pool_device_docs(cfgmods_docs, last_slot=WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT)
 
     combined_meta = _resolve_meta_i18n(_merge_meta_dict(cfgdocs_meta, cfgmods_meta), i18n)
     if profile == "waveshare":

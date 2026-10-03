@@ -1,5 +1,5 @@
 #include "Core/Values/ValueRegistry.h"
-#include "Core/DataStore/StartupDataChanges.h"
+#include "Core/DataStore/PendingDataKeys.h"
 #include "Core/Values/PulseRuntime.h"
 #include "Core/Values/PulseCheckpoint.h"
 #include "Modules/PoolHistoryModule/ValueHistory.h"
@@ -139,37 +139,37 @@ static void allocationTests() {
     puts("registry allocation: PSRAM, internal fallback, exhaustion, no runtime allocations OK");
 }
 static void startupNotificationTests() {
-    StartupDataChanges changes;
+    PendingDataKeys changes;
     for (DataKey key = 0; key <= DataKeys::ReservedMax; ++key) {
         assert(changes.mark(key));
         assert(changes.mark(key));
     }
     // A full event queue refuses admission. No dirty key may disappear.
-    for (unsigned i = 0; i < 20; ++i) changes.drain(4, [](DataKey) { return false; });
+    for (unsigned i = 0; i < 20; ++i) changes.tryDrain(4, [](DataKey) { return false; });
     unsigned delivered[DataKeys::ReservedMax + 1]{};
     for (unsigned pass = 0; pass <= DataKeys::ReservedMax; ++pass) {
         unsigned batch = 0;
-        changes.drain(4, [&](DataKey key) { ++batch; ++delivered[key]; return true; });
+        changes.tryDrain(4, [&](DataKey key) { ++batch; ++delivered[key]; return true; });
         assert(batch <= 4);
     }
     for (unsigned count : delivered) assert(count == 1);
-    assert(!changes.mark(DataKeys::WifiReady)); // Normal runtime takes over.
+    assert(changes.mark(DataKeys::WifiReady)); // Runtime changes remain retained.
 
     // Update racing with publication must survive both acceptance and refusal.
     for (bool accepted : {false, true}) {
-        StartupDataChanges concurrent;
+        PendingDataKeys concurrent;
         assert(concurrent.mark(DataKeys::WifiReady));
-        concurrent.drain(1, [&](DataKey key) {
+        concurrent.tryDrain(1, [&](DataKey key) {
             std::thread producer([&] { assert(concurrent.mark(key)); });
             producer.join();
             return accepted;
         });
         unsigned retried = 0;
-        concurrent.drain(4, [&](DataKey key) {
+        concurrent.tryDrain(4, [&](DataKey key) {
             assert(key == DataKeys::WifiReady); ++retried; return true;
         });
         assert(retried == 1);
-        assert(!concurrent.mark(DataKeys::WifiReady));
+        assert(concurrent.mark(DataKeys::WifiReady));
     }
     puts("startup notifications: burst, deduplication, bounded drain, full queue retries, concurrent updates OK");
 }

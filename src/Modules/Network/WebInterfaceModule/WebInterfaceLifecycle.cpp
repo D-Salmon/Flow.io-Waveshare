@@ -5,6 +5,7 @@
 
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WebInterfaceModule)
 #include "WebInterfaceModule.h"
+#include "Core/CounterPersistence.h"
 
 #include "Core/DataKeys.h"
 #include "Core/EventBus/EventPayloads.h"
@@ -119,8 +120,14 @@ void WebInterfaceModule::onHttpActivityHook_(void* ctx)
     self->noteHttpActivity_();
 }
 
-void WebInterfaceModule::scheduleReboot_(uint32_t delayMs, const char* reason)
+void WebInterfaceModule::scheduleReboot_(AsyncWebServerRequest* request, uint32_t delayMs, const char* reason)
 {
+    if (!saveCounterCheckpoint(services_)) {
+        LOGE("Web reboot cancelled: counter checkpoint failed");
+        request->send(500, "application/json",
+                      "{\"ok\":false,\"err\":{\"code\":\"CounterCheckpointFailed\"}}");
+        return;
+    }
     rebootPending_ = true;
     rebootAtMs_ = millis() + delayMs;
     snprintf(rebootReason_, sizeof(rebootReason_), "%s", (reason && reason[0] != '\0') ? reason : "web");
@@ -134,6 +141,7 @@ void WebInterfaceModule::scheduleReboot_(uint32_t delayMs, const char* reason)
         (void)eventBus_->post(EventId::NetworkShutdownPending, nullptr, 0, moduleId());
     }
     LOGW("Web reboot scheduled in %lu ms reason=%s", (unsigned long)delayMs, rebootReason_);
+    request->send(200, "application/json", "{\"ok\":true,\"reboot_scheduled\":true}");
 }
 
 void WebInterfaceModule::onEventStatic_(const Event& e, void* user)

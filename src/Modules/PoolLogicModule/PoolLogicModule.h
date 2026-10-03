@@ -472,10 +472,13 @@ private:
         void* ctx,
         PoolOperatingConfiguration* outConfiguration);
     bool getPoolOperatingConfiguration_(PoolOperatingConfiguration& outConfiguration) const;
+    static bool serviceGetDeviceAssignments_(void* ctx, PoolDeviceAssignments* outAssignments);
+    bool deviceAssignmentsReady_ = false;
     PoolConfigurationService poolConfigurationSvc_{
         &PoolLogicModule::serviceGetPoolCharacteristics_,
         &PoolLogicModule::serviceGetPoolOperatingConfiguration_,
-        this
+        this,
+        &PoolLogicModule::serviceGetDeviceAssignments_
     };
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 

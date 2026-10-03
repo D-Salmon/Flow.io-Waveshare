@@ -6992,8 +6992,7 @@ void WebInterfaceModule::startServer_()
         }
 
         if (wasApProvisioning) {
-            scheduleReboot_(1200U, "prov.done.wifi");
-            request->send(200, "application/json", "{\"ok\":true,\"reboot_scheduled\":true}");
+            scheduleReboot_(request, 1200U, "prov.done.wifi");
             return;
         }
 
@@ -7018,8 +7017,7 @@ void WebInterfaceModule::startServer_()
             provisioningDisableAfterConfigured_ &&
             isProvisioningConfigured_(cfgStore_, provisioningRequireMqttForConfigured_);
         if (provisioningConfigured) {
-            scheduleReboot_(1200U, "prov.done.wifi");
-            request->send(200, "application/json", "{\"ok\":true,\"reboot_scheduled\":true}");
+            scheduleReboot_(request, 1200U, "prov.done.wifi");
             return;
         }
 
@@ -7094,8 +7092,7 @@ void WebInterfaceModule::startServer_()
             provisioningDisableAfterConfigured_ &&
             isProvisioningConfigured_(cfgStore_, provisioningRequireMqttForConfigured_);
         if (provisioningConfigured) {
-            scheduleReboot_(1200U, "prov.done.mqtt");
-            request->send(200, "application/json", "{\"ok\":true,\"reboot_scheduled\":true}");
+            scheduleReboot_(request, 1200U, "prov.done.mqtt");
             return;
         }
 
@@ -7945,6 +7942,27 @@ void WebInterfaceModule::startServer_()
         emitConfigPatchActivity_("Config flow.io", patchStr.data, actor);
         request->send(200, "application/json", "{\"ok\":true}");
         return;
+    });
+
+    server_.on("/api/io/counter/reset", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        char idText[16]{};
+        uint32_t id = 0;
+        if (!copyRequestParamValue_(request, "id", true, idText, sizeof(idText)) ||
+            !parseStrictUInt32Param_(idText, id) || id > UINT16_MAX) {
+            request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\"}}");
+            return;
+        }
+        if (!cmdSvc_ && services_) cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
+        if (!cmdSvc_ || !cmdSvc_->execute) {
+            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\"}}");
+            return;
+        }
+        char json[32]{}, reply[196]{};
+        snprintf(json, sizeof(json), "{\"id\":%lu}", (unsigned long)id);
+        Actor actor{};
+        resolveRequestActor_(request, actor);
+        const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "io.counter.reset", json, nullptr, actor, reply, sizeof(reply));
+        request->send(ok ? 200 : 500, "application/json", reply);
     });
 
     server_.on("/api/system/reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {

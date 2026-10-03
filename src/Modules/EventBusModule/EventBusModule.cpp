@@ -32,6 +32,6 @@ void EventBusModule::loop() {
     if (systemStartedPending_) {
         systemStartedPending_ = !_bus.tryPost(EventId::SystemStarted, nullptr, 0, ModuleId::EventBus);
     }
-    if (!systemStartedPending_ && dataStore_) dataStore_->flushStartupChanges(4);
+    if (!systemStartedPending_ && dataStore_) dataStore_->flushPendingChanges(4);
     vTaskDelay(pdMS_TO_TICKS(5));
 }

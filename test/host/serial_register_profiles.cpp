@@ -1,0 +1,196 @@
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <vector>
+#include "Modules/PoolDeviceModule/Drivers/PoolDeviceDriver.h"
+#include "Modules/IOModule/IOProtocols/Modbus/ModbusRtuCodec.h"
+
+struct Bus {
+    std::vector<ModbusRequest> requests;
+    ModbusMasterService service{};
+    ModbusResponse response{};
+    bool available = false;
+    unsigned cancellations = 0;
+    Bus() {
+        service.ctx = this;
+        service.submit = [](void* ctx, const ModbusRequest* r, uint16_t* id) {
+            auto& b = *static_cast<Bus*>(ctx);
+            b.requests.push_back(*r); *id = uint16_t(b.requests.size()); b.available = false;
+            return MODBUS_RESULT_OK;
+        };
+        service.poll = [](void* ctx, uint16_t, ModbusResponse* r) {
+            auto& b = *static_cast<Bus*>(ctx);
+            if (!b.available) return MODBUS_RESULT_NOT_READY;
+            *r = b.response; b.available = false; return MODBUS_RESULT_OK;
+        };
+        service.cancelOwner = [](void* ctx, uint8_t) { ++static_cast<Bus*>(ctx)->cancellations; };
+    }
+    void reply(uint16_t raw = 0, uint8_t result = MODBUS_RESULT_OK) {
+        response = {}; response.result = result; response.registerCount = 1;
+        response.values[0] = raw; available = true;
+    }
+};
+
+PoolDriverConfig pump() {
+    PoolDriverConfig c;
+    c.capabilities.kind = PoolControlKind::Rs485;
+    c.capabilities.unit = PoolSetpointUnit::Rpm;
+    c.capabilities.minimum = 1200; c.capabilities.maximum = 2900; c.capabilities.startup = 2400;
+    auto& s = c.serial;
+    s.protocol = RegisterWireProtocol::VendorRegisterRtu; s.address = 0xAA; s.line.baud = 1200;
+    s.control = PoolSerialControl::SetpointOrStop;
+    s.setpoint = {3001, 0xD0, RegisterOperation::WriteSingle};
+    s.feedback = {2001, 0xC3, RegisterOperation::Read, RegisterResponseLayout::AddressByteCount};
+    s.hasFeedback = true; s.runningSource = PoolRunningSource::FeedbackThreshold; s.runningThreshold = 1;
+    s.stopValue = 1; s.rawStep = 50; s.rawRounding = PoolRawRounding::Down;
+    return c;
+}
+
+void combinedControl() {
+    auto c = pump(); Bus bus; SerialDeviceDriver driver;
+    assert(driver.begin(c, nullptr, &bus.service, 1));
+    driver.applyTarget({true, 1724}, 1); driver.tick(10, true);
+    assert(bus.requests.size() == 1 && bus.requests.back().registerAddress == 3001);
+    assert(bus.requests.back().values[0] == 1700 && bus.requests.back().function == 0xD0);
+    bus.reply(); driver.tick(11, true);
+    assert(driver.readState().applied.setpoint == 1700);
+    // The next operation reads RPM; there is no fixed run write overwriting the speed.
+    assert(bus.requests.size() == 2 && bus.requests.back().registerAddress == 2001);
+    assert(bus.requests.back().responseLayout == RegisterResponseLayout::AddressByteCount);
+    bus.reply(1700); driver.tick(12, true);
+    assert(driver.readState().observedValid && driver.readState().observed.running);
+    assert(driver.readState().quality == PoolFeedbackQuality::Confirmed);
+    driver.applyTarget({false, 1724}, 2); driver.tick(20, true);
+    assert(bus.requests.back().values[0] == 1); // stop is never quantized to zero
+    assert(bus.requests.back().priority == MODBUS_PRIORITY_SAFETY);
+    bus.reply(); driver.tick(21, true); bus.reply(1); driver.tick(22, true);
+    assert(driver.readState().observedValid && !driver.readState().observed.running);
+    driver.tick(1021, true); bus.reply(0, MODBUS_RESULT_TIMEOUT); driver.tick(1022, true);
+    assert(!driver.readState().observedValid && driver.readState().error == MODBUS_RESULT_TIMEOUT);
+
+    c.serial.hasFeedback = false; Bus refreshBus; SerialDeviceDriver refresh;
+    assert(refresh.begin(c, nullptr, &refreshBus.service, 1));
+    refresh.applyTarget({true, 1520}, 1); refresh.tick(10, true);
+    refreshBus.reply(); refresh.tick(11, true); refresh.tick(1011, true);
+    assert(refreshBus.requests.size() == 2 && refreshBus.requests.back().values[0] == 1500);
+    refresh.applyTarget({false, 1520}, 2); refresh.tick(1012, true);
+    assert(refreshBus.cancellations == 1 && refreshBus.requests.back().values[0] == 1);
+}
+
+void signedFeedbackAndLimits() {
+    auto c = pump();
+    assert(validatePoolDriverConfig(c));
+    assert(poolSerialRawSetpoint(c, 1200) == 1200 && poolSerialRawSetpoint(c, 2900) == 2900);
+    c.serial.rawRounding = PoolRawRounding::Nearest;
+    assert(poolSerialRawSetpoint(c, 1726) == 1750);
+    c.serial.stopValue = 1200; assert(!validatePoolDriverConfig(c));
+    c.serial.stopValue = 0; c.serial.rawStep = 0; assert(!validatePoolDriverConfig(c));
+    c = pump(); c.capabilities.minimum = 1201; c.capabilities.maximum = 1249;
+    c.capabilities.startup = 1220; assert(!validatePoolDriverConfig(c));
+
+    c = {}; c.capabilities.kind = PoolControlKind::Rs485; c.capabilities.unit = PoolSetpointUnit::Celsius;
+    c.capabilities.minimum = 5; c.capabilities.maximum = 40; c.capabilities.startup = 25;
+    c.serial.hasFeedback = true; c.serial.rawPerUnit = 10;
+    c.serial.feedbackType = PoolRegisterValueType::Signed16; c.serial.feedbackUnitsPerRaw = .1f;
+    Bus bus; SerialDeviceDriver driver; assert(driver.begin(c, nullptr, &bus.service, 1));
+    driver.applyTarget({true, 25}, 1); driver.tick(1, true);
+    assert(bus.requests.back().values[0] == 250);
+    bus.reply(); driver.tick(2, true); bus.reply(); driver.tick(3, true);
+    bus.reply(1); driver.tick(4, true); driver.tick(1003, true);
+    bus.reply(0xFFCE); driver.tick(1004, true); // -50 raw = -5°C
+    assert(driver.readState().observedValid && driver.readState().observed.setpoint == -5);
+    driver.tick(7000, false);
+    assert(!driver.readState().observedValid && driver.readState().quality == PoolFeedbackQuality::Stale);
+}
+
+std::vector<uint8_t> withCrc(std::vector<uint8_t> payload) {
+    const auto crc = ModbusRtuCodec::crc16(payload.data(), payload.size());
+    payload.push_back(uint8_t(crc)); payload.push_back(uint8_t(crc >> 8)); return payload;
+}
+void responseLayouts() {
+    ModbusRequest r; r.slaveAddress = 0xAA; r.function = 0xC3; r.registerAddress = 2001;
+    r.protocol = RegisterWireProtocol::VendorRegisterRtu;
+    r.responseLayout = RegisterResponseLayout::AddressByteCount;
+    auto frame = withCrc({0xAA, 0xC3, 0x07, 0xD1, 2, 0x06, 0xA4});
+    ModbusResponse out;
+    assert(ModbusRtuCodec::decodeResponse(r, frame.data(), frame.size(), out) == MODBUS_RESULT_OK);
+    assert(out.values[0] == 1700);
+    const std::vector<std::vector<uint8_t>> malformed = {
+        {0xAA, 0xC3, 0x07, 0xD2, 2, 0x06, 0xA4}, // wrong register, valid CRC
+        {0xAB, 0xC3, 0x07, 0xD1, 2, 0x06, 0xA4}, // wrong participant
+        {0xAA, 0xC3, 0x07, 0xD1, 4, 0x06, 0xA4}, // incorrect byte count
+        {0xAA, 0xC3, 0x07}, // short header
+        {0xAA, 0xC3, 0x07, 0xD1, 2, 0x06}, // short value
+        {0xAA, 0xC3, 0x07, 0xD1, 2, 0x06, 0xA4, 0} // extra byte
+    };
+    for (const auto& payload : malformed) {
+        const auto bad = withCrc(payload);
+        assert(ModbusRtuCodec::decodeResponse(r, bad.data(), bad.size(), out) == MODBUS_RESULT_PROTOCOL_ERROR);
+        assert(out.registerCount == 0);
+    }
+    frame.back() ^= 1;
+    assert(ModbusRtuCodec::decodeResponse(r, frame.data(), frame.size(), out) == MODBUS_RESULT_CRC_ERROR);
+    r.operation = RegisterOperation::WriteSingle; r.function = 0xD0; r.registerAddress = 3001; r.values[0] = 1700;
+    frame = withCrc({0xAA, 0xD0, 0x0B, 0xB9, 2, 0x06, 0xA4});
+    assert(ModbusRtuCodec::decodeResponse(r, frame.data(), frame.size(), out) == MODBUS_RESULT_OK);
+    r.values[0] = 1750;
+    assert(ModbusRtuCodec::decodeResponse(r, frame.data(), frame.size(), out) == MODBUS_RESULT_PROTOCOL_ERROR);
+    r.operation = RegisterOperation::WriteMultiple; assert(!ModbusRtuCodec::validRequest(r));
+    r.protocol = RegisterWireProtocol::ModbusRtu; r.function = 6; assert(!ModbusRtuCodec::validRequest(r));
+    r.responseLayout = RegisterResponseLayout::Standard; assert(ModbusRtuCodec::validRequest(r));
+}
+
+void modesAndTelemetry() {
+    PoolDriverConfig c; c.capabilities.kind = PoolControlKind::Rs485;
+    c.capabilities.unit = PoolSetpointUnit::Celsius;
+    c.capabilities.minimum = 5; c.capabilities.maximum = 40; c.capabilities.startup = 25;
+    auto& s = c.serial;
+    s.modes.count = 2; s.modes.options[0] = {"Eco", 0x78}; s.modes.options[1] = {"Smart", 0x58};
+    s.hasFeedback = true; s.rawPerUnit = 10; s.feedbackUnitsPerRaw = .1f;
+    s.telemetryProfile = PoolTelemetryProfile::HeatPumpPoly;
+    s.pollMs = 50; s.staleMs = 1000; s.telemetryStaleMs = 1000;
+    assert(validatePoolDriverConfig(c));
+    assert(!validatePoolTarget(c, {true, 25, 2}));
+    Bus bus; SerialDeviceDriver driver; assert(driver.begin(c, nullptr, &bus.service, 1));
+    driver.applyTarget({true, 25, 1}, 1); driver.tick(1, true);
+    bus.reply(); driver.tick(2, true);
+    assert(bus.requests.back().values[0] == 0x58);
+    bus.reply(); driver.tick(3, true);
+    assert(driver.readState().applied.mode == 1);
+    size_t handled = 2;
+    bool sawTemperatureBlock = false, sawFaultBlock = false;
+    for (uint32_t now = 4; now <= 650; ++now) {
+        if (handled < bus.requests.size()) {
+            const auto& r = bus.requests[handled++];
+            bus.reply(r.registerAddress == 0 ? 1 : 250);
+            bus.response.registerCount = r.registerCount;
+            if (r.registerAddress == 510) {
+                sawTemperatureBlock = true;
+                assert(r.registerCount == 7 && r.priority == MODBUS_PRIORITY_BACKGROUND);
+                for (uint8_t i = 0; i < r.registerCount; ++i) bus.response.values[i] = 0xFFCE;
+            } else if (r.registerAddress == 521) {
+                sawFaultBlock = true; bus.response.result = MODBUS_RESULT_EXCEPTION;
+            } else if (r.registerAddress == 503) bus.response.values[0] = 0x8000;
+        }
+        driver.tick(now, true);
+    }
+    const auto& state = driver.readState();
+    assert(sawTemperatureBlock && sawFaultBlock);
+    assert(state.observedValid && state.error == 0 && state.appliedValid);
+    assert((state.telemetry.validBlocks & (1U << 2)) && !(state.telemetry.validBlocks & (1U << 3)));
+    assert(poolTelemetryValue(state.telemetry, kHeatPumpPolyFields[9]) == -5);
+    assert(poolTelemetryValue(state.telemetry, kHeatPumpPolyFields[8]) == 1);
+    driver.tick(2000, false);
+    assert(driver.readState().telemetry.validBlocks == 0);
+    const size_t previousRequests = bus.requests.size();
+    driver.applyTarget({false, 25, 0}, 2); driver.tick(2001, true);
+    assert(bus.requests.size() == previousRequests + 1 && bus.requests.back().priority == MODBUS_PRIORITY_SAFETY);
+    assert(bus.requests.back().values[0] == s.stopValue);
+    s.telemetryStaleMs = 799; assert(!validatePoolDriverConfig(c));
+    s.telemetryStaleMs = 1000; s.modes.options[1].value = s.stopValue;
+    assert(!validatePoolDriverConfig(c));
+}
+int main() {
+    combinedControl(); signedFeedbackAndLimits(); responseLayouts(); modesAndTelemetry();
+    puts("serial register profile tests passed");
+}

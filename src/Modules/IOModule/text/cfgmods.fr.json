@@ -939,6 +939,20 @@
           "value": true,
           "label_t": "cfgmods_meta.iomodule.enum_sets.io_output_boot_behavior.1.label"
         }
+      ],
+      "flowio_aggregation_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label"
+        }
       ]
     }
   }

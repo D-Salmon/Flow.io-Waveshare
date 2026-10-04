@@ -19,7 +19,7 @@ L'ancien module indépendant `VariableSpeedPumpModule` et son service ont été 
 
 Clés NVS : `actN_driver`, `actN_en`, `actN_dp`, `actN_flh`, `actN_tc`, `actN_ti`, `actN_mu`, `actN_rt`. Aucune lecture, conversion ou migration des anciennes clés `pdN*`.
 
-`driver` est un document JSON stocké comme chaîne (`1536` octets maximum, terminateur inclus). Le formulaire Web présente ses champs. Une mise à jour par l'API de configuration doit donc encoder ce document comme chaîne :
+`driver` est un document JSON stocké comme chaîne (`2048` octets maximum, terminateur inclus). Le formulaire Web présente ses champs. Une mise à jour par l'API de configuration doit donc encoder ce document comme chaîne :
 
 ```json
 {"pdm/pd0":{"driver":"{\"kind\":0,\"outputs\":[0]}"}}
@@ -92,7 +92,7 @@ Exemple de format, **adresses de registres illustratives à remplacer par celles
 ```
 
 - `kind` : `0` relais, `1` paliers, `2` analogique, `3` RS485.
-- `unit` : `0` vitesse %, `1` puissance %, `2` °C. La fonction de l'appareil doit effectivement accepter cette grandeur.
+- `unit` : `0` vitesse %, `1` puissance %, `2` °C, `3` RPM. La fonction de l'appareil doit effectivement accepter cette grandeur.
 - `parity` : `0` aucune, `1` paire, `2` impaire ; stop bits `1` ou `2`.
 - `protocol=0` : Modbus RTU standard, lecture `3/4`, écriture `6/16`.
 - Conversion écriture : `raw = round(setpoint * raw_per_unit + raw_offset)`, registre non signé 16 bits. Les limites doivent tenir dans `0..65535`.
@@ -116,6 +116,50 @@ Chaque opération définit `function` (octet en décimal dans JSON) et `layout` 
 Par exemple : `"status":{"address":2,"function":195,"layout":0}` et `"setpoint":{"address":1,"function":208,"layout":1}`.
 
 Un protocole ayant un autre checksum, préambule, adressage, encodage numérique ou format d'acquittement nécessite un codec adapté. Le logiciel ne déduit pas ces propriétés du seul code de fonction et ne prétend pas prendre en charge un constructeur non documenté.
+
+### Réponses constructeur avec écho du registre
+
+Chaque opération peut définir `response` indépendamment de sa requête `layout` :
+
+- `response=0` : format historique du tableau ci-dessus (valeur par défaut).
+- `response=1` : `esclave | fonction | registre MSB | registre LSB | nombre d'octets | valeurs big-endian | CRC bas | CRC haut`.
+
+Le second format est autorisé uniquement avec `protocol=1`, en lecture ou écriture simple. Pour un registre, la réponse compte exactement neuf octets et la valeur occupe les indices 5 et 6. Le codec vérifie adresse esclave, fonction, registre retourné, compteur, longueur exacte et CRC ; un acquittement d'écriture doit aussi restituer la valeur envoyée. Il n'y a ni détection automatique de variante ni acceptation d'un en-tête inconnu. Les exceptions Modbus restent réservées à `protocol=0`.
+
+### Commande unifiée, quantification et retour numérique
+
+| Champ série | Valeurs et comportement |
+|---|---|
+| `control` | `0` : consigne puis marche séparée ; `1` : écrire la consigne de marche ou `stop_value` directement dans l'opération `setpoint`. L'opération `run` est inutilisée dans ce dernier cas. |
+| `raw_step` | Pas entier positif du registre, `1` par défaut. Les valeurs de marche sont des multiples de ce pas dans les limites configurées. |
+| `raw_rounding` | `0` : au plus proche, demi-pas vers le haut ; `1` : vers le bas. L'arrondi reste borné aux pas admissibles entre minimum et maximum. |
+| `running_source` | `0` : masque `running_mask` lu par `status` ; `1` : retour décodé strictement supérieur à `running_threshold`. Dans ce dernier cas, une seule lecture `feedback` fournit vitesse et marche. |
+| `feedback_type` | `0` : entier non signé ; `1` : entier signé sur 16 bits en complément à deux, avant gain et offset. |
+
+`stop_value` est envoyé tel quel, sans conversion ni quantification. En commande unifiée, il ne peut pas être une valeur de marche admissible. Un arrêt reste prioritaire. Sans retour, le renouvellement écrit de nouveau la vitesse courante, jamais une valeur fixe de marche. `applied.setpoint` et les estimations reflètent la valeur quantifiée, tandis que `setpoint` conserve la demande utilisateur.
+
+### Modes de fonctionnement et PAC
+
+`run_modes` est une liste facultative d'au plus huit objets `{"label":"Heating Eco","value":120}`. Les libellés (23 octets maximum) et valeurs doivent être uniques ; aucune valeur ne peut être le code d'arrêt. Cette liste est réservée à `control=0`. Le mode initial est l'index `0` ; sans liste, `run_value` reste utilisé. La consigne thermique est écrite avant la commande de marche/mode.
+
+`pooldevice.mode`, args `{"slot":7,"value":2}`, sélectionne l'index du mode sans démarrer un appareil arrêté. `pooldevice.write` accepte aussi `mode` et `setpoint` pour une commande atomique. Les snapshots exposent les libellés dans `modes`, la demande dans `mode` et le mode acquitté dans `applied.mode`. Ce dernier n'est pas une confirmation physique du mode actif.
+
+Le Web propose une liste de modes ; Home Assistant reçoit un `select`. Les unités RPM sont affichées sur le Web et dans le `number` Home Assistant. Pour le rôle chauffage en automatique, `PoolLogic` transmet sa consigne à un équipement déclaré en °C, en conservant le mode sélectionné. Un changement de température en cours de chauffe est transmis sans attendre un arrêt/redémarrage, à cadence bornée. Les relais et les autres unités conservent leur comportement.
+
+`telemetry_profile=1` active la carte de registres PAC Poly du prototype, exclusivement en Modbus standard. Cinq blocs sont lus à basse priorité : `500`, `503`, `510..516`, `521..523`, `1000..1001`. La lecture groupée utilise `0x03`. Les températures sont signées, en dixièmes de degré. Les indicateurs du registre 500 et le dégivrage sont exposés comme booléens. Tension/courant restent en **valeurs brutes**, faute d'échelle constructeur confirmée. Le registre 1000 est publié comme `control_word`, sans interprétation des bits marche/mode contradictoires dans le prototype.
+
+La télémétrie apparaît dans `rt/pdm/state/pdN.telemetry`, dans le détail Web et dans les attributs du capteur diagnostic Home Assistant. Une mesure absente ou périmée vaut `null`. `telemetry_error` indique le résultat du dernier échange de diagnostic ; les valeurs non disponibles restent `null` même après la réussite d'un autre bloc. Une erreur de diagnostic ne confirme ni n'invalide à elle seule la marche : celle-ci garde son propre retour critique.
+
+Les lectures de diagnostic alternent avec le retour critique. Avec ce profil, `stale_ms` doit couvrir au moins `4 * poll_ms + timeout_ms` et `telemetry_stale_ms` au moins `10 * poll_ms + timeout_ms` (30 secondes par défaut). Ces minima doivent encore être augmentés selon la charge du bus et les réessais. Le gel des écritures gèle également les nouveaux échanges série et laisse les mesures expirer.
+
+### Exemples issus du prototype, à valider sur banc
+
+- [Aquagem, candidat](../examples/rs485/aquagem-candidate.json) : 1 200 bauds, adresse 170, registres 2001/3001, RPM par pas de 50. Le candidat suppose **registre + compteur d'octets** dans la réponse de lecture ; le fichier source ne prouve que la longueur de neuf octets et les indices de la valeur. L'acquittement d'écriture reste configuré en écho standard de huit octets ; choisir `response=1` seulement si une capture confirme le format à neuf octets décrit ci-dessus. `stop_value=0` reproduit la valeur réellement envoyée par le prototype, dont l'appel `setPumpSpeedRPM(1)` depuis `powerOFF()` est arrondi à zéro ; la valeur requise par la pompe reste à confirmer et peut être configurée à `1` sans être arrondie.
+- [PAC Poly, candidat](../examples/rs485/heatpump-poly-candidate.json) : 9 600 bauds, adresse 17, commandes 1000/1001 et codes de modes copiés du prototype. Les bornes 5–40 °C sont des exemples, à adapter. Le retour critique est désactivé (`has_feedback=false`) car le masque de marche est incertain : la qualité reste **estimée**, même si la télémétrie est disponible. Activer un retour confirmé uniquement avec un masque vérifié.
+
+Ces fichiers sont des exemples de configuration ; ils ne sont ni chargés automatiquement ni activés par le profil Waveshare. Aucun câblage, adresse ou paramètre NVS n'est modifié automatiquement. La commutation 1 200/9 600 bauds sur une même paire exige toujours une validation avec les deux équipements raccordés.
+
+Les estimations de débit doivent passer par la courbe calibrée `flow_curve` en **L/h** (le prototype emploie des L/min). Aucune puissance électrique mesurée ni régulation hydraulique réelle n'est déduite des RPM. La boucle bloquante de cinq secondes et la formule de puissance non calibrée du prototype ne sont pas reprises.
 
 ### Sortie analogique
 

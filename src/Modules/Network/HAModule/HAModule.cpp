@@ -559,12 +559,13 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
                              const char* availabilityTemplate,
                              bool isText,
                              MqttBuildContext* outCtx,
-                             const char* attributesTemplate)
+                             const char* attributesTemplate, const char* identityName)
 {
     if (!outCtx || !stateTopic || !valueTemplate) return false;
     (void)hasEntityName; // Preserve existing sensor naming and unique IDs.
     SpiRamJsonDocument doc(4096);
-    if (!initDiscoveryDocument_(doc, "sensor", objectId, name, true)) return false;
+    if (!initDiscoveryDocument_(doc, "sensor", objectId, identityName ? identityName : name, true)) return false;
+    doc["name"] = name;
     if (unit && unit[0]) doc["unit_of_meas"] = unit;
     if (entityCategory && entityCategory[0]) doc["ent_cat"] = entityCategory;
     if (icon && icon[0]) doc["ic"] = icon;
@@ -1057,7 +1058,7 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
         if (buildObjectId(e.objectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) {
             mqttSvc_->formatTopic(mqttSvc_->ctx, e.stateTopicSuffix, stateTopicBuf_, sizeof(stateTopicBuf_));
             ok = publishSensor(objectIdBuf_, e.name, stateTopicBuf_, e.valueTemplate,
-                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx, e.attributesTemplate);
+                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx, e.attributesTemplate, e.identityName);
         }
     } else {
         cursor = (uint16_t)(cursor + sensorCount_);

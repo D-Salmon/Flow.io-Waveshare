@@ -7564,14 +7564,57 @@
             tr('dashboard.action.setpointAccepted', 'Consigne acceptée'));
         });
         wrapper.append(input, status);
+        let modeControl = null;
+        if (target.modes && target.modes.length) {
+          const mode = document.createElement('select');
+          mode.className = 'control-input';
+          mode.setAttribute('aria-label', tr('pool.driver.runMode', 'Mode de fonctionnement') + ' — ' + target.label);
+          target.modes.forEach((label, index) => {
+            const option = document.createElement('option'); option.value = index; option.textContent = label; mode.appendChild(option);
+          });
+          modeControl = { input: mode, target, column, available: false };
+          switchControls.push(modeControl);
+          mode.addEventListener('change', () => {
+            if (!modeControl.available || pending || runtimeActionBusyKey) return;
+            const action = actions.find(item => item.id === 'mode');
+            if (action) applyTargetAction(target, action, Number(mode.value), target.value,
+              tr('pool.driver.modeAccepted', 'Mode accepté'));
+          });
+          wrapper.appendChild(mode);
+        }
+        const telemetryRows = [];
+        if (target.telemetry) {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary'); summary.textContent = tr('pool.telemetry.title', 'Mesures PAC');
+          details.appendChild(summary);
+          Object.keys(target.telemetry).forEach(key => {
+            const row = document.createElement('div');
+            const name = document.createElement('span');
+            name.textContent = tr('pool.telemetry.' + key, key.replaceAll('_', ' ')) + ' : ';
+            const value = document.createElement('span'); row.append(name, value); details.appendChild(row);
+            telemetryRows.push({ key, value });
+          });
+          wrapper.appendChild(details);
+        }
         return { element: wrapper, update: (current) => {
           control.available = current.controllable === true;
           if (document.activeElement !== input) input.value = String(current.setpoint ?? '');
+          if (modeControl) {
+            modeControl.available = control.available;
+            if (document.activeElement !== modeControl.input) modeControl.input.value = String(current.mode ?? 0);
+          }
+          telemetryRows.forEach(({ key, value }) => {
+            const reading = current.telemetry && current.telemetry[key];
+            const text = reading == null ? '—' : typeof reading === 'boolean' ?
+              (reading ? tr('pool.telemetry.yes', 'Oui') : tr('pool.telemetry.no', 'Non')) :
+              String(reading) + (current.telemetry_units?.[key] ? ' ' + current.telemetry_units[key] : '');
+            setRuntimeActionText(value, text);
+          });
           const qualityKeys = ['unknownState', 'estimated', 'confirmed', 'stale'];
           const qualityFallbacks = ['Indisponible', 'Estimé', 'Confirmé', 'Périmé'];
           const q = Number(current.quality) || 0;
           const quality = tr('dashboard.action.' + qualityKeys[q], qualityFallbacks[q]);
-          const suffix = current.unit === 2 ? ' °C' : ' %';
+          const suffix = [' %', ' %', ' °C', ' rpm'][current.unit] || '';
           setRuntimeActionText(status, (current.observedSetpoint == null ? '—' : current.observedSetpoint + suffix) + ' · ' + quality);
         } };
       }
@@ -10269,14 +10312,16 @@
       const matchIo = cleanPath.match(/^io\/input\/(?:analog\/)?(a\d{2})$/i)
         || cleanPath.match(/^io\/input\/(?:digital\/)?(i\d{2})$/i)
         || cleanPath.match(/^io\/output\/(d\d{2})$/i);
-      if (matchIo) {
-        const ref = String(matchIo[1] || '').toLowerCase();
+      const matchValue = cleanPath.match(/^io\/value\/(v\d{2})$/i);
+      const match = matchIo || matchValue;
+      if (match) {
+        const ref = String(match[1] || '').toLowerCase();
         if (!ref) return null;
         return {
           type: 'io',
           ref: ref,
           modulePath: cleanPath,
-          nameKey: ref + '_name'
+          nameKey: matchValue ? 'name' : ref + '_name'
         };
       }
       return null;
@@ -12023,7 +12068,7 @@
           add(config, 'dead_ms', tr('pool.driver.dead','Temps mort (ms)'), 250);
         }
         if (config.kind !== 0) {
-          add(config, 'unit', tr('pool.driver.unit','Unité'), 0, [[0,tr('pool.driver.speed','Vitesse (%)')],[1,tr('pool.driver.power','Puissance (%)')],[2,'°C']]);
+          add(config, 'unit', tr('pool.driver.unit','Unité'), 0, [[0,tr('pool.driver.speed','Vitesse (%)')],[1,tr('pool.driver.power','Puissance (%)')],[2,'°C'],[3,'RPM']]);
           add(config, 'minimum', 'Minimum', 0); add(config, 'maximum', 'Maximum', 100);
           add(config, 'startup', tr('pool.driver.startup','Consigne au démarrage'), 100);
           add(config, 'flow_curve', tr('pool.driver.flow','Courbe débit : [[consigne, L/h], …]'), [], null, true);
@@ -12037,6 +12082,20 @@
         if (config.kind === 3) {
           const serial = config.serial || (config.serial = {});
           add(serial, 'protocol', tr('pool.driver.protocol','Format de trame'), 0, [[0,'Modbus RTU'],[1,'Vendor Register RTU']]);
+          add(serial, 'control', tr('pool.driver.serialControl','Commande série'), 0,
+            [[0,tr('pool.driver.separateRun','Consigne puis marche')],[1,tr('pool.driver.setpointOrStop','Consigne ou arrêt sur le même registre')]]);
+          add(serial, 'raw_step', tr('pool.driver.rawStep','Pas de la valeur envoyée'), 1);
+          add(serial, 'raw_rounding', tr('pool.driver.rounding','Arrondi au pas'), 0,
+            [[0,tr('pool.driver.nearest','Au plus proche')],[1,tr('pool.driver.down','Vers le bas')]]);
+          add(serial, 'running_source', tr('pool.driver.runningSource','Détection de marche'), 0,
+            [[0,tr('pool.driver.statusMask','Masque du registre d’état')],[1,tr('pool.driver.feedbackThreshold','Retour supérieur au seuil')]]);
+          add(serial, 'running_threshold', tr('pool.driver.runningThreshold','Seuil de marche (unité du retour)'), 0);
+          add(serial, 'feedback_type', tr('pool.driver.feedbackType','Encodage du retour'), 0,
+            [[0,tr('pool.driver.unsigned','Entier 16 bits non signé')],[1,tr('pool.driver.signed','Entier 16 bits signé')]]);
+          add(serial, 'run_modes', tr('pool.driver.runModes', 'Modes : [{"label":"Eco","value":120}, …]'), [], null, true);
+          add(serial, 'telemetry_profile', tr('pool.driver.telemetry', 'Télémétrie complémentaire'), 0,
+            [[0,tr('pool.driver.noTelemetry', 'Aucune')],[1,'PAC Poly (500–523, 1000–1001)']]);
+          add(serial, 'telemetry_stale_ms', tr('pool.driver.telemetryStale', 'Péremption de la télémétrie (ms)'), 30000);
           add(serial, 'bus', 'Bus', 0); add(serial, 'address', tr('pool.driver.address','Adresse'), 1);
           add(serial, 'baud', 'Baud', 9600);
           add(serial, 'parity', tr('pool.driver.parity','Parité'), 0, [[0,'None'],[1,'Even'],[2,'Odd']]);
@@ -12049,6 +12108,7 @@
             const op = serial[name] || (serial[name] = { address, function: fn, layout });
             add(op,'address',name + ' · register',address); add(op,'function',name + ' · function',fn);
             add(op,'layout',name + ' · format',layout,[[0,'Read registers'],[1,'Write single / echo'],[2,'Write multiple / address + count']]);
+            add(op,'response',name + ' · response',0,[[0,'Standard'],[1,'Register address + byte count + values']]);
           });
         }
       };

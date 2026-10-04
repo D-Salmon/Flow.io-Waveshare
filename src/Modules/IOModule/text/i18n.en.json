@@ -988,6 +988,23 @@
     "cfgdocs.io.drivers.expander02.secondary_address.help": "Fallback I2C address when the primary does not respond and this address is free. 0x00 disables fallback. Changes apply after restart.",
     "cfgdocs.io.drivers.expander03.address.help": "Preferred I2C address, reserved while this driver is enabled. Changes apply after restart.",
     "cfgdocs.io.drivers.expander03.secondary_address.label": "Secondary address",
-    "cfgdocs.io.drivers.expander03.secondary_address.help": "Fallback I2C address when the primary does not respond and this address is free. 0x00 disables fallback. Changes apply after restart."
+    "cfgdocs.io.drivers.expander03.secondary_address.help": "Fallback I2C address when the primary does not respond and this address is free. 0x00 disables fallback. Changes apply after restart.",
+    "cfgdocs.io.value.label": "Derived values",
+    "cfgdocs.io.value.v00.label": "Derived value V00",
+    "cfgdocs.io.value.v00.source.label": "Source",
+    "cfgdocs.io.value.v00.source.help": "16-bit ValueId of the upstream value. The value 65535 (0xFFFF) disables the derived value. Encoding: family base + index (0..15) — Analog 0, Pulse rate 32, Total 64, Converted rate 80, Derived 96. Examples: A01 = 1, counter I01 = 33, total I01 = 65, first derived = 96.",
+    "cfgdocs.io.value.v00.scale.label": "Scale factor",
+    "cfgdocs.io.value.v00.scale.help": "Multiplier of the affine transform. Published value = source x scale + offset.",
+    "cfgdocs.io.value.v00.offset.label": "Offset",
+    "cfgdocs.io.value.v00.offset.help": "Additive constant of the affine transform. Published value = source x scale + offset.",
+    "cfgdocs.io.value.v00.aggregation.label": "Aggregation mode",
+    "cfgdocs.io.value.v00.aggregation.help": "Controls how the value is accumulated in history. Gauge and Rate integrate value x duration; Counter subtracts integer deltas before conversion.",
+    "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label": "Gauge [0]",
+    "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label": "Rate [1]",
+    "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label": "Counter [2]",
+    "cfgdocs.io.value.v00.enabled.label": "Enabled",
+    "cfgdocs.io.value.v00.enabled.help": "Enables computation, MQTT publication and the Home Assistant sensor after restart. Disabled by default; a previously saved activation is preserved. A valid source is required. Also disable dependent values: a disabled dependency makes the IO configuration invalid.",
+    "cfgdocs.io.value.v00.name.label": "Name",
+    "cfgdocs.io.value.v00.name.help": "Optional Home Assistant sensor name (maximum 63 UTF-8 bytes). Empty: Value V00. Applied after restart without changing the sensor identity."
   }
 }

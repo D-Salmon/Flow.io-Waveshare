@@ -6,6 +6,16 @@ import tempfile
 import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 class ValueTests(unittest.TestCase):
+    def test_config_and_discovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = pathlib.Path(tmp) / 'value-config-discovery'
+            subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                '-fsanitize=undefined,address', '-g', '-pthread',
+                '-Itest/host/value_config_stubs', '-Itest/host/value_stubs', '-Isrc', '-Iinclude',
+                'test/host/value_config_discovery.cpp', 'src/Core/Values/ValueRegistry.cpp',
+                '-o', str(binary)], cwd=ROOT, check=True)
+            subprocess.run([str(binary)], cwd=ROOT, check=True)
+
     def test_history_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             binary = pathlib.Path(tmp) / 'history-json'

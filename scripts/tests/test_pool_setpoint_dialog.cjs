@@ -10,7 +10,9 @@ const commands = [];
 const devices = [
   { value:0, kind:0, name:'Relais', label:'Relais', deviceId:'pd0' },
   { value:1, kind:1, name:'Pompe paliers', label:'Pompe paliers', deviceId:'pd1', steps:[30,60,100], setpoint:60 },
-  { value:2, kind:3, name:'Pompe RS485', label:'Pompe RS485', deviceId:'pd2', minimum:0, maximum:100, setpoint:50, observedSetpoint:50 }
+  { value:2, kind:3, unit:3, name:'Pompe RS485', label:'Pompe RS485', deviceId:'pd2', minimum:1200, maximum:2900, setpoint:1700, observedSetpoint:1700 },
+  { value:3, kind:3, unit:2, name:'PAC', label:'PAC', deviceId:'pd3', minimum:5, maximum:40, setpoint:25, observedSetpoint:25,
+    mode:0, modes:['Heating Eco','Heating Smart'], telemetry:{water_in:21,ambient:null,defrost:false}, telemetry_units:{water_in:'°C',ambient:'°C'} }
 ].map(x=>({...x, actualOn:false, desiredOn:false, controllable:true, quality:1,
   running:{day_s:0,week_s:0,month_s:0,total_s:0},injected:{day_ml:0,week_ml:0,month_ml:0,total_ml:0}}));
 const server = http.createServer((req,res)=>{
@@ -21,6 +23,7 @@ const server = http.createServer((req,res)=>{
       const command=Object.fromEntries(new URLSearchParams(body));commands.push(command);
       const device=devices.find(x=>x.value===Number(command.target));
       if(command.action_id==='setpoint') device.setpoint=Number(command.input);
+      if(command.action_id==='mode') device.mode=Number(command.input);
       res.end('{"ok":true}');
     });
   } else { res.setHeader('Content-Type','text/html');res.end('<html><body><div class="status-card"><h3>Équipements</h3></div></body></html>'); }
@@ -39,15 +42,25 @@ const server = http.createServer((req,res)=>{
     await installDialog(page,entry);
     await page.locator('.status-card button').click();
     await page.waitForSelector('.runtime-setpoint select');
-    const steps=page.locator('.runtime-setpoint select');
+    const steps=page.locator('.runtime-setpoint select').first();
     assert.deepEqual(await steps.locator('option').allTextContents(),['30','60','100']);
     await steps.selectOption('100');
     await page.waitForFunction(()=>!document.querySelector('.runtime-setpoint select').disabled);
     assert.equal(commands[0].action_id,'setpoint');assert.equal(commands[0].target,'1');assert.equal(commands[0].input,'100');
-    const continuous=page.locator('.runtime-setpoint input');
-    await continuous.fill('65.5');await continuous.dispatchEvent('change');
+    const continuous=page.locator('.runtime-setpoint input').first();
+    await continuous.fill('1724');await continuous.dispatchEvent('change');
     await page.waitForFunction(()=>!document.querySelector('.runtime-setpoint input').disabled);
-    assert.equal(commands[1].target,'2');assert.equal(commands[1].input,'65.5');
+    assert.equal(commands[1].target,'2');assert.equal(commands[1].input,'1724');
+    assert.match(await continuous.locator('..').textContent(), /1700 rpm/);
+    const mode=page.locator('.runtime-setpoint select').last();
+    assert.deepEqual(await mode.locator('option').allTextContents(),['Heating Eco','Heating Smart']);
+    await mode.selectOption('1');
+    await page.waitForFunction(()=>Array.from(document.querySelectorAll('.runtime-setpoint select')).every(input=>!input.disabled));
+    assert.equal(commands[2].action_id,'mode');assert.equal(commands[2].target,'3');assert.equal(commands[2].input,'1');
+    const telemetry=page.locator('.runtime-setpoint details');
+    await telemetry.locator('summary').click();
+    assert.match(await telemetry.textContent(), /21 °C/);
+    assert.match(await telemetry.textContent(), /—/);
     // The configuration form must commit a complete serial object on mode change.
     const app=fs.readFileSync(path.join(project,'data/webinterface/app.js'),'utf8');
     const editor=app.slice(app.indexOf('    function buildPoolDriverEditor('),app.indexOf('    function renderConfigFields('));
@@ -59,6 +72,6 @@ const server = http.createServer((req,res)=>{
     },editor);
     assert.equal(config.kind,3);assert.equal(config.serial.run.function,6);assert.equal(config.serial.setpoint.address,1);
     assert.deepEqual(errors,[]);
-    console.log('Pool setpoint dialog: discrete and continuous commands, state, configuration editor passed');
+    console.log('Pool setpoint dialog: discrete, RPM, operating modes, telemetry and configuration editor passed');
   } finally { await browser.close(); await new Promise(resolve=>server.close(resolve)); }
 })().catch(err=>{console.error(err);server.close();process.exitCode=1;});

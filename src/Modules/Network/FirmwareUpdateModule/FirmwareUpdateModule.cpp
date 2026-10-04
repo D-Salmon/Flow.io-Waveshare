@@ -15,6 +15,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <new>
+#include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
@@ -1863,6 +1864,9 @@ bool FirmwareUpdateModule::commitLocalRelease_(uint32_t transactionId,
     }
     if (!localTransactionMatches_(transactionId) ||
         localRelease_.stage != LocalReleaseStage::FirmwareVerified) {
+        LOGW("[UPGRADE] commit rejected stage=%u transaction_match=%u",
+             (unsigned)localRelease_.stage,
+             localTransactionMatches_(transactionId) ? 1U : 0U);
         return writeSimpleError_(errOut, errOutLen, "release is not ready to commit");
     }
     const esp_partition_subtype_t subtype = localRelease_.targetSlot == ReleaseSlot::A
@@ -1871,20 +1875,32 @@ bool FirmwareUpdateModule::commitLocalRelease_(uint32_t transactionId,
     const esp_partition_t* target = esp_partition_find_first(
         ESP_PARTITION_TYPE_APP, subtype, ReleaseStorage::applicationLabel(localRelease_.targetSlot));
     if (!target) {
+        LOGE("[UPGRADE] boot partition %s not found",
+             ReleaseStorage::applicationLabel(localRelease_.targetSlot));
         failLocalRelease_("failed to select release boot partition");
         return writeSimpleError_(errOut, errOutLen, "failed to select release boot partition");
     }
-    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) return false;
+    // Counter persistence is best-effort here: it must never abort an otherwise
+    // valid release. loop() retries the checkpoint right before the reboot.
+    char counterErr[96] = {0};
+    if (!saveCountersBeforeUpdate_(counterErr, sizeof(counterErr))) {
+        LOGW("[UPGRADE] counter checkpoint failed (%s); committing anyway",
+             counterErr[0] ? counterErr : "unknown");
+    }
     if (!persistReceipt_(FirmwareUpdateTarget::Waveshare,
                          localRelease_.operationId,
                          FirmwareUpdateReceiptState::RebootPending)) {
         failLocalRelease_("failed to persist update completion");
         return writeSimpleError_(errOut, errOutLen, "failed to persist update completion");
     }
-    if (esp_ota_set_boot_partition(target) != ESP_OK) {
+    const esp_err_t bootError = esp_ota_set_boot_partition(target);
+    if (bootError != ESP_OK) {
         (void)persistReceipt_(FirmwareUpdateTarget::Waveshare,
                               localRelease_.operationId,
                               FirmwareUpdateReceiptState::Failed);
+        LOGE("[UPGRADE] esp_ota_set_boot_partition(%s) failed: %s",
+             ReleaseStorage::applicationLabel(localRelease_.targetSlot),
+             esp_err_to_name(bootError));
         failLocalRelease_("failed to select release boot partition");
         return writeSimpleError_(errOut, errOutLen, "failed to select release boot partition");
     }
@@ -2382,11 +2398,12 @@ void FirmwareUpdateModule::loop()
         }
     }
     if (localReleaseRebootDue) {
-        if (!saveCounterCheckpoint(services_)) {
-            SemaphoreGuard transactionGuard(localReleaseMutex_);
-            localRelease_.rebootPending = false;
-            failLocalRelease_("counter checkpoint failed; reboot cancelled");
-            return;
+        // Best-effort: a counter persistence failure must not strand a device
+        // with an installed release that never reboots into it.
+        char counterErr[96] = {0};
+        if (!saveCountersBeforeUpdate_(counterErr, sizeof(counterErr))) {
+            LOGW("[UPGRADE] counter checkpoint failed (%s); rebooting anyway",
+                 counterErr[0] ? counterErr : "unknown");
         }
         LOGI("[UPGRADE] reboot");
         ESP.restart();

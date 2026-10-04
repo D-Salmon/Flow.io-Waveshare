@@ -170,4 +170,11 @@ int main() {
  assert(upper.slots_[0].actualOn);
  upper.slots_[15].desiredOn=false;upper.tickDevices_(0,false);upper.tickDevices_(0,false);
  assert(!upper.slots_[0].actualOn && !upper.slots_[0].overrideTimer.active());
+ // A controller temperature update preserves the mode selected by another caller.
+ PoolDeviceModule heating;
+ heating.slots_[0].desired.mode=2;
+ assert(heating.svcSetRunningAtSetpointImpl_(0,1,25)==POOLDEV_SVC_OK);
+ assert(heating.slots_[0].desired.running && heating.slots_[0].desired.setpoint==25 && heating.slots_[0].desired.mode==2);
+ assert(heating.svcSetRunningAtSetpointImpl_(0,1,101)==POOLDEV_SVC_ERR_INVALID_ARG);
+ assert(heating.slots_[0].desired.setpoint==25 && heating.slots_[0].desired.mode==2);
 }

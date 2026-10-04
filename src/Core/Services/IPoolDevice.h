@@ -37,6 +37,9 @@ struct PoolDeviceSvcMeta {
     PoolDeviceCapabilities capabilities{};
     bool driverReady = false;
     bool guidedOn = false;
+    PoolDeviceTarget guidedTarget{};
+    PoolRunModes runModes{};
+    PoolTelemetryProfile telemetryProfile = PoolTelemetryProfile::None;
     uint8_t outputCount = 0;
     IoId outputs[POOL_MAX_SPEED_STEPS]{};
     /** Domain actuator associated with this equipment, used for presentation. */
@@ -76,4 +79,6 @@ struct PoolDeviceService {
     uint16_t (*overrideDuration)(void* ctx) = nullptr;
     /** Apply an unlimited manual target and release its lease in one transaction. */
     PoolDeviceSvcStatus (*setManualRunning)(void* ctx, uint8_t slot, uint8_t on) = nullptr;
+    /** Atomically change running/setpoint while preserving the currently selected operating mode. */
+    PoolDeviceSvcStatus (*setRunningAtSetpoint)(void* ctx, uint8_t slot, uint8_t on, float setpoint) = nullptr;
 };

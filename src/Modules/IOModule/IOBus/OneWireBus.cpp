@@ -7,11 +7,12 @@
 
 #include <string.h>
 
-OneWireBus::OneWireBus(int pin) : pin_(pin), oneWire_(pin), dt_(&oneWire_) {}
+OneWireBus::OneWireBus(int pin) : pin_(pin), oneWire_(), dt_(&oneWire_) {}
 
 void OneWireBus::begin() {
     if (pin_ < 0) return;
     if (started_) return;
+    oneWire_.begin((uint8_t)pin_);
     dt_.begin();
     dt_.setWaitForConversion(false);
     started_ = true;

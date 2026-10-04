@@ -662,7 +662,15 @@ bool PoolLogicModule::readDeviceActualOn_(uint8_t deviceSlot, bool& onOut) const
 bool PoolLogicModule::writeDeviceDesired_(uint8_t deviceSlot, bool on)
 {
     if (!poolSvc_ || !poolSvc_->setRunning) return false;
-    const PoolDeviceSvcStatus st = poolSvc_->setRunning(poolSvc_->ctx, deviceSlot, on ? 1U : 0U);
+    PoolDeviceSvcMeta metadata{};
+    const bool syncTemperature = on && deviceSlot == heaterDeviceSlot_ && autoMode_ && heaterAutoMode_ &&
+        poolSvc_->meta && poolSvc_->meta(poolSvc_->ctx, deviceSlot, &metadata) == POOLDEV_SVC_OK &&
+        metadata.capabilities.unit == PoolSetpointUnit::Celsius;
+    PoolDeviceSvcStatus st;
+    if (syncTemperature) {
+        st = poolSvc_->setRunningAtSetpoint ?
+            poolSvc_->setRunningAtSetpoint(poolSvc_->ctx, deviceSlot, 1U, heaterSetpoint_) : POOLDEV_SVC_ERR_NOT_READY;
+    } else st = poolSvc_->setRunning(poolSvc_->ctx, deviceSlot, on ? 1U : 0U);
     if (st != POOLDEV_SVC_OK) {
         PoolDeviceSvcMeta meta{};
         const bool haveMeta = poolSvc_->meta &&
@@ -923,9 +931,12 @@ void PoolLogicModule::applyDeviceControl_(uint8_t deviceSlot,
         poolSvc_->meta(poolSvc_->ctx, deviceSlot, &meta) == POOLDEV_SVC_OK;
     const bool guidedMismatch = haveMeta && meta.guidedOn != desired;
     const bool forced = haveMeta && meta.control.mode != ActuatorControlMode::Guided;
+    const bool temperatureMismatch = haveMeta && !forced && desired && deviceSlot == heaterDeviceSlot_ &&
+        autoMode_ && heaterAutoMode_ && meta.capabilities.unit == PoolSetpointUnit::Celsius &&
+        meta.guidedTarget.setpoint != heaterSetpoint_ && uint32_t(nowMs - fsm.lastCmdMs) >= 5000U;
     const bool needRetry = !forced && fsm.known && fsm.on != desired && (uint32_t)(nowMs - fsm.lastCmdMs) >= 5000U;
 
-    if (desiredChanged || guidedMismatch || needRetry) {
+    if (desiredChanged || guidedMismatch || needRetry || temperatureMismatch) {
         if (writeDeviceDesired_(deviceSlot, desired)) {
             LOGI("%s %s", desired ? "Start" : "Stop", label ? label : "Pool Device");
             if (desiredChanged) {

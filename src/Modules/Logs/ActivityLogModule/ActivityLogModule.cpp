@@ -82,7 +82,6 @@ void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
 {
     services_ = &services;
 
-    const size_t bytes = (size_t)kCapacity * sizeof(ActivityEvent);
     entries_ = static_cast<ActivityEvent*>(
         heap_caps_calloc(kCapacity, sizeof(ActivityEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
     );
@@ -116,7 +115,6 @@ void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
                                            persistQueueStorage_,
                                            &persistQueueStatic_);
     }
-
     service_.emit = &ActivityLogModule::serviceEmit_;
     service_.getStats = &ActivityLogModule::serviceGetStats_;
     service_.readPage = &ActivityLogModule::serviceReadPage_;
@@ -360,20 +358,25 @@ bool ActivityLogModule::parseLine_(const char* line, ActivityEvent& out) const
 
 void ActivityLogModule::replayFile_(const char* path)
 {
+    if (!path) return;
     fs::FS& runtimeFs = ReleaseStorage::runtimeFilesystem();
-    if (!spiffsReady_ || !path || !runtimeFs.exists(path)) return;
+    if (!spiffsReady_ || !runtimeFs.exists(path)) return;
     File file = runtimeFs.open(path, FILE_READ);
     if (!file) return;
 
     char line[kLineMax] = {0};
     while (file.available()) {
+        const size_t positionBeforeRead = file.position();
         const size_t n = file.readBytesUntil('\n', line, sizeof(line) - 1U);
+        const size_t positionAfterRead = file.position();
+        if (positionAfterRead <= positionBeforeRead) break;
         line[n] = '\0';
-        if (n == 0U) continue;
-        ActivityEvent event{};
-        if (parseLine_(line, event)) {
-            normalizeEvent_(event);
-            appendRing_(event);
+        if (n > 0U) {
+            ActivityEvent event{};
+            if (parseLine_(line, event)) {
+                normalizeEvent_(event);
+                appendRing_(event);
+            }
         }
     }
     file.close();

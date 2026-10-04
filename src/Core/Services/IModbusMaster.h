@@ -45,6 +45,8 @@ enum ModbusResultCode : uint8_t {
 /** Wire dialect is explicit: vendor register frames do not use Modbus exceptions. */
 enum class RegisterWireProtocol : uint8_t { ModbusRtu, VendorRegisterRtu };
 enum class RegisterOperation : uint8_t { Read, WriteSingle, WriteMultiple };
+/** Explicit vendor response: slave, function, register (BE), byte count, values, CRC. */
+enum class RegisterResponseLayout : uint8_t { Standard, AddressByteCount };
 struct SerialLineProfile {
     uint8_t busId = 0;
     uint32_t baud = 9600;
@@ -61,6 +63,7 @@ struct ModbusRequest {
     RegisterWireProtocol protocol = RegisterWireProtocol::ModbusRtu;
     // Used only by VendorRegisterRtu: register-address/count read, echoed write.
     RegisterOperation operation = RegisterOperation::Read;
+    RegisterResponseLayout responseLayout = RegisterResponseLayout::Standard;
     uint8_t slaveAddress = 1U;
     uint8_t function = MODBUS_FC_READ_HOLDING_REGISTERS;
     uint8_t priority = MODBUS_PRIORITY_NORMAL;

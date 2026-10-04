@@ -21,6 +21,7 @@
 #include "Domain/Pool/PoolIds.h"
 #include "Domain/Pool/PoolDomain.h"
 #include "Core/Services/IPoolDevice.h"
+#include "Modules/PoolDeviceModule/Drivers/PoolTelemetryJson.h"
 #include "Core/Services/IPoolConfiguration.h"
 #include "Modules/IOModule/IORuntime.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
@@ -7535,8 +7536,8 @@ void WebInterfaceModule::startServer_()
             if (meta.used) devices[count++] = meta;
         }
 
-        SpiRamJsonDocument deviceDoc(2048);
-        if (deviceDoc.capacity() < 2048U) {
+        SpiRamJsonDocument deviceDoc(4096);
+        if (deviceDoc.capacity() < 4096U) {
             request->send(503, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"NoMemory\",\"where\":\"runtime.pooldevice_options\"}}");
             return;
@@ -7565,6 +7566,10 @@ void WebInterfaceModule::startServer_()
             auto steps = deviceDoc.createNestedArray("steps");
             for (uint8_t n = 0; n < devices[idx].capabilities.stepCount; ++n) steps.add(devices[idx].capabilities.steps[n]);
             deviceDoc["setpoint"] = state.desiredSetpoint;
+            deviceDoc["mode"] = devices[idx].guidedTarget.mode;
+            auto modes = deviceDoc.createNestedArray("modes");
+            for (uint8_t n = 0; n < devices[idx].runModes.count; ++n) modes.add(devices[idx].runModes.options[n].label);
+            writePoolTelemetryJson(deviceDoc.as<JsonObject>(), devices[idx].telemetryProfile, state.feedback.telemetry, true);
             deviceDoc["desiredOn"] = state.desiredOn;
             deviceDoc["quality"] = uint8_t(state.feedback.quality);
             deviceDoc["phase"] = uint8_t(state.feedback.phase);

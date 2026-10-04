@@ -526,6 +526,23 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
           }
         },
         {
+          "id": "mode",
+          "command": "pooldevice.mode",
+          "presentation": "button",
+          "input": {
+            "name": "value",
+            "type": "uint32"
+          },
+          "refreshDomains": [
+            "equipements",
+            "alarm"
+          ],
+          "target": {
+            "name": "slot",
+            "type": "uint32"
+          }
+        },
+        {
           "id": "reset_uptime",
           "command": "pooldevice.uptime.reset",
           "presentation": "button",

@@ -803,6 +803,21 @@ int32_t IOModule::analogPrecision(uint8_t idx) const
     return sanitizeAnalogPrecision_(analogCfg_[idx].precision);
 }
 
+const char* IOModule::derivedValueName(uint8_t slot) const
+{
+    return valueConfig_ && slot < ValueIds::DerivedCapacity ? valueConfig_->definitions[slot].name : "";
+}
+
+bool IOModule::derivedValuePublished(uint8_t slot) const
+{
+    if (!runtimeReady_ || slot >= ValueIds::DerivedCapacity) return false;
+    const ValueId id = ValueIds::Derived + slot;
+    for (uint8_t i = 0; i < valueRouteCount_; ++i) {
+        if (valueRoutes_[i] == id) return true;
+    }
+    return false;
+}
+
 uint32_t IOModule::takeAnalogConfigDirtyMask()
 {
     const uint32_t mask = analogConfigDirtyMask_;
@@ -3590,11 +3605,6 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::Io;
     if (!ensureScalableStorage_() || !ensureConfigDescriptorStorage_()) return;
 
-    const auto* commands = services.get<CommandService>(ServiceId::Command);
-    if (!commands || !commands->registerHandler ||
-        !commands->registerHandler(commands->ctx, "io.counter.reset", &IOModule::cmdResetCounter_, this)) {
-        LOGE("Failed to register io.counter.reset");
-    }
     cfgStore_ = &cfg;
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);

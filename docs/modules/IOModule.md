@@ -402,3 +402,38 @@ Cette synchronisation repose sur:
 Le module expose également la réservation des sorties, `writeAnalog`, les endpoints analogiques `o00..o03` déclarés par le profil et une tâche RS485 dédiée à un tick FreeRTOS. La boucle d'acquisition IO reste séparée. Le service de registres accepte un profil série par transaction et le format explicite Vendor Register RTU en plus du Modbus standard.
 
 Voir [Pilotage des équipements](PoolActuators.md) pour les descripteurs, les fonctions constructeur, la distinction commande/observation et les limites matérielles.
+
+### Valeurs dérivées et Home Assistant
+
+Les 16 emplacements `io/value/v00` à `io/value/v15` disposent d'un booléen
+persistant `enabled`. Il vaut `false` par défaut pour tous les emplacements.
+Une activation déjà enregistrée en NVS est conservée. Une source à `65535` (`VALUE_INVALID`) laisse l'emplacement inactif,
+quel que soit `enabled`. Les changements de définition prennent effet après
+redémarrage.
+
+Une valeur désactivée n'est pas enregistrée dans le registre et ne dispose plus
+de route MQTT ni de nouvelles données d'historique. Ses valeurs dépendantes
+doivent être désactivées ou recevoir une autre source : une dépendance absente
+est une erreur de configuration IO, comme un cycle ou une transformation invalide.
+
+Lorsque MQTT et Home Assistant sont activés, chaque valeur effectivement publiée
+crée un capteur Discovery `io_value_vNN`, nommé `Value VNN`, lié à
+`<prefix>/rt/value/<96 + NN>`. Le capteur lit `value` et devient indisponible si
+`quality` n'est pas `1` (valide), ou si Flow.io est hors ligne. Aucune unité n'est
+supposée pour ces transformations génériques. Au démarrage, les entrées Discovery
+des emplacements désactivés ou sans source sont retirées par un message retained
+vide, afin de supprimer les anciens capteurs dans Home Assistant.
+
+Les erreurs d'initialisation Discovery du profil Waveshare (allocation, préparation
+ou enregistrement d'entités) sont journalisées avec `HA discovery failed` et ne
+bloquent pas le démarrage. Les entités indépendantes continuent d'être enregistrées
+lorsque leurs ressources sont disponibles. Une préparation des rôles en échec
+empêche uniquement l'enregistrement des entités qui utilisent ces rôles. La
+Discovery étant réalisée une fois au démarrage, un nouvel essai d'enregistrement
+nécessite un redémarrage après correction de la cause. Ce comportement ne change
+pas la validation des dépendances des valeurs par le module IO.
+
+Le champ facultatif `io/value/vNN/name` définit le nom affiché dans Home Assistant
+(63 octets UTF-8 maximum). Vide par défaut, il conserve le libellé `Value VNN`.
+Le nom prend effet après redémarrage ; le topic Discovery et l’identifiant unique
+restent identiques lors du renommage, y compris pour les capteurs déjà créés.

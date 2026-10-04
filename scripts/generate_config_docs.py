@@ -16,6 +16,9 @@ WAVESHARE_ANALOG_LAST_SLOT = 20
 WAVESHARE_DIGITAL_INPUT_LAST_SLOT = 12
 WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT = 15
 
+# End-inclusive derived-value slot index. Keep aligned with ValueIds::DerivedCapacity.
+VALUE_DERIVED_LAST_SLOT = 15
+
 try:
     Import("env")  # type: ignore
 except Exception:
@@ -170,6 +173,47 @@ def _expand_digital_input_slot_translations(translations: Dict[str, str], last_s
         new_lower = f"i{slot:02d}"
         old_upper = "I07"
         new_upper = f"I{slot:02d}"
+        for key, value in templates:
+            new_key = key.replace(old_lower, new_lower)
+            if new_key in translations:
+                continue
+            translations[new_key] = value.replace(old_lower, new_lower).replace(old_upper, new_upper)
+
+
+def _expand_value_slot_docs(docs: Dict[str, dict], last_slot: int) -> None:
+    """Clone the v00 derived-value descriptors for every derived-value slot."""
+    prefix = "io/value/v00"
+    templates = [
+        (key, value)
+        for key, value in docs.items()
+        if (key == prefix or key.startswith(prefix + "/")) and isinstance(value, dict)
+    ]
+    for slot in range(1, last_slot + 1):
+        old_lower = "v00"
+        new_lower = f"v{slot:02d}"
+        old_upper = "V00"
+        new_upper = f"V{slot:02d}"
+        for key, value in templates:
+            new_key = key.replace(old_lower, new_lower)
+            if new_key in docs:
+                continue
+            encoded = json.dumps(value, ensure_ascii=False)
+            encoded = encoded.replace(old_lower, new_lower).replace(old_upper, new_upper)
+            docs[new_key] = json.loads(encoded)
+
+
+def _expand_value_slot_translations(translations: Dict[str, str], last_slot: int) -> None:
+    """Clone v00 translations used by generated derived-value descriptors."""
+    templates = [
+        (key, value)
+        for key, value in translations.items()
+        if ".v00." in key and isinstance(value, str)
+    ]
+    for slot in range(1, last_slot + 1):
+        old_lower = "v00"
+        new_lower = f"v{slot:02d}"
+        old_upper = "V00"
+        new_upper = f"V{slot:02d}"
         for key, value in templates:
             new_key = key.replace(old_lower, new_lower)
             if new_key in translations:
@@ -599,6 +643,10 @@ def main() -> None:
     cfgdocs_docs, cfgdocs_meta, cfgdocs_files = _load_text_docs(src_root, stem="cfgdocs", locale=locale)
     cfgmods_docs, cfgmods_meta, cfgmods_files = _load_text_docs(src_root, stem="cfgmods", locale=locale)
     i18n, i18n_files = _load_text_translations(src_root, locale=locale)
+
+    # Derived values are a core capability: every profile exposes the same 16 slots.
+    _expand_value_slot_docs(cfgdocs_docs, VALUE_DERIVED_LAST_SLOT)
+    _expand_value_slot_translations(i18n, VALUE_DERIVED_LAST_SLOT)
 
     pio_env = _detect_pio_env()
     profile = _profile_override_from_project_options() or _profile_from_pio_env(pio_env)

@@ -1,15 +1,36 @@
 #include "PoolDeviceDriver.h"
 #include "Modules/IOModule/IOProtocols/Modbus/ModbusRtuCodec.h"
 #include <cmath>
+#include <cstring>
 
 namespace {
 bool due(uint32_t now, uint32_t deadline) { return int32_t(now - deadline) >= 0; }
+double firstRawStep(const PoolDriverConfig& c)
+{
+    return std::ceil((double(c.capabilities.minimum) * c.serial.rawPerUnit + c.serial.rawOffset) / c.serial.rawStep);
+}
+double lastRawStep(const PoolDriverConfig& c)
+{
+    return std::floor((double(c.capabilities.maximum) * c.serial.rawPerUnit + c.serial.rawOffset) / c.serial.rawStep);
+}
+}
+
+uint16_t poolSerialRawSetpoint(const PoolDriverConfig& c, float setpoint)
+{
+    const auto& s = c.serial;
+    const double steps = (double(setpoint) * s.rawPerUnit + s.rawOffset) / s.rawStep;
+    double quantized = s.rawRounding == PoolRawRounding::Down ? std::floor(steps) : std::round(steps);
+    quantized = std::fmax(firstRawStep(c), std::fmin(lastRawStep(c), quantized));
+    return uint16_t(quantized * s.rawStep);
 }
 
 bool validatePoolTarget(const PoolDriverConfig& c, const PoolDeviceTarget& t)
 {
     if (!std::isfinite(t.setpoint) || c.capabilities.stepCount > POOL_MAX_SPEED_STEPS) return false;
     const auto& caps = c.capabilities;
+    if (caps.kind == PoolControlKind::Rs485 && c.serial.modes.count) {
+        if (c.serial.modes.count > POOL_MAX_RUN_MODES || t.mode >= c.serial.modes.count) return false;
+    } else if (t.mode != 0) return false;
     if (caps.kind == PoolControlKind::Relay) return t.setpoint == caps.startup;
     if (t.setpoint < caps.minimum || t.setpoint > caps.maximum) return false;
     if (caps.kind == PoolControlKind::Discrete) {
@@ -28,11 +49,13 @@ bool validatePoolDriverConfig(const PoolDriverConfig& c)
             (i && point.setpoint <= c.flowPoints[i-1].setpoint)) return false;
     }
     const auto& p = c.capabilities;
-    if (uint8_t(p.kind) > 3 || uint8_t(p.unit) > 2 || !std::isfinite(p.minimum) ||
+    if (uint8_t(p.kind) > 3 || uint8_t(p.unit) > uint8_t(PoolSetpointUnit::Rpm) || !std::isfinite(p.minimum) ||
         !std::isfinite(p.maximum) || p.minimum > p.maximum ||
         !std::isfinite(c.dependencyMinimum) || c.breakBeforeMakeMs > 60000 ||
         !validatePoolTarget(c, {true, p.startup})) return false;
-    if (p.unit != PoolSetpointUnit::Celsius && (p.minimum < 0 || p.maximum > 100)) return false;
+    if ((p.unit == PoolSetpointUnit::SpeedPercent || p.unit == PoolSetpointUnit::PowerPercent) &&
+        (p.minimum < 0 || p.maximum > 100)) return false;
+    if (p.unit == PoolSetpointUnit::Rpm && (p.minimum < 0 || p.maximum > 65535)) return false;
     const uint8_t count = p.kind == PoolControlKind::Discrete ? p.stepCount : 1;
     if (p.kind != PoolControlKind::Rs485) {
         if (!count || count > POOL_MAX_SPEED_STEPS) return false;
@@ -51,22 +74,49 @@ bool validatePoolDriverConfig(const PoolDriverConfig& c)
             std::isfinite(p.maximum * c.analogGain + c.analogOffset);
     if (p.kind != PoolControlKind::Rs485) return true;
     const auto& s = c.serial;
+    const bool telemetry = s.telemetryProfile != PoolTelemetryProfile::None;
+    if (uint8_t(s.telemetryProfile) > uint8_t(PoolTelemetryProfile::HeatPumpPoly) ||
+        (telemetry && (s.protocol != RegisterWireProtocol::ModbusRtu ||
+                      s.telemetryStaleMs > 600000 ||
+                      uint64_t(s.telemetryStaleMs) < uint64_t(2 * POOL_TELEMETRY_BLOCKS) * s.pollMs + s.timeoutMs))) return false;
+    if (s.modes.count > POOL_MAX_RUN_MODES ||
+        (s.modes.count && s.control != PoolSerialControl::SeparateRun)) return false;
+    for (uint8_t i = 0; i < s.modes.count; ++i) {
+        const auto& mode = s.modes.options[i];
+        if (!mode.label[0] || !std::memchr(mode.label, '\0', sizeof(mode.label)) || mode.value == s.stopValue) return false;
+        for (uint8_t j = 0; j < i; ++j) {
+            if (mode.value == s.modes.options[j].value || std::strcmp(mode.label, s.modes.options[j].label) == 0) return false;
+        }
+    }
     if (!std::isfinite(s.rawPerUnit) || s.rawPerUnit <= 0 || !std::isfinite(s.rawOffset) ||
         !std::isfinite(s.feedbackUnitsPerRaw) || s.feedbackUnitsPerRaw <= 0 ||
         !std::isfinite(s.feedbackOffset) || !std::isfinite(65535.0f * s.feedbackUnitsPerRaw + s.feedbackOffset) ||
-        s.runValue == s.stopValue || !s.runningMask ||
+        !std::isfinite(-32768.0f * s.feedbackUnitsPerRaw + s.feedbackOffset) ||
+        uint8_t(s.control) > uint8_t(PoolSerialControl::SetpointOrStop) ||
+        uint8_t(s.runningSource) > uint8_t(PoolRunningSource::FeedbackThreshold) ||
+        uint8_t(s.feedbackType) > uint8_t(PoolRegisterValueType::Signed16) ||
+        uint8_t(s.rawRounding) > uint8_t(PoolRawRounding::Down) || !s.rawStep ||
+        !std::isfinite(s.runningThreshold) ||
+        (s.control == PoolSerialControl::SeparateRun && !s.modes.count && s.runValue == s.stopValue) ||
+        (s.hasFeedback && s.runningSource == PoolRunningSource::StatusMask && !s.runningMask) ||
         s.line.busId != 0 || s.line.baud < 1200 || s.line.baud > 115200 || s.line.parity > 2 ||
         (s.line.stopBits != 1 && s.line.stopBits != 2) || s.line.quietMs > 1000 ||
         s.line.lateResponseGuardMs > 5000 || s.timeoutMs < 10 || s.timeoutMs > 5000 || s.retries > 3 ||
-        s.pollMs < 50 || s.pollMs > 60000 || s.staleMs < 2 * s.pollMs + s.timeoutMs || s.staleMs > 300000)
+        s.pollMs < 50 || s.pollMs > 60000 || s.staleMs < (telemetry ? 4 : 2) * s.pollMs + s.timeoutMs || s.staleMs > 300000)
         return false;
-    if (p.minimum * s.rawPerUnit + s.rawOffset < 0 ||
-        p.maximum * s.rawPerUnit + s.rawOffset > 65535) return false;
+    if (double(p.minimum) * s.rawPerUnit + s.rawOffset < 0 ||
+        double(p.maximum) * s.rawPerUnit + s.rawOffset > 65535 ||
+        firstRawStep(c) > lastRawStep(c)) return false;
+    if (s.control == PoolSerialControl::SetpointOrStop && s.stopValue % s.rawStep == 0 &&
+        s.stopValue >= firstRawStep(c) * s.rawStep && s.stopValue <= lastRawStep(c) * s.rawStep) return false;
     const PoolRegisterOperation operations[] = {s.run, s.setpoint, s.status, s.feedback};
     for (uint8_t i = 0; i < (s.hasFeedback ? 4 : 2); ++i) {
+        if ((i == 0 && s.control == PoolSerialControl::SetpointOrStop) ||
+            (i == 2 && s.runningSource == PoolRunningSource::FeedbackThreshold)) continue;
         ModbusRequest r{};
         r.slaveAddress = s.address; r.protocol = s.protocol;
         r.function = operations[i].function; r.operation = operations[i].operation;
+        r.responseLayout = operations[i].responseLayout;
         if (!ModbusRtuCodec::validRequest(r) ||
             (i < 2 ? ModbusRtuCodec::operation(r) == RegisterOperation::Read :
                      ModbusRtuCodec::operation(r) != RegisterOperation::Read)) return false;
@@ -228,21 +278,31 @@ bool SerialDeviceDriver::submit_(Operation op, uint32_t now)
 {
     const auto& c = config_.serial;
     const PoolRegisterOperation* wire = nullptr;
+    const PoolRegisterOperation telemetryRead{
+        kHeatPumpPolyBlocks[telemetryBlock_].address, MODBUS_FC_READ_HOLDING_REGISTERS, RegisterOperation::Read};
     switch (op) {
         case Operation::Setpoint: wire = &c.setpoint; break;
-        case Operation::Run: wire = &c.run; break;
+        case Operation::Run: wire = c.control == PoolSerialControl::SetpointOrStop ? &c.setpoint : &c.run; break;
         case Operation::Status: wire = &c.status; break;
         case Operation::Feedback: wire = &c.feedback; break;
+        case Operation::Telemetry: wire = &telemetryRead; break;
         default: return false;
     }
     ModbusRequest r{};
     r.ownerId = owner_; r.slaveAddress = c.address; r.line = c.line; r.protocol = c.protocol;
     r.function = wire->function; r.operation = wire->operation; r.registerAddress = wire->address;
+    r.responseLayout = wire->responseLayout;
+    if (op == Operation::Telemetry) r.registerCount = kHeatPumpPolyBlocks[telemetryBlock_].count;
     r.responseTimeoutMs = c.timeoutMs; r.retries = c.retries;
     r.priority = op == Operation::Run && !target_.running ? MODBUS_PRIORITY_SAFETY :
         (op == Operation::Run || op == Operation::Setpoint ? MODBUS_PRIORITY_COMMAND : MODBUS_PRIORITY_BACKGROUND);
-    if (op == Operation::Run) r.values[0] = target_.running ? c.runValue : c.stopValue;
-    if (op == Operation::Setpoint) r.values[0] = uint16_t(std::lround(target_.setpoint * c.rawPerUnit + c.rawOffset));
+    if (op == Operation::Run) {
+        if (!target_.running) r.values[0] = c.stopValue;
+        else if (c.control == PoolSerialControl::SetpointOrStop) r.values[0] = poolSerialRawSetpoint(config_, target_.setpoint);
+        else if (c.modes.count) r.values[0] = c.modes.options[target_.mode].value;
+        else r.values[0] = c.runValue;
+    }
+    if (op == Operation::Setpoint) r.values[0] = poolSerialRawSetpoint(config_, target_.setpoint);
     const auto result = bus_->submit(bus_->ctx, &r, &transaction_);
     if (result != MODBUS_RESULT_OK) {
         transaction_ = MODBUS_TRANSACTION_INVALID;
@@ -250,10 +310,29 @@ bool SerialDeviceDriver::submit_(Operation op, uint32_t now)
         return false;
     }
     operation_ = op; sentTarget_ = target_; sentRevision_ = revision_;
+    if (sentTarget_.running) {
+        sentTarget_.setpoint = (poolSerialRawSetpoint(config_, target_.setpoint) - c.rawOffset) / c.rawPerUnit;
+    }
     return true;
 }
 void SerialDeviceDriver::consume_(const ModbusResponse& r, uint32_t now)
 {
+    if (operation_ == Operation::Telemetry) {
+        auto& t = state_.telemetry;
+        const auto& block = kHeatPumpPolyBlocks[telemetryBlock_];
+        t.error = r.result;
+        if (r.result == MODBUS_RESULT_OK && r.registerCount == block.count) {
+            for (uint8_t i = 0; i < block.count; ++i) t.raw[block.offset + i] = r.values[i];
+            t.readAtMs[telemetryBlock_] = now;
+            t.validBlocks |= uint8_t(1U << telemetryBlock_);
+        } else {
+            t.validBlocks &= uint8_t(~(1U << telemetryBlock_));
+            if (r.result == MODBUS_RESULT_OK) t.error = MODBUS_RESULT_PROTOCOL_ERROR;
+        }
+        telemetryBlock_ = uint8_t((telemetryBlock_ + 1) % POOL_TELEMETRY_BLOCKS);
+        state_.changedAtMs = now;
+        return;
+    }
     if (r.result != MODBUS_RESULT_OK) {
         statusValid_ = levelValid_ = false; failed_(r.result, now); return;
     }
@@ -264,9 +343,17 @@ void SerialDeviceDriver::consume_(const ModbusResponse& r, uint32_t now)
         case Operation::Status:
             state_.observed.running = (r.values[0] & config_.serial.runningMask) != 0;
             statusAt_ = now; statusValid_ = true; break;
-        case Operation::Feedback:
-            state_.observed.setpoint = r.values[0] * config_.serial.feedbackUnitsPerRaw + config_.serial.feedbackOffset;
-            levelAt_ = now; levelValid_ = true; break;
+        case Operation::Feedback: {
+            const auto& c = config_.serial;
+            const int32_t raw = poolRegisterNumber(r.values[0], c.feedbackType == PoolRegisterValueType::Signed16);
+            state_.observed.setpoint = raw * c.feedbackUnitsPerRaw + c.feedbackOffset;
+            levelAt_ = now; levelValid_ = true;
+            if (c.runningSource == PoolRunningSource::FeedbackThreshold) {
+                state_.observed.running = state_.observed.setpoint > c.runningThreshold;
+                statusAt_ = now; statusValid_ = true;
+            }
+            break;
+        }
         default: break;
     }
     state_.changedAtMs = now;
@@ -282,7 +369,7 @@ void SerialDeviceDriver::tick(uint32_t now, bool enabled)
         const auto result = bus_->poll(bus_->ctx, transaction_, &r);
         if (result != MODBUS_RESULT_NOT_READY) {
             if (result == MODBUS_RESULT_OK) consume_(r, now);
-            else { statusValid_ = levelValid_ = false; failed_(result, now); }
+            else { r.result = result; consume_(r, now); }
             transaction_ = MODBUS_TRANSACTION_INVALID; operation_ = Operation::None;
         }
     }
@@ -296,18 +383,33 @@ void SerialDeviceDriver::tick(uint32_t now, bool enabled)
     if (!config_.serial.hasFeedback && uint32_t(now - state_.observedAtMs) >= config_.serial.staleMs) {
         state_.observedValid = false; state_.quality = PoolFeedbackQuality::Stale;
     }
+    for (uint8_t i = 0; i < POOL_TELEMETRY_BLOCKS; ++i) {
+        auto& t = state_.telemetry;
+        if ((t.validBlocks & (1U << i)) && uint32_t(now - t.readAtMs[i]) > config_.serial.telemetryStaleMs) {
+            t.validBlocks &= uint8_t(~(1U << i)); state_.changedAtMs = now;
+        }
+    }
     if (!writable_(enabled) || transaction_ != MODBUS_TRANSACTION_INVALID || !due(now, retryAt_)) return;
     if (!state_.appliedValid || state_.appliedRevision != revision_) {
-        submit_(target_.running && speedRevision_ != revision_ ? Operation::Setpoint : Operation::Run, now);
+        const bool separate = config_.serial.control == PoolSerialControl::SeparateRun;
+        submit_(separate && target_.running && speedRevision_ != revision_ ? Operation::Setpoint : Operation::Run, now);
         return;
     }
     state_.phase = PoolCommandPhase::Applied;
     if (!config_.serial.hasFeedback && uint32_t(now - state_.observedAtMs) >= config_.serial.pollMs) {
         // Explicit idempotent register writes refresh devices without readback.
         submit_(Operation::Run, now);
-    } else if (config_.serial.hasFeedback && due(now, nextPollAt_)) {
-        if (submit_(pollLevel_ ? Operation::Feedback : Operation::Status, now)) {
-            pollLevel_ = !pollLevel_; nextPollAt_ = now + config_.serial.pollMs;
+    } else if ((config_.serial.hasFeedback || config_.serial.telemetryProfile != PoolTelemetryProfile::None) &&
+               due(now, nextPollAt_)) {
+        const bool feedbackOnly = config_.serial.runningSource == PoolRunningSource::FeedbackThreshold;
+        const bool telemetry = config_.serial.telemetryProfile != PoolTelemetryProfile::None &&
+            (!config_.serial.hasFeedback || pollTelemetry_);
+        const Operation next = telemetry ? Operation::Telemetry :
+            (feedbackOnly || pollLevel_ ? Operation::Feedback : Operation::Status);
+        if (submit_(next, now)) {
+            if (!telemetry) pollLevel_ = !pollLevel_;
+            pollTelemetry_ = !pollTelemetry_;
+            nextPollAt_ = now + config_.serial.pollMs;
         }
     }
 }

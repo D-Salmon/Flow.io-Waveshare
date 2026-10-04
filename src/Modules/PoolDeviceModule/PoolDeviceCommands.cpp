@@ -236,12 +236,18 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
     }
 
     PoolDeviceSvcStatus st;
-    if (args.containsKey("setpoint")) {
-        if (!args["setpoint"].is<float>()) {
+    if (args.containsKey("setpoint") || args.containsKey("mode")) {
+        if ((args.containsKey("setpoint") && !args["setpoint"].is<float>()) ||
+            (args.containsKey("mode") && !args["mode"].is<uint8_t>())) {
             writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::MissingValue); return false;
         }
-        const PoolDeviceTarget target{requested, args["setpoint"].as<float>()};
+        if (!lockState_()) { writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::NotReady); return false; }
+        auto target = slots_[slot].desired;
+        target.running = requested;
+        if (args.containsKey("setpoint")) target.setpoint = args["setpoint"].as<float>();
+        if (args.containsKey("mode")) target.mode = args["mode"].as<uint8_t>();
         st = setTarget_(slot, &target, true);
+        unlockState_();
     } else st = svcSetManualRunningImpl_(slot, requested ? 1U : 0U);
     if (st != POOLDEV_SVC_OK) {
         ErrorCode code = ErrorCode::Failed;
@@ -603,21 +609,35 @@ uint8_t PoolDeviceModule::resetUptimeAll_()
 bool PoolDeviceModule::cmdPoolSetpoint_(void* ctx, const CommandRequest& req, char* reply, size_t length)
 {
     auto* self = static_cast<PoolDeviceModule*>(ctx);
+    return self && self->handlePoolTarget_(req, reply, length, TargetField::Setpoint);
+}
+
+bool PoolDeviceModule::cmdPoolMode_(void* ctx, const CommandRequest& req, char* reply, size_t length)
+{
+    auto* self = static_cast<PoolDeviceModule*>(ctx);
+    return self && self->handlePoolTarget_(req, reply, length, TargetField::Mode);
+}
+
+bool PoolDeviceModule::handlePoolTarget_(const CommandRequest& req, char* reply, size_t length, TargetField field)
+{
+    const char* command = field == TargetField::Mode ? "pooldevice.mode" : "pooldevice.setpoint";
     SpiRamJsonDocument doc(Limits::JsonCmdPoolDeviceBuf);
     JsonObjectConst args;
-    if (!self || !parseCmdArgsObject_(req, doc, args) || !args["slot"].is<uint8_t>() || !args["value"].is<float>()) {
-        writeCmdError_(reply, length, "pooldevice.setpoint", ErrorCode::MissingArgs); return false;
+    if (!parseCmdArgsObject_(req, doc, args) || !args["slot"].is<uint8_t>() ||
+        (field == TargetField::Mode ? !args["value"].is<uint8_t>() : !args["value"].is<float>())) {
+        writeCmdError_(reply, length, command, ErrorCode::MissingArgs); return false;
     }
     const uint8_t slot = args["slot"].as<uint8_t>();
-    if (slot >= POOL_DEVICE_MAX || !self->lockState_()) {
-        writeCmdError_(reply, length, "pooldevice.setpoint", ErrorCode::BadSlot); return false;
+    if (slot >= POOL_DEVICE_MAX || !lockState_()) {
+        writeCmdError_(reply, length, command, ErrorCode::BadSlot); return false;
     }
-    PoolDeviceTarget target = self->slots_[slot].desired;
-    target.setpoint = args["value"].as<float>();
-    const auto result = self->svcSetTargetImpl_(slot, &target);
-    self->unlockState_();
+    PoolDeviceTarget target = slots_[slot].desired;
+    if (field == TargetField::Mode) target.mode = args["value"].as<uint8_t>();
+    else target.setpoint = args["value"].as<float>();
+    const auto result = svcSetTargetImpl_(slot, &target);
+    unlockState_();
     if (result != POOLDEV_SVC_OK) {
-        writeCmdError_(reply, length, "pooldevice.setpoint", ErrorCode::Failed); return false;
+        writeCmdError_(reply, length, command, ErrorCode::Failed); return false;
     }
     snprintf(reply, length, "{\"ok\":true,\"accepted\":true,\"slot\":%u}", unsigned(slot));
     return true;

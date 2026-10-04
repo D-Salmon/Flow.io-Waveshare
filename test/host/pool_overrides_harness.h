@@ -24,7 +24,7 @@ constexpr auto POOLDEV_SVC_ERR_IO=PoolDeviceSvcStatus::IoError;
 constexpr auto POOLDEV_SVC_ERR_DISABLED=PoolDeviceSvcStatus::Disabled;
 constexpr auto POOLDEV_SVC_ERR_MAX_UPTIME=PoolDeviceSvcStatus::MaxUptime;
 constexpr auto POOLDEV_SVC_ERR_INTERLOCK=PoolDeviceSvcStatus::Interlock;
-struct PoolDeviceTarget { bool running=false; float setpoint=100; };
+struct PoolDeviceTarget { bool running=false; float setpoint=100; uint8_t mode=0; };
 template<class T> bool validatePoolTarget(const T&,const PoolDeviceTarget& target){return target.setpoint>=0&&target.setpoint<=100;}
 enum class ErrorCode { MissingArgs, BadSlot, BadCmdJson, Failed, Disabled, NotReady, InterlockBlocked };
 void writeErrorJson(char* out, size_t len, ErrorCode, const char*) { snprintf(out,len,"{\"ok\":false}"); }
@@ -113,7 +113,8 @@ public:
                     ActivityReason, uint8_t, const char*, const char*, const char*, int actor) { loggedActor=actor; ++logCount; }
  PoolDeviceSvcStatus svcSetRunningImpl_(uint8_t,uint8_t);
  PoolDeviceSvcStatus svcSetManualRunningImpl_(uint8_t,uint8_t);
- PoolDeviceSvcStatus setRunning_(uint8_t,uint8_t,bool);
+ PoolDeviceSvcStatus setRunning_(uint8_t,uint8_t,bool,const float* = nullptr);
+ PoolDeviceSvcStatus svcSetRunningAtSetpointImpl_(uint8_t,uint8_t,float);
  PoolDeviceSvcStatus svcSetTargetImpl_(uint8_t,const PoolDeviceTarget*);
  PoolDeviceSvcStatus setTarget_(uint8_t,const PoolDeviceTarget*,bool);
  bool overrideSupported_(uint8_t) const;

@@ -29,7 +29,7 @@ constexpr size_t JsonConfigApplyBuf = JsonCfgBuf;
 /** @brief Maximum number of registered config variables in `ConfigStore` metadata table.
  *  Sized for the Waveshare profile with additional headroom for local TFT
  *  sensor/alarm slots, dashboard/LCD and PoolLogic extensions while staying bounded. */
-constexpr size_t MaxConfigVars = 768;
+constexpr size_t MaxConfigVars = 832;
 /** @brief Maximum NVS key length (without null terminator) enforced by `ConfigTypes::NVS_KEY`. */
 constexpr size_t MaxNvsKeyLen = 15;
 /** @brief FreeRTOS log queue length used by `LogHub` (`LogHubModule::init`).

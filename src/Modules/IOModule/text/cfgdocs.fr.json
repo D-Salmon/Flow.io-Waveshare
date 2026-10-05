@@ -102,7 +102,7 @@
     "io/drivers/expander00/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander00.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander00.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander00/mask_default": {
@@ -118,7 +118,7 @@
     "io/drivers/expander01/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander01.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander01.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander01/mask_default": {
@@ -134,7 +134,7 @@
     "io/drivers/expander02/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander02.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander02.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander02/mask_default": {
@@ -150,7 +150,7 @@
     "io/drivers/expander03/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander03.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander03.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander03/mask_default": {
@@ -2159,6 +2159,66 @@
       "type": "CharArray",
       "label_t": "cfgdocs.io.value.v00.name.label",
       "help_t": "cfgdocs.io.value.v00.name.help"
+    },
+    "io/drivers/ads1115_int/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/ads1115_ext/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/sht40/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.sht40.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.sht40.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/bmp280/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bmp280.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bmp280.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/bme680/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bme680.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bme680.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/ina226/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ina226.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ina226.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander00/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander00.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander00.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander01/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander01.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander01.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander02/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander02.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander02.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander03/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander03.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander03.secondary_address.help",
+      "display_format": "hex"
     }
   }
 }

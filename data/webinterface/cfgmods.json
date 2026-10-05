@@ -1696,14 +1696,54 @@
     "io/drivers/ads1115_ext/address": {
       "display_format": "hex"
     },
+    "io/drivers/ads1115_ext/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage. Une adresse utilisée par l’autre convertisseur ne peut pas servir de secours.",
+      "help_i18n": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help"
+    },
     "io/drivers/ads1115_int/address": {
       "display_format": "hex"
+    },
+    "io/drivers/ads1115_int/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage. Une adresse utilisée par l’autre convertisseur ne peut pas servir de secours.",
+      "help_i18n": "cfgdocs.io.drivers.ads1115_int.secondary_address.help"
     },
     "io/drivers/bme680/address": {
       "display_format": "hex"
     },
+    "io/drivers/bme680/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bme680.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bme680.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.bme680.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.bme680.secondary_address.help"
+    },
     "io/drivers/bmp280/address": {
       "display_format": "hex"
+    },
+    "io/drivers/bmp280/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bmp280.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bmp280.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.bmp280.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.bmp280.secondary_address.help"
     },
     "io/drivers/ds18b20/air_transport": {
       "enum_set": "ds18b20_transport"
@@ -1717,17 +1757,67 @@
     "io/drivers/expander00/address": {
       "display_format": "hex"
     },
+    "io/drivers/expander00/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander00.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander00.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander00.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander00.secondary_address.help"
+    },
     "io/drivers/expander01/address": {
       "display_format": "hex"
+    },
+    "io/drivers/expander01/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander01.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander01.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander01.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander01.secondary_address.help"
     },
     "io/drivers/expander02/address": {
       "display_format": "hex"
     },
+    "io/drivers/expander02/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander02.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander02.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander02.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander02.secondary_address.help"
+    },
     "io/drivers/expander03/address": {
       "display_format": "hex"
     },
+    "io/drivers/expander03/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander03.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander03.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander03.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander03.secondary_address.help"
+    },
     "io/drivers/ina226/address": {
       "display_format": "hex"
+    },
+    "io/drivers/ina226/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ina226.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ina226.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.ina226.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.ina226.secondary_address.help"
     },
     "io/drivers/mcp23017/address": {
       "display_format": "hex"
@@ -1737,6 +1827,16 @@
     },
     "io/drivers/sht40/address": {
       "display_format": "hex"
+    },
+    "io/drivers/sht40/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.sht40.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.sht40.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.sht40.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage. Ce driver prend uniquement en charge 0x44.",
+      "help_i18n": "cfgdocs.io.drivers.sht40.secondary_address.help"
     },
     "io/input": {
       "label_t": "cfgmods.io.input.label",

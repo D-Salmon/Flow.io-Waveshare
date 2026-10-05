@@ -157,6 +157,66 @@
     },
     "io/drivers/mcp23017/address": {
       "display_format": "hex"
+    },
+    "io/drivers/ads1115_int/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/ads1115_ext/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/sht40/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.sht40.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.sht40.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/bmp280/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bmp280.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bmp280.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/bme680/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bme680.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bme680.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/ina226/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ina226.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ina226.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander00/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander00.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander00.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander01/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander01.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander01.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander02/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander02.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander02.secondary_address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/expander03/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander03.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander03.secondary_address.help",
+      "display_format": "hex"
     }
   },
   "meta": {

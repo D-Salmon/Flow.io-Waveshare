@@ -1,3 +1,4 @@
+#include "Core/FixedI2cAddresses.h"
 #include "Profiles/Waveshare/WaveshareIoAssembly.h"
 #include "Profiles/Waveshare/PoolRoleHaDiscovery.h"
 #include "Profiles/Waveshare/DerivedValueHaDiscovery.h"
@@ -469,6 +470,13 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
 {
     requireSetup(ctx.domain != nullptr, "missing domain spec");
 
+    static constexpr uint8_t fixedAddresses[] = {
+        FixedI2cAddresses::Pcf8574LedPanel,
+#if FLOW_RTC_PCF85063
+        FixedI2cAddresses::Pcf85063Rtc,
+#endif
+    };
+    modules.ioModule.setReservedI2cAddresses(fixedAddresses, sizeof(fixedAddresses));
     modules.ioModule.useSelectableTemperatureBuses(0x18, 0, 1, &modules.oneWireWater, &modules.oneWireAir);
     modules.ioModule.setBindingPorts(
         FlowIoLayout::kBindingPorts,

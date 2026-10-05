@@ -1,3 +1,4 @@
+#include "Core/FixedI2cAddresses.h"
 /**
  * @file TimeModule.cpp
  * @brief Implementation file.
@@ -52,7 +53,7 @@ static constexpr uint32_t kNextionRtcFallbackRetryMs = 10000U;
 static constexpr uint32_t kNextionRtcWriteRetryMs = 60000U;
 static constexpr uint16_t kNextionRtcReadTimeoutMs = 500U;
 #if FLOW_RTC_PCF85063
-static constexpr uint8_t kPcf85063Addr = 0x51;
+static constexpr uint8_t kPcf85063Addr = FixedI2cAddresses::Pcf85063Rtc;
 static constexpr uint8_t kPcf85063RegCtrl1 = 0x00;
 static constexpr uint8_t kPcf85063RegSeconds = 0x04;
 static constexpr uint8_t kPcf85063Ctrl1CapSel = 0x01;

@@ -5,12 +5,13 @@
  */
 
 #include <stdint.h>
+#include "Core/FixedI2cAddresses.h"
 
 class I2CBus;
 
 class Pcf8574LedPanelDriver {
 public:
-    static constexpr uint8_t Address = 0x3CU;
+    static constexpr uint8_t Address = FixedI2cAddresses::Pcf8574LedPanel;
 
     bool begin(I2CBus& bus);
     bool setEnabled(bool enabled);

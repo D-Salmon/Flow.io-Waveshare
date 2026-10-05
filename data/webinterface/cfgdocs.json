@@ -3,7 +3,7 @@
     "generated": true,
     "locale": "fr",
     "source": "text",
-    "total": 765
+    "total": 775
   },
   "meta": {
     "generated": true,
@@ -2060,29 +2060,49 @@
       "label_t": "cfgdocs.io.drivers.ads1115_ext.address.label",
       "help_t": "cfgdocs.io.drivers.ads1115_ext.address.help",
       "display_format": "hex",
-      "label": "Adresse ADS externe",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.ads1115_ext.address.label",
-      "help": "Adresse I2C du convertisseur ADS1115 externe.",
+      "help": "Adresse principale du convertisseur de pression, complémentaire de la carte pH/ORP entre 0x48 et 0x49. Appliquée au redémarrage.",
       "help_i18n": "cfgdocs.io.drivers.ads1115_ext.address.help"
+    },
+    "io/drivers/ads1115_ext/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage. Une adresse utilisée par l’autre convertisseur ne peut pas servir de secours.",
+      "help_i18n": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help"
     },
     "io/drivers/ads1115_int/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.ads1115_int.address.label",
       "help_t": "cfgdocs.io.drivers.ads1115_int.address.help",
       "display_format": "hex",
-      "label": "Adresse ADS interne",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.ads1115_int.address.label",
-      "help": "Adresse I2C du convertisseur ADS1115 interne.",
+      "help": "Adresse principale de la carte pH/ORP : 0x48 ou 0x49, choisie dans Affectation des sondes. La pression utilise l’autre adresse. Appliquée au redémarrage.",
       "help_i18n": "cfgdocs.io.drivers.ads1115_int.address.help"
+    },
+    "io/drivers/ads1115_int/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage. Une adresse utilisée par l’autre convertisseur ne peut pas servir de secours.",
+      "help_i18n": "cfgdocs.io.drivers.ads1115_int.secondary_address.help"
     },
     "io/drivers/bme680/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.bme680.address.label",
       "help_t": "cfgdocs.io.drivers.bme680.address.help",
       "display_format": "hex",
-      "label": "Adresse BME680",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.bme680.address.label",
-      "help": "Adresse I2C du capteur BME680.",
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
       "help_i18n": "cfgdocs.io.drivers.bme680.address.help"
     },
     "io/drivers/bme680/enabled": {
@@ -2104,14 +2124,24 @@
       "help": "Intervalle entre deux acquisitions BME680.",
       "help_i18n": "cfgdocs.io.drivers.bme680.poll_ms.help"
     },
+    "io/drivers/bme680/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bme680.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bme680.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.bme680.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.bme680.secondary_address.help"
+    },
     "io/drivers/bmp280/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.bmp280.address.label",
       "help_t": "cfgdocs.io.drivers.bmp280.address.help",
       "display_format": "hex",
-      "label": "Adresse BMP280",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.bmp280.address.label",
-      "help": "Adresse I2C du capteur BMP280.",
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
       "help_i18n": "cfgdocs.io.drivers.bmp280.address.help"
     },
     "io/drivers/bmp280/enabled": {
@@ -2132,6 +2162,16 @@
       "label_i18n": "cfgdocs.io.drivers.bmp280.poll_ms.label",
       "help": "Intervalle entre deux acquisitions BMP280.",
       "help_i18n": "cfgdocs.io.drivers.bmp280.poll_ms.help"
+    },
+    "io/drivers/bmp280/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.bmp280.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.bmp280.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.bmp280.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.bmp280.secondary_address.help"
     },
     "io/drivers/bus/scl": {
       "type": "Int32",
@@ -2186,12 +2226,12 @@
     "io/drivers/expander00/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander00.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander00.address.help",
       "display_format": "hex",
-      "label": "Adresse expander 00",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.expander00.address.label",
-      "help": "Adresse I2C utilisee pour cette instance d'expander IO.",
-      "help_i18n": "cfgdocs.io.drivers.expander.address.help"
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander00.address.help"
     },
     "io/drivers/expander00/enabled": {
       "type": "Bool",
@@ -2211,15 +2251,25 @@
       "help": "Masque applique par defaut lorsque cette instance est utilisee comme sortie de masque.",
       "help_i18n": "cfgdocs.io.drivers.expander.mask_default.help"
     },
+    "io/drivers/expander00/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander00.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander00.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander00.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander00.secondary_address.help"
+    },
     "io/drivers/expander01/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander01.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander01.address.help",
       "display_format": "hex",
-      "label": "Adresse expander 01",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.expander01.address.label",
-      "help": "Adresse I2C utilisee pour cette instance d'expander IO.",
-      "help_i18n": "cfgdocs.io.drivers.expander.address.help"
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander01.address.help"
     },
     "io/drivers/expander01/enabled": {
       "type": "Bool",
@@ -2239,15 +2289,25 @@
       "help": "Masque applique par defaut lorsque cette instance est utilisee comme sortie de masque.",
       "help_i18n": "cfgdocs.io.drivers.expander.mask_default.help"
     },
+    "io/drivers/expander01/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander01.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander01.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander01.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander01.secondary_address.help"
+    },
     "io/drivers/expander02/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander02.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander02.address.help",
       "display_format": "hex",
-      "label": "Adresse expander 02",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.expander02.address.label",
-      "help": "Adresse I2C utilisee pour cette instance d'expander IO.",
-      "help_i18n": "cfgdocs.io.drivers.expander.address.help"
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander02.address.help"
     },
     "io/drivers/expander02/enabled": {
       "type": "Bool",
@@ -2267,15 +2327,25 @@
       "help": "Masque applique par defaut lorsque cette instance est utilisee comme sortie de masque.",
       "help_i18n": "cfgdocs.io.drivers.expander.mask_default.help"
     },
+    "io/drivers/expander02/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander02.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander02.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander02.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander02.secondary_address.help"
+    },
     "io/drivers/expander03/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander03.address.label",
-      "help_t": "cfgdocs.io.drivers.expander.address.help",
+      "help_t": "cfgdocs.io.drivers.expander03.address.help",
       "display_format": "hex",
-      "label": "Adresse expander 03",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.expander03.address.label",
-      "help": "Adresse I2C utilisee pour cette instance d'expander IO.",
-      "help_i18n": "cfgdocs.io.drivers.expander.address.help"
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander03.address.help"
     },
     "io/drivers/expander03/enabled": {
       "type": "Bool",
@@ -2295,6 +2365,16 @@
       "help": "Masque applique par defaut lorsque cette instance est utilisee comme sortie de masque.",
       "help_i18n": "cfgdocs.io.drivers.expander.mask_default.help"
     },
+    "io/drivers/expander03/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.expander03.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.expander03.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.expander03.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.expander03.secondary_address.help"
+    },
     "io/drivers/gpio/poll_ms": {
       "type": "Int32",
       "label_t": "cfgdocs.io.drivers.gpio.poll_ms.label",
@@ -2310,9 +2390,9 @@
       "label_t": "cfgdocs.io.drivers.ina226.address.label",
       "help_t": "cfgdocs.io.drivers.ina226.address.help",
       "display_format": "hex",
-      "label": "Adresse INA226",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.ina226.address.label",
-      "help": "Adresse I2C du capteur INA226.",
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
       "help_i18n": "cfgdocs.io.drivers.ina226.address.help"
     },
     "io/drivers/ina226/enabled": {
@@ -2333,6 +2413,16 @@
       "label_i18n": "cfgdocs.io.drivers.ina226.poll_ms.label",
       "help": "Intervalle entre deux acquisitions INA226.",
       "help_i18n": "cfgdocs.io.drivers.ina226.poll_ms.help"
+    },
+    "io/drivers/ina226/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.ina226.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.ina226.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.ina226.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+      "help_i18n": "cfgdocs.io.drivers.ina226.secondary_address.help"
     },
     "io/drivers/ina226/shunt_ohms": {
       "type": "Float",
@@ -2405,9 +2495,9 @@
       "label_t": "cfgdocs.io.drivers.sht40.address.label",
       "help_t": "cfgdocs.io.drivers.sht40.address.help",
       "display_format": "hex",
-      "label": "Adresse SHT40",
+      "label": "Adresse primaire",
       "label_i18n": "cfgdocs.io.drivers.sht40.address.label",
-      "help": "Adresse I2C du capteur SHT40.",
+      "help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage. Ce driver prend uniquement en charge 0x44.",
       "help_i18n": "cfgdocs.io.drivers.sht40.address.help"
     },
     "io/drivers/sht40/enabled": {
@@ -2428,6 +2518,16 @@
       "label_i18n": "cfgdocs.io.drivers.sht40.poll_ms.label",
       "help": "Intervalle entre deux acquisitions SHT40.",
       "help_i18n": "cfgdocs.io.drivers.sht40.poll_ms.help"
+    },
+    "io/drivers/sht40/secondary_address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.sht40.secondary_address.label",
+      "help_t": "cfgdocs.io.drivers.sht40.secondary_address.help",
+      "display_format": "hex",
+      "label": "Adresse secondaire",
+      "label_i18n": "cfgdocs.io.drivers.sht40.secondary_address.label",
+      "help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage. Ce driver prend uniquement en charge 0x44.",
+      "help_i18n": "cfgdocs.io.drivers.sht40.secondary_address.help"
     },
     "io/enabled": {
       "type": "Bool",

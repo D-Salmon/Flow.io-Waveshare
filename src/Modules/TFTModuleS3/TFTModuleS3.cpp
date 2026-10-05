@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file TFTModuleS3.cpp
  * @brief Local Waveshare ESP32-S3 TFT display.
@@ -227,8 +228,8 @@ constexpr const char* kAlarmDefaultLabels[TFTModuleS3::AlarmDashboardSlotCount] 
     "PSI haut",
     "pH vide",
     "Chlore vide",
-    "pH uptime",
-    "ORP uptime",
+    "Durée maximale pompe pH",
+    "Durée maximale pompe chlore",
     "Eau basse",
     "",
 };
@@ -1273,7 +1274,10 @@ void TFTModuleS3::readAlarmSlotState_(uint8_t slot, AlarmSlotRenderState& state)
     state.cardBg = cfg.enabled ? dashboardColor_(cfg.colorId, slot) : kColorCardBg;
     if (!cfg.enabled) return;
 
-    if (cfg.label[0] != '\0') {
+    const AlarmId alarmId = (AlarmId)cfg.alarmId;
+    if (alarmId == AlarmId::PoolPhPumpMaxUptime || alarmId == AlarmId::PoolChlorinePumpMaxUptime) {
+        snprintf(state.label, sizeof(state.label), "%s", alarmIdLabel_(cfg.alarmId));
+    } else if (cfg.label[0] != '\0') {
         snprintf(state.label, sizeof(state.label), "%s", cfg.label);
     } else {
         snprintf(state.label, sizeof(state.label), "%s", alarmIdLabel_(cfg.alarmId));
@@ -1668,8 +1672,8 @@ const char* TFTModuleS3::alarmIdLabel_(uint16_t alarmId) const
         case AlarmId::PoolPsiHigh: return "PSI haut";
         case AlarmId::PoolPhTankLow: return "pH vide";
         case AlarmId::PoolChlorineTankLow: return "Chlore vide";
-        case AlarmId::PoolPhPumpMaxUptime: return "pH uptime";
-        case AlarmId::PoolChlorinePumpMaxUptime: return "ORP uptime";
+        case AlarmId::PoolPhPumpMaxUptime: return "Durée maximale pompe pH";
+        case AlarmId::PoolChlorinePumpMaxUptime: return "Durée maximale pompe chlore";
         case AlarmId::PoolWaterLevelLow: return "Eau basse";
         case AlarmId::None:
         default: return "Alarme";
@@ -1683,7 +1687,7 @@ bool TFTModuleS3::readAlarmRuntimeState_(uint16_t alarmId, AlarmSlotRenderState&
     char stateJson[144] = {0};
     if (!alarmSvc_->buildAlarmState(alarmSvc_->ctx, (AlarmId)alarmId, stateJson, sizeof(stateJson))) return false;
 
-    StaticJsonDocument<192> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, stateJson)) return false;
     state.available = true;
     state.latched = (doc["a"] | 0U) != 0U;
@@ -1716,7 +1720,7 @@ void TFTModuleS3::loadAlarmMasks_(uint32_t& activeMask, uint32_t& resettableMask
         char stateJson[144] = {0};
         if (!alarmSvc_->buildAlarmState(alarmSvc_->ctx, ids[i], stateJson, sizeof(stateJson))) continue;
 
-        StaticJsonDocument<192> doc;
+        JsonDocument doc(psramPreferredJsonAllocator());
         if (deserializeJson(doc, stateJson)) continue;
         const uint8_t slot = doc["slot"] | 255U;
         if (slot >= 32U) continue;
@@ -1744,7 +1748,7 @@ bool TFTModuleS3::loadPoolModeFlags_(bool& autoMode,
     bool truncated = false;
     if (!cfgStore_->toJsonModule("poollogic/modes", moduleJson, sizeof(moduleJson), &truncated, true) || truncated) return false;
 
-    StaticJsonDocument<384> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, moduleJson)) return false;
     JsonObjectConst root = doc.as<JsonObjectConst>();
     if (root.isNull()) return false;
@@ -1755,7 +1759,7 @@ bool TFTModuleS3::loadPoolModeFlags_(bool& autoMode,
     memset(moduleJson, 0, sizeof(moduleJson));
     truncated = false;
     if (cfgStore_->toJsonModule("poollogic/ph", moduleJson, sizeof(moduleJson), &truncated, true) && !truncated) {
-        StaticJsonDocument<128> phDoc;
+        JsonDocument phDoc(psramPreferredJsonAllocator());
         if (!deserializeJson(phDoc, moduleJson)) {
             JsonObjectConst phRoot = phDoc.as<JsonObjectConst>();
             if (!phRoot.isNull()) phAutoMode = phRoot["ph_auto_mode"] | false;
@@ -1765,7 +1769,7 @@ bool TFTModuleS3::loadPoolModeFlags_(bool& autoMode,
     memset(moduleJson, 0, sizeof(moduleJson));
     truncated = false;
     if (cfgStore_->toJsonModule("poollogic/chlorine", moduleJson, sizeof(moduleJson), &truncated, true) && !truncated) {
-        StaticJsonDocument<128> disDoc;
+        JsonDocument disDoc(psramPreferredJsonAllocator());
         if (!deserializeJson(disDoc, moduleJson)) {
             JsonObjectConst disRoot = disDoc.as<JsonObjectConst>();
             if (!disRoot.isNull()) orpAutoMode = disRoot["dis_auto_mode"] | false;

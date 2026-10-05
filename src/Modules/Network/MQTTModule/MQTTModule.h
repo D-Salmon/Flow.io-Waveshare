@@ -89,6 +89,8 @@ public:
     bool writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const override;
 
     void formatTopic(char* out, size_t outLen, const char* suffix) const;
+    bool isEnabled() const { return cfgData_.enabled; }
+    bool wasValidPreviousBoot() const { return mqttValidPreviousBoot_; }
     bool isConnected() const { return state_ == MQTTState::Connected; }
     DataStore* dataStorePtr() const { return dataStore_; }
 
@@ -405,12 +407,19 @@ private:
     MqttBuildResult buildStatus_(uint16_t messageId, MqttBuildContext& buildCtx);
     MqttBuildResult buildAlarm_(uint16_t messageId, MqttBuildContext& buildCtx);
 
+    bool mqttValidPreviousBoot_ = false;
+    bool mqttValidCurrentBoot_ = false;
+    void persistBootValidation_(bool valid);
+    void loadAndArmBootValidation_();
+
     MqttService mqttSvc_{
         ServiceBinding::bind<&MQTTModule::enqueueSvc_>,
         ServiceBinding::bind<&MQTTModule::registerProducer>,
         ServiceBinding::bind<&MQTTModule::formatTopicSvc_>,
         ServiceBinding::bind<&MQTTModule::isConnected>,
         ServiceBinding::bind<&MQTTModule::registerInboundHandler>,
-        this
+        this,
+        ServiceBinding::bind<&MQTTModule::isEnabled>,
+        ServiceBinding::bind<&MQTTModule::wasValidPreviousBoot>
     };
 };

@@ -13,6 +13,9 @@
     },
     "time/tz": {
       "enum_set": "timezones_world"
+    },
+    "time": {
+      "label_t": "cfgmods.network.time.label"
     }
   },
   "meta": {

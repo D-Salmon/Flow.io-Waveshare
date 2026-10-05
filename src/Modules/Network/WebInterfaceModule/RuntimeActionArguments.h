@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 #pragma once
 
 #include <ArduinoJson.h>
@@ -12,7 +13,7 @@ inline bool appendRuntimeActionTarget(char* args,
 {
     if (!args || !capacity || !targetName || !targetName[0]) return false;
 
-    StaticJsonDocument<192> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     // A const input makes ArduinoJson copy the parsed strings into its pool.
     // A mutable input would keep pointers into args and corrupt the JSON when
     // serialization writes back into the same buffer.

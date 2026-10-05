@@ -17,16 +17,12 @@ bool ModbusRtuCodec::validRequest(const ModbusRequest& r)
 {
     if (r.slaveAddress == 0 || r.slaveAddress > 247 || r.registerCount == 0 ||
         r.registerCount > MODBUS_MAX_REGISTERS_PER_REQUEST ||
-        uint32_t(r.registerAddress) + r.registerCount > 65536U ||
-        uint8_t(r.responseLayout) > uint8_t(RegisterResponseLayout::AddressByteCount)) return false;
+        uint32_t(r.registerAddress) + r.registerCount > 65536U) return false;
     if (r.protocol == RegisterWireProtocol::ModbusRtu) {
-        if (r.responseLayout != RegisterResponseLayout::Standard) return false;
         if (r.function != 0x03 && r.function != 0x04 && r.function != 0x06 && r.function != 0x10) return false;
     } else if (r.protocol == RegisterWireProtocol::VendorRegisterRtu) {
         if (!r.function || uint8_t(r.operation) > uint8_t(RegisterOperation::WriteMultiple)) return false;
     } else return false;
-    if (r.responseLayout == RegisterResponseLayout::AddressByteCount &&
-        operation(r) == RegisterOperation::WriteMultiple) return false;
     return operation(r) != RegisterOperation::WriteSingle || r.registerCount == 1;
 }
 
@@ -139,23 +135,14 @@ ModbusResultCode ModbusRtuCodec::decodeResponse(const ModbusRequest& request,
     }
     if (frame[1] != request.function) return MODBUS_RESULT_PROTOCOL_ERROR;
 
-    const bool addressByteCount = request.responseLayout == RegisterResponseLayout::AddressByteCount;
-    if (operation(request) == RegisterOperation::Read || addressByteCount) {
-        const size_t countOffset = addressByteCount ? 4U : 2U;
-        const size_t valuesOffset = countOffset + 1U;
-        if (length < valuesOffset + 2U ||
-            (addressByteCount && readU16_(&frame[2]) != request.registerAddress)) {
+    if (operation(request) == RegisterOperation::Read) {
+        const uint8_t byteCount = frame[2];
+        if (byteCount != request.registerCount * 2U || length != (size_t)byteCount + 5U) {
             return MODBUS_RESULT_PROTOCOL_ERROR;
         }
-        const uint8_t byteCount = frame[countOffset];
-        if (byteCount != request.registerCount * 2U || length != valuesOffset + byteCount + 2U) {
-            return MODBUS_RESULT_PROTOCOL_ERROR;
-        }
-        if (operation(request) == RegisterOperation::WriteSingle &&
-            readU16_(&frame[valuesOffset]) != request.values[0]) return MODBUS_RESULT_PROTOCOL_ERROR;
         outResponse.registerCount = request.registerCount;
         for (uint16_t i = 0U; i < request.registerCount; ++i) {
-            outResponse.values[i] = readU16_(&frame[valuesOffset + i * 2U]);
+            outResponse.values[i] = readU16_(&frame[3U + i * 2U]);
         }
         return MODBUS_RESULT_OK;
     }

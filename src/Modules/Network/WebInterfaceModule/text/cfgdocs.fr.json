@@ -4,5 +4,11 @@
     "locale": "fr",
     "version": 1
   },
-  "docs": {}
+  "docs": {
+    "webinterface/authentication_required": {
+      "type": "Bool",
+      "label_t": "cfgdocs.webinterface.authentication_required.label",
+      "help_t": "cfgdocs.webinterface.authentication_required.help"
+    }
+  }
 }

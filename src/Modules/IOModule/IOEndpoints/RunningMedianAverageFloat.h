@@ -24,6 +24,8 @@ public:
         return rm_.getAverage(n);
     }
 
+    void clear() { rm_.clear(); }
+
 private:
     RunningMedian rm_;
     uint8_t avgCount_ = 5;

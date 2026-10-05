@@ -18,6 +18,7 @@ enum IOValueType : uint8_t {
 
 struct IOEndpointRuntime {
     bool valid = false;
+    bool held = false;
     uint8_t valueType = IO_VALUE_FLOAT;
     float floatValue = 0.0f;
     bool boolValue = false;

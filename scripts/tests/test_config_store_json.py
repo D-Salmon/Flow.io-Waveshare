@@ -9,6 +9,7 @@ ARDUINO_JSON = ROOT / ".pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src"
 
 PREAMBLE = r'''
 #include <ArduinoJson.h>
+#include "Core/PsramJsonAllocator.h"
 #include "Core/ConfigTypes.h"
 #include <cassert>
 #include <cstdio>
@@ -49,14 +50,14 @@ int main() {
             assert(store.toJsonModule("pdm/pd0", output, sizeof(output), &truncated, mode == 1));
             assert(!truncated);
         }
-        StaticJsonDocument<2048> parsed;
+        JsonDocument parsed;
         assert(!deserializeJson(parsed, output));
         assert(strcmp(parsed["driver"], driver) == 0);
         assert(strcmp(parsed["label"], label) == 0);
         assert(strcmp(parsed["empty"], "") == 0);
         assert(strcmp(parsed["pass"], mode == 1 ? "***" : secret) == 0);
         assert(parsed["enabled"].as<bool>());
-        StaticJsonDocument<256> nested;
+        JsonDocument nested;
         assert(!deserializeJson(nested, parsed["driver"].as<const char*>()));
         assert(nested["outputs"][0].as<int>() == 0);
     }
@@ -95,7 +96,7 @@ class ConfigStoreJsonTest(unittest.TestCase):
                 "c++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
                 "-I", str(ROOT / "src"), "-I", str(ARDUINO_JSON),
                 "-I", str(ROOT / "include"),
-                str(cpp), "-o", str(binary),
+                str(cpp), str(ROOT / "test/host/json_allocator.cpp"), "-o", str(binary),
             ], check=True)
             subprocess.run([str(binary)], check=True)
 

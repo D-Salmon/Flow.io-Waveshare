@@ -19,6 +19,7 @@ constexpr char Enabled[] = "eth_en"; // Ethernet module persisted key for field 
 }  // namespace Ethernet
 
 namespace Mqtt {
+constexpr char PreviousBootValid[] = "mq_prevok";
 constexpr char Host[] = "mq_host"; // MQTT module persisted key for field `mq_host`.
 constexpr char Port[] = "mq_port"; // MQTT module persisted key for field `mq_port`.
 constexpr char User[] = "mq_user"; // MQTT module persisted key for field `mq_user`.
@@ -71,6 +72,9 @@ constexpr char WebWatchdogAutoReboot[] = "sm_wdrb"; // System monitor module per
 }  // namespace SystemMonitor
 
 namespace Io {
+constexpr char IO_DSSRC[] = "io_dssrc"; // DS18B20 transport: 0=Qwiic DS2484, 1=direct GPIO.
+constexpr char IO_DSWTR[] = "io_dswtr"; // Water DS18B20 transport: 0=Qwiic DS2484, 1=direct GPIO.
+constexpr char IO_DSATR[] = "io_dsatr"; // Air DS18B20 transport: 0=Qwiic DS2484, 1=direct GPIO.
 constexpr char IO_A00[] = "io_a000"; // IO module persisted key for field `io_a000`.
 constexpr char IO_A01[] = "io_a001"; // IO module persisted key for field `io_a001`.
 constexpr char IO_A0C[] = "io_a00c"; // IO module persisted key for field `io_a00c`.
@@ -160,10 +164,8 @@ FLOW_IO_ANALOG_NVS_KEYS("31", IO_A31NM, IO_A31BP, IO_A310, IO_A311, IO_A31P)
 #undef FLOW_IO_ANALOG_NVS_KEYS
 constexpr char IO_ADS[] = "io_ads"; // IO module persisted key for field `io_ads`.
 constexpr char IO_AEAD[] = "io_aead"; // IO module persisted key for field `io_aead`.
-constexpr char IO_AESA[] = "io_aesa"; // Optional secondary I2C address.
 constexpr char IO_AGAI[] = "io_agai"; // IO module persisted key for field `io_agai`.
 constexpr char IO_AIAD[] = "io_aiad"; // IO module persisted key for field `io_aiad`.
-constexpr char IO_AISA[] = "io_aisa"; // Optional secondary I2C address.
 constexpr char IO_ARAT[] = "io_arat"; // IO module persisted key for field `io_arat`.
 constexpr char IO_I0AH[] = "io_i00ah"; // IO module persisted key for field `io_i00ah`.
 constexpr char IO_I0BP[] = "io_i00bp"; // IO module persisted key for field `io_i00bp`.
@@ -359,36 +361,28 @@ constexpr char IO_DS[] = "io_ds"; // IO module persisted key for field `io_ds`.
 constexpr char IO_EN[] = "io_en"; // IO module persisted key for field `io_en`.
 constexpr char IO_SHTEN[] = "io_shten"; // IO module persisted key for field `io_sht40_enabled`.
 constexpr char IO_SHTAD[] = "io_shtad"; // IO module persisted key for field `io_sht40_address`.
-constexpr char IO_SHTSA[] = "io_shtsa"; // Optional secondary I2C address.
 constexpr char IO_SHTPL[] = "io_shtpl"; // IO module persisted key for field `io_sht40_poll_ms`.
 constexpr char IO_BMPEN[] = "io_bmpen"; // IO module persisted key for field `io_bmp280_enabled`.
 constexpr char IO_BMPAD[] = "io_bmpad"; // IO module persisted key for field `io_bmp280_address`.
-constexpr char IO_BMPSA[] = "io_bmpsa"; // Optional secondary I2C address.
 constexpr char IO_BMPPL[] = "io_bmppl"; // IO module persisted key for field `io_bmp280_poll_ms`.
 constexpr char IO_BMEEN[] = "io_bmeen"; // IO module persisted key for field `io_bme680_enabled`.
 constexpr char IO_BMEAD[] = "io_bmead"; // IO module persisted key for field `io_bme680_address`.
-constexpr char IO_BMESA[] = "io_bmesa"; // Optional secondary I2C address.
 constexpr char IO_BMEPL[] = "io_bmepl"; // IO module persisted key for field `io_bme680_poll_ms`.
 constexpr char IO_INAEN[] = "io_inaen"; // IO module persisted key for field `io_ina226_enabled`.
 constexpr char IO_INAAD[] = "io_inaad"; // IO module persisted key for field `io_ina226_address`.
-constexpr char IO_INASA[] = "io_inasa"; // Optional secondary I2C address.
 constexpr char IO_INAPL[] = "io_inapl"; // IO module persisted key for field `io_ina226_poll_ms`.
 constexpr char IO_INASH[] = "io_inash"; // IO module persisted key for field `io_ina226_shunt_ohms`.
 constexpr char IO_X0EN[] = "io_x0en"; // IO expander 0 enabled.
 constexpr char IO_X0AD[] = "io_x0ad"; // IO expander 0 I2C address.
-constexpr char IO_X0SA[] = "io_x0sa"; // Optional secondary I2C address.
 constexpr char IO_X0MK[] = "io_x0mk"; // IO expander 0 default mask.
 constexpr char IO_X1EN[] = "io_x1en"; // IO expander 1 enabled.
 constexpr char IO_X1AD[] = "io_x1ad"; // IO expander 1 I2C address.
-constexpr char IO_X1SA[] = "io_x1sa"; // Optional secondary I2C address.
 constexpr char IO_X1MK[] = "io_x1mk"; // IO expander 1 default mask.
 constexpr char IO_X2EN[] = "io_x2en"; // IO expander 2 enabled.
 constexpr char IO_X2AD[] = "io_x2ad"; // IO expander 2 I2C address.
-constexpr char IO_X2SA[] = "io_x2sa"; // Optional secondary I2C address.
 constexpr char IO_X2MK[] = "io_x2mk"; // IO expander 2 default mask.
 constexpr char IO_X3EN[] = "io_x3en"; // IO expander 3 enabled.
 constexpr char IO_X3AD[] = "io_x3ad"; // IO expander 3 I2C address.
-constexpr char IO_X3SA[] = "io_x3sa"; // Optional secondary I2C address.
 constexpr char IO_X3MK[] = "io_x3mk"; // IO expander 3 default mask.
 constexpr char IO_SCL[] = "io_scl"; // IO module persisted key for field `io_scl`.
 constexpr char IO_SDA[] = "io_sda"; // IO module persisted key for field `io_sda`.
@@ -471,6 +465,20 @@ constexpr char FiltrationCalcStop[] = "pl_fcen"; // Pool logic runtime key for c
 constexpr char IndoorPool[] = "pl_indoor"; // True when the installation is an indoor pool.
 constexpr char AutomaticCover[] = "pl_cover"; // True when an automatic cover is present.
 constexpr char CoverClosedAtNight[] = "pl_covnight"; // True when the cover is normally closed overnight.
+constexpr char TreatmentAutoMode[] = "pl_disa"; // Automatic treatment enable for SWG and active oxygen.
+constexpr char RobotAutoMode[] = "pl_rba"; // Pool robot automatic cycle enable.
+constexpr char PressureMonitoringEnabled[] = "pl_psme"; // Pool pressure alarm and filtration safety monitoring enable.
+constexpr char FlowSwitchEnabled[] = "pl_fsen"; // Enable the DIN5 dry-contact flow safety.
+constexpr char FlowSwitchIoId[] = "pl_fsiid"; // Digital input used by the flow switch.
+constexpr char FiltrationContactorFeedbackIoId[] = "pl_fcfb"; // Optional filtration contactor auxiliary feedback input.
+constexpr char SwgContactorFeedbackIoId[] = "pl_scfb"; // Optional chlorine-generator contactor auxiliary feedback input.
+constexpr char FiltrationContactorFeedbackActiveHigh[] = "pl_fcah"; // Filtration feedback input polarity.
+constexpr char SwgContactorFeedbackActiveHigh[] = "pl_scah"; // Chlorine-generator feedback input polarity.
+constexpr char FlowSwitchDelay[] = "pl_fsdt"; // Delay before validating no flow after pump start.
+constexpr char SensorHoldWaterTemp[] = "pl_shwat"; // Hold water temperature with pH/ORP when its probe is installed in-line.
+constexpr char FillingEnabled[] = "pl_fen"; // Pool basin level top-up enable.
+constexpr char LightsSlot[] = "pl_slgt"; // Pool logic module persisted key for the lighting device slot.
+constexpr char FiltrationCalcDuration[] = "pl_fdur"; // Calculated duration in minutes; zero means invalid.
 }  // namespace PoolLogic
 
 namespace PoolDevice {
@@ -535,6 +543,15 @@ constexpr char VeniceEnabled[] = "hmi_vcen"; // HMI module persisted key for Ven
 constexpr char VeniceTxGpio[] = "hmi_vcgp"; // HMI module persisted key for Venice RF433 TX GPIO.
 constexpr char BuzzerEnable[] = "hmi_bz_en"; // HMI buzzer module persisted key for config-ack beep enable.
 }  // namespace Hmi
+
+namespace WebSecurity {
+constexpr char Credentials[] = "web_auth";
+constexpr char AuthenticationRequired[] = "web_auth_req";
+}  // namespace WebSecurity
+
+namespace Provisioning {
+constexpr char ApPassword[] = "prov_ap_pass"; // Per-device provisioning AP password generated on first boot.
+}  // namespace Provisioning
 
 namespace Users {
 constexpr char SessionSecret[] = "ua_secret"; // HMAC session secret (raw 32-byte blob).

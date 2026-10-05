@@ -158,6 +158,29 @@ private:
     static constexpr IoId IO_ID_PH_LEVEL_DEFAULT = ioIdFromSlot(digitalInputSlot(PoolInputSlots::PhLevel));
     static constexpr IoId IO_ID_CHLORINE_LEVEL_DEFAULT = ioIdFromSlot(digitalInputSlot(PoolInputSlots::ChlorineLevel));
 
+    bool treatmentAutoMode_ = true;
+    bool robotAutoMode_ = false;
+    bool fillingEnabled_ = false;
+    bool pressureMonitoringEnabled_ = false;
+    bool flowSwitchEnabled_ = false;
+    IoId flowSwitchIoId_ = IO_ID_INVALID;
+    IoId filtrationContactorFeedbackIoId_ = IO_ID_INVALID;
+    IoId swgContactorFeedbackIoId_ = IO_ID_INVALID;
+    bool filtrationContactorFeedbackActiveHigh_ = true;
+    bool swgContactorFeedbackActiveHigh_ = true;
+    uint8_t flowSwitchStartupDelaySec_ = 60;
+    bool flowError_ = false;
+    bool filtrationRecalcWhenWaterTempFresh_ = false;
+    uint32_t filtrationFreshRecalcRetryMs_ = 0U;
+    static constexpr uint16_t SENSOR_SETTLE_SEC = 90;
+    static constexpr uint16_t SENSOR_HOLD_REF_AGE_SEC = 30;
+    static constexpr uint8_t SENSOR_HOLD_COUNT = 3;
+    IoId sensorHoldIds_[SENSOR_HOLD_COUNT] = {IO_ID_INVALID, IO_ID_INVALID, IO_ID_INVALID};
+    bool sensorHoldBindingsReady_ = false;
+    bool circulationStateKnown_ = false;
+    bool circulationState_ = true;
+    bool sensorHoldWaterTemp_ = true;
+
     // State and configuration storage
     bool enabled_ = false;
 
@@ -183,6 +206,9 @@ private:
     float waterTempSetpoint_ = PoolDefaults::TempHigh;
     uint8_t filtrationStartMin_ = PoolDefaults::FiltrationStartMinHour;
     uint8_t filtrationStopMax_ = PoolDefaults::FiltrationStopMaxHour;
+    uint16_t filtrationCalcStartMinute_ = 1320;
+    uint16_t filtrationCalcStopMinute_ = 0;
+    uint16_t filtrationCalcDurationMinute_ = 120;
     uint8_t filtrationCalcStart_ = PoolDefaults::FiltrationStartMinHour;
     uint8_t filtrationCalcStop_ = PoolDefaults::FiltrationStopMaxHour;
 
@@ -242,7 +268,7 @@ private:
 
     // Controlled pool devices
     uint8_t filtrationDeviceSlot_ = PoolIds::DeviceFiltrationPump;
-    uint8_t swgDeviceSlot_ = PoolIds::DeviceChlorineGenerator;
+    uint8_t swgDeviceSlot_ = PoolIds::DeviceChlorinePump;
     uint8_t robotDeviceSlot_ = PoolIds::DeviceRobot;
     uint8_t fillingDeviceSlot_ = PoolIds::DeviceFillPump;
     uint8_t phPumpDeviceSlot_ = PoolIds::DevicePhPump;
@@ -288,6 +314,35 @@ private:
 
     portMUX_TYPE pendingMux_ = portMUX_INITIALIZER_UNLOCKED;
 
+    ConfigVariable<bool,0> treatmentAutoModeVar_{NVS_KEY(NvsKeys::PoolLogic::TreatmentAutoMode), "treatment_auto_mode", "poollogic/modes", ConfigType::Bool,
+                                                 &treatmentAutoMode_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> robotAutoModeVar_{NVS_KEY(NvsKeys::PoolLogic::RobotAutoMode), "robot_auto_mode", "poollogic/modes", ConfigType::Bool,
+                                             &robotAutoMode_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> fillingEnabledVar_{NVS_KEY(NvsKeys::PoolLogic::FillingEnabled), "fill_enabled", "poollogic/refill", ConfigType::Bool,
+                                              &fillingEnabled_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> pressureMonitoringEnabledVar_{NVS_KEY(NvsKeys::PoolLogic::PressureMonitoringEnabled), "psi_monitoring", "poollogic/sensors", ConfigType::Bool,
+                                                         &pressureMonitoringEnabled_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> flowSwitchEnabledVar_{NVS_KEY(NvsKeys::PoolLogic::FlowSwitchEnabled), "flow_switch_enabled", "poollogic/sensors", ConfigType::Bool,
+                                                 &flowSwitchEnabled_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<IoId,0> flowSwitchIoIdVar_{NVS_KEY(NvsKeys::PoolLogic::FlowSwitchIoId), "flow_switch_io_id", "poollogic/sensors", ConfigType::UInt16,
+                                              &flowSwitchIoId_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<IoId,0> filtrationContactorFeedbackIoIdVar_{
+        NVS_KEY(NvsKeys::PoolLogic::FiltrationContactorFeedbackIoId), "filtr_fb_io_id", "poollogic/sensors", ConfigType::UInt16,
+        &filtrationContactorFeedbackIoId_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<IoId,0> swgContactorFeedbackIoIdVar_{
+        NVS_KEY(NvsKeys::PoolLogic::SwgContactorFeedbackIoId), "swg_fb_io_id", "poollogic/sensors", ConfigType::UInt16,
+        &swgContactorFeedbackIoId_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> filtrationContactorFeedbackActiveHighVar_{
+        NVS_KEY(NvsKeys::PoolLogic::FiltrationContactorFeedbackActiveHigh), "filtr_fb_active_high", "poollogic/sensors", ConfigType::Bool,
+        &filtrationContactorFeedbackActiveHigh_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> swgContactorFeedbackActiveHighVar_{
+        NVS_KEY(NvsKeys::PoolLogic::SwgContactorFeedbackActiveHigh), "swg_fb_active_high", "poollogic/sensors", ConfigType::Bool,
+        &swgContactorFeedbackActiveHigh_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> sensorHoldWaterTempVar_{NVS_KEY(NvsKeys::PoolLogic::SensorHoldWaterTemp), "sensor_hold_wat", "poollogic/safety", ConfigType::Bool,
+                                                  &sensorHoldWaterTemp_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<uint8_t,0> flowSwitchDelayVar_{NVS_KEY(NvsKeys::PoolLogic::FlowSwitchDelay), "flow_start_dly_s", "poollogic/safety", ConfigType::UInt8,
+                                                  &flowSwitchStartupDelaySec_, ConfigPersistence::Persistent, 0};
+
     ConfigVariable<bool,0> enabledVar_{NVS_KEY(NvsKeys::PoolLogic::Enabled), "enabled", "poollogic/modes", ConfigType::Bool,
                                        &enabled_, ConfigPersistence::Persistent, 0};
 
@@ -322,6 +377,9 @@ private:
                                            &filtrationStartMin_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint8_t,0> stopMaxVar_{NVS_KEY(NvsKeys::PoolLogic::FiltrationStopMax), "filtr_stop_max", "poollogic/filtration", ConfigType::UInt8,
                                           &filtrationStopMax_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<uint16_t,0> calcStartMinuteVar_{"pl_fstartm", "filtr_start_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationCalcStartMinute_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<uint16_t,0> calcStopMinuteVar_{"pl_fstopm", "filtr_stop_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationCalcStopMinute_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<uint16_t,0> calcDurationMinuteVar_{"pl_fdurm", "filtr_duration_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationCalcDurationMinute_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint8_t,0> calcStartVar_{NVS_KEY(NvsKeys::PoolLogic::FiltrationCalcStart), "filtr_start_clc", "poollogic/filtration", ConfigType::UInt8,
                                             &filtrationCalcStart_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint8_t,0> calcStopVar_{NVS_KEY(NvsKeys::PoolLogic::FiltrationCalcStop), "filtr_stop_clc", "poollogic/filtration", ConfigType::UInt8,
@@ -488,19 +546,30 @@ private:
     void normalizeDeviceSlots_();
     void logDeviceSlotConfig_() const;
     void logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const;
+    void applyAutoMode_(bool requested);
+    bool disinfectionAutoMode_() const;
+    bool filtrationForcedOn_() const;
+    void alignSubordinateAutomationModes_();
     bool activityTimeReady_() const;
     void emitStartupActivityIfReady_(uint32_t nowMs);
 
     // Scheduler
     void ensureDailySlot_();
-    bool applyFiltrationWindowSlot_(uint8_t startHour, uint8_t stopHour);
-    bool currentFiltrationWindowActive_(uint8_t startHour, uint8_t stopHour, bool& activeOut) const;
-    bool computeFiltrationWindow_(float waterTemp, uint8_t& startHourOut, uint8_t& stopHourOut, uint8_t& durationOut);
-    bool recalcAndApplyFiltrationWindow_(uint8_t* startHourOut = nullptr,
-                                         uint8_t* stopHourOut = nullptr,
-                                         uint8_t* durationOut = nullptr);
+    bool applyFiltrationWindowSlot_(uint16_t startMinute, uint16_t stopMinute, uint16_t durationMinutes);
+    bool currentFiltrationWindowActive_(uint16_t startMinute, uint16_t stopMinute, uint16_t durationMinutes, bool& activeOut) const;
+    bool computeFiltrationWindow_(float waterTemp, uint16_t& startMinuteOut, uint16_t& stopMinuteOut, uint16_t& durationMinutesOut);
+    bool recalcAndApplyFiltrationWindow_(uint16_t* startMinuteOut = nullptr, uint16_t* stopMinuteOut = nullptr,
+                                         uint16_t* durationMinutesOut = nullptr, bool keepCurrentStart = false);
 
     // Control
+    static AlarmCondState condNoFlowStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condWaterTemperatureUnavailableStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condFiltrationContactorMismatchStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condSwgContactorMismatchStatic_(void* ctx, uint32_t nowMs);
+    AlarmCondState condContactorMismatch_(uint8_t deviceSlot,
+                                          IoId feedbackIoId,
+                                          bool feedbackActiveHigh) const;
+    void updateSensorHold_();
     static AlarmCondState condPsiLowStatic_(void* ctx, uint32_t nowMs);
     static AlarmCondState condPsiHighStatic_(void* ctx, uint32_t nowMs);
     static AlarmCondState condPhTankLowStatic_(void* ctx, uint32_t nowMs);
@@ -517,7 +586,7 @@ private:
     void syncModeStateTraces_(uint32_t nowMs);
     void adoptBootDeviceState_(uint32_t nowMs);
     uint32_t stateUptimeSec_(const DeviceFsm& fsm, uint32_t nowMs) const;
-    bool loadAnalogSensor_(IoId ioId, float& out, uint32_t* tsMsOut = nullptr) const;
+    bool loadAnalogSensor_(IoId ioId, float& out, uint32_t* tsMsOut = nullptr, bool* heldOut = nullptr) const;
     bool loadDigitalSensor_(IoId ioId, bool& out) const;
     void resetTemporalPidState_(TemporalPidState& st, uint32_t nowMs);
     bool stepTemporalPid_(TemporalPidState& st,

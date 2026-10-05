@@ -28,7 +28,8 @@
     "poollogic/chlorine/dis_setpoint": {
       "type": "Float",
       "label_t": "cfgdocs.poollogic.chlorine.dis_setpoint.label",
-      "help_t": "cfgdocs.poollogic.chlorine.dis_setpoint.help"
+      "help_t": "cfgdocs.poollogic.chlorine.dis_setpoint.help",
+      "unit": "mV"
     },
     "poollogic/chlorine/dis_window_ms": {
       "type": "Int32",
@@ -363,7 +364,8 @@
       "type": "Float",
       "label_t": "cfgdocs.poollogic.swg.secure_elec_t.label",
       "help_t": "cfgdocs.poollogic.swg.secure_elec_t.help",
-      "unit": "C"
+      "unit": "C",
+      "step": 0.5
     },
     "poollogic/pool/indoor": {
       "type": "Bool",
@@ -385,6 +387,90 @@
       "label_t": "cfgdocs.poollogic.swg.swg_control_mode.label",
       "help_t": "cfgdocs.poollogic.swg.swg_control_mode.help",
       "enum_set": "poollogic_swg_control_mode"
+    },
+    "poollogic/devices/lights_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.devices.lights_slot.label",
+      "help_t": "cfgdocs.poollogic.devices.lights_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/filtration/filtr_duration_minute": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_duration_minute.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_duration_minute.help",
+      "unit": "min"
+    },
+    "poollogic/filtration/filtr_start_minute": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_start_minute.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_start_minute.help"
+    },
+    "poollogic/filtration/filtr_stop_minute": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_stop_minute.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_stop_minute.help"
+    },
+    "poollogic/modes/robot_auto_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.modes.robot_auto_mode.label",
+      "help_t": "cfgdocs.poollogic.modes.robot_auto_mode.help"
+    },
+    "poollogic/modes/treatment_auto_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.modes.treatment_auto_mode.label",
+      "help_t": "cfgdocs.poollogic.modes.treatment_auto_mode.help"
+    },
+    "poollogic/refill/fill_enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.refill.fill_enabled.label",
+      "help_t": "cfgdocs.poollogic.refill.fill_enabled.help"
+    },
+    "poollogic/safety/flow_start_dly_s": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.safety.flow_start_dly_s.label",
+      "help_t": "cfgdocs.poollogic.safety.flow_start_dly_s.help",
+      "unit": "s"
+    },
+    "poollogic/safety/sensor_hold_wat": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.safety.sensor_hold_wat.label",
+      "help_t": "cfgdocs.poollogic.safety.sensor_hold_wat.help"
+    },
+    "poollogic/sensors/filtr_fb_active_high": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.label",
+      "help_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.help"
+    },
+    "poollogic/sensors/filtr_fb_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.help"
+    },
+    "poollogic/sensors/flow_switch_enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.label",
+      "help_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.help"
+    },
+    "poollogic/sensors/flow_switch_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.flow_switch_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.flow_switch_io_id.help",
+      "enum_set": "flowio_logical_input_digital"
+    },
+    "poollogic/sensors/psi_monitoring": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.sensors.psi_monitoring.label",
+      "help_t": "cfgdocs.poollogic.sensors.psi_monitoring.help"
+    },
+    "poollogic/sensors/swg_fb_active_high": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.label",
+      "help_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.help"
+    },
+    "poollogic/sensors/swg_fb_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.help"
     }
   }
 }

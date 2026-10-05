@@ -1,7 +1,7 @@
 #include "PoolLogicModule.h"
 #include "Core/ErrorCodes.h"
 #include "Core/CommandRegistry.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include "Modules/PoolDeviceModule/PoolDeviceModuleDataModel.h"
 
 // Keep the existing role-targeted MQTT API while PoolDevice owns every lease.
@@ -31,7 +31,7 @@ bool PoolLogicModule::buildOverrideSnapshot_(uint8_t index, char* out, size_t le
     const uint8_t slot = index == 0 ? filtrationDeviceSlot_ : robotDeviceSlot_;
     PoolDeviceSvcMeta meta{};
     if (!poolSvc_ || !poolSvc_->meta || poolSvc_->meta(poolSvc_->ctx, slot, &meta) != POOLDEV_SVC_OK) return false;
-    SpiRamJsonDocument doc(768);
+    JsonDocument doc(psramOnlyJsonAllocator());
     writeActuatorControlJson(doc, meta.control);
     doc["slot"] = slot;
     doc["duration_minutes"] = poolSvc_->overrideDuration ? poolSvc_->overrideDuration(poolSvc_->ctx) : 30;
@@ -57,12 +57,12 @@ bool PoolLogicModule::handleOverride_(const CommandRequest& req, char* reply, si
     OverrideLock lock(overrideMutex_);
     auto fail = [&](ErrorCode code) { writeErrorJson(reply, len, code, "poollogic.device.override"); return false; };
     if (!poolSvc_ || !poolSvc_->overrideCommand) return fail(ErrorCode::NotReady);
-    SpiRamJsonDocument doc(768);
+    JsonDocument doc(psramOnlyJsonAllocator());
     const char* json = req.args ? req.args : req.json;
     if (!json || deserializeJson(doc, json)) return fail(ErrorCode::MissingArgs);
     JsonObject args = doc["args"].is<JsonObject>() ? doc["args"].as<JsonObject>() : doc.as<JsonObject>();
-    if (args.containsKey("role")) {
-        if (args.containsKey("slot") || !args["role"].is<const char*>()) return fail(ErrorCode::BadSlot);
+    if (!args["role"].isUnbound()) {
+        if (!args["slot"].isUnbound() || !args["role"].is<const char*>()) return fail(ErrorCode::BadSlot);
         // Stable protocol role identifiers, independent of display names or locale.
         const char* role = args["role"];
         uint8_t slot;
@@ -71,7 +71,7 @@ bool PoolLogicModule::handleOverride_(const CommandRequest& req, char* reply, si
         else return fail(ErrorCode::BadSlot);
         args.remove("role");
         args["slot"] = slot;
-        if ((command == OverrideCommand::On || command == OverrideCommand::Off) && !args.containsKey("duration_s"))
+        if ((command == OverrideCommand::On || command == OverrideCommand::Off) && args["duration_s"].isUnbound())
             args["duration_s"] = uint32_t(poolSvc_->overrideDuration(poolSvc_->ctx)) * 60;
     } else if (!args["slot"].is<uint8_t>()) return fail(ErrorCode::BadSlot);
     char normalized[512]{};

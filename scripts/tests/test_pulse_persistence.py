@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise production persistence/reset code with simulated acquisition and flash tasks."""
+import os
 import pathlib
 import subprocess
 import tempfile
@@ -16,7 +17,7 @@ class PulsePersistenceTests(unittest.TestCase):
             (tmp / 'Core/ModuleLog.h').write_text('#pragma once\n#define LOGW(...) ((void)0)\n')
             binary = tmp / 'pulse-persistence'
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                            '-fsanitize=address,undefined', '-g', f'-I{tmp}',
+                            *([] if os.name == 'nt' else ['-fsanitize=address,undefined']), '-g', f'-I{tmp}',
                             '-Itest/host/pulse_persistence', '-Isrc', '-Iinclude',
                             '-I.pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src',
                             str(tmp / 'persistence.cpp'), 'test/host/pulse_persistence/scenarios.cpp',

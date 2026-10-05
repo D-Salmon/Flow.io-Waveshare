@@ -83,7 +83,7 @@ enum IoCap : uint8_t {
 /** Typed runtime value snapshot used by generic readers. */
 struct IoValue {
     uint8_t valid = 0;
-    uint8_t reserved = 0;
+    uint8_t held = 0;
     uint8_t type = IO_VAL_FLOAT;
     uint32_t tsMs = 0;
     IoSeq cycleSeq = 0;
@@ -240,7 +240,10 @@ struct IOServiceV2 {
     void* ctx;
     /** Publish the owning controller state without changing the physical output. */
     IoStatus (*setOutputControlState)(void* ctx, IoId id, uint8_t owner, const ActuatorControlState* state) = nullptr;
-    /** Task-owned reset/checkpoint, confirmed in NVS before success; bounded wait. */
+    IoStatus (*setAnalogHold)(void* ctx, IoId id, uint8_t hold) = nullptr;
+    IoStatus (*setAnalogHoldRefAge)(void* ctx, uint16_t seconds) = nullptr;
+    IoStatus (*setCirculating)(void* ctx, uint8_t circulating, uint16_t settleSec) = nullptr;
+    /** Task-owned checkpoint confirmed in NVS before success; bounded wait. */
     IoStatus (*resetCounter)(void* ctx, IoId id) = nullptr;
     IoStatus (*saveCounters)(void* ctx) = nullptr;
 };

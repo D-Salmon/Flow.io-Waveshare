@@ -346,7 +346,7 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "module": "pooldev",
       "valueId": 3,
       "key": "pool.chlorine_pump_on",
-      "label": "Pompe chlore",
+      "label": "D\u00e9sinfection",
       "type": "bool",
       "domain": "equipements",
       "group": "Equipements",
@@ -515,23 +515,6 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
           "input": {
             "name": "value",
             "type": "float"
-          },
-          "refreshDomains": [
-            "equipements",
-            "alarm"
-          ],
-          "target": {
-            "name": "slot",
-            "type": "uint32"
-          }
-        },
-        {
-          "id": "mode",
-          "command": "pooldevice.mode",
-          "presentation": "button",
-          "input": {
-            "name": "value",
-            "type": "uint32"
           },
           "refreshDomains": [
             "equipements",
@@ -737,7 +720,7 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "module": "poollogic",
       "valueId": 4,
       "key": "pool.dis_auto_mode",
-      "label": "Traitement auto",
+      "label": "D\u00e9sinfection auto",
       "type": "bool",
       "domain": "mode",
       "group": "Mode",

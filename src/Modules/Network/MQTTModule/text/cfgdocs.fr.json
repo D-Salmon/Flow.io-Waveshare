@@ -8,42 +8,50 @@
     "mqtt/baseTopic": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.basetopic.label",
-      "help_t": "cfgdocs.mqtt.basetopic.help"
+      "help_t": "cfgdocs.mqtt.basetopic.help",
+      "order": 6
     },
     "mqtt/enabled": {
       "type": "Bool",
       "label_t": "cfgdocs.mqtt.enabled.label",
-      "help_t": "cfgdocs.mqtt.enabled.help"
+      "help_t": "cfgdocs.mqtt.enabled.help",
+      "order": 0
     },
     "mqtt/host": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.host.label",
-      "help_t": "cfgdocs.mqtt.host.help"
+      "help_t": "cfgdocs.mqtt.host.help",
+      "order": 1
     },
     "mqtt/pass": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.pass.label",
-      "help_t": "cfgdocs.mqtt.pass.help"
+      "help_t": "cfgdocs.mqtt.pass.help",
+      "order": 4
     },
     "mqtt/port": {
       "type": "Int32",
       "label_t": "cfgdocs.mqtt.port.label",
-      "help_t": "cfgdocs.mqtt.port.help"
+      "help_t": "cfgdocs.mqtt.port.help",
+      "order": 2
     },
     "mqtt/topicDeviceId": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.topicdeviceid.label",
-      "help_t": "cfgdocs.mqtt.topicdeviceid.help"
+      "help_t": "cfgdocs.mqtt.topicdeviceid.help",
+      "order": 7
     },
     "mqtt/deviceName": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.devicename.label",
-      "help_t": "cfgdocs.mqtt.devicename.help"
+      "help_t": "cfgdocs.mqtt.devicename.help",
+      "order": 5
     },
     "mqtt/user": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.user.label",
-      "help_t": "cfgdocs.mqtt.user.help"
+      "help_t": "cfgdocs.mqtt.user.help",
+      "order": 3
     }
   }
 }

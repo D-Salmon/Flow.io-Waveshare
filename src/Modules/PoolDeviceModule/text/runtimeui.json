@@ -213,23 +213,6 @@
           ]
         },
         {
-          "id": "mode",
-          "command": "pooldevice.mode",
-          "presentation": "button",
-          "input": {
-            "name": "value",
-            "type": "uint32"
-          },
-          "target": {
-            "name": "slot",
-            "type": "uint32"
-          },
-          "refreshDomains": [
-            "equipements",
-            "alarm"
-          ]
-        },
-        {
           "id": "reset_uptime",
           "command": "pooldevice.uptime.reset",
           "presentation": "button",

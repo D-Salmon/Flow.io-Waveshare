@@ -4,5 +4,9 @@
     "locale": "fr",
     "version": 1
   },
-  "docs": {}
+  "docs": {
+    "webinterface": {
+      "label_t": "cfgmods.webinterface.label"
+    }
+  }
 }

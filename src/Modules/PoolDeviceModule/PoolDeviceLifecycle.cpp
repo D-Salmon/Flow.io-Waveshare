@@ -4,7 +4,6 @@
  */
 
 #include "PoolDeviceModule.h"
-#include "Drivers/PoolSerialHa.h"
 #include "Core/BufferUsageTracker.h"
 #include "Core/MqttTopics.h"
 #include "Domain/Pool/PoolIds.h"
@@ -14,7 +13,7 @@
 #include <esp_heap_caps.h>
 #include <esp_memory_utils.h>
 #include <new>
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 
 namespace {
 static constexpr uint8_t kPoolDeviceCfgProducerId = 48;
@@ -285,7 +284,6 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override.duration.set", cmdOverrideDuration_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.override.select", cmdOverrideSelect_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.setpoint", cmdPoolSetpoint_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.mode", cmdPoolMode_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.write", cmdPoolWrite_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.refill", cmdPoolRefill_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset", cmdPoolResetUptime_, this);
@@ -331,14 +329,6 @@ void PoolDeviceModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
         FLOW_POOLDEVICE_CFG_ROUTES(5),
         FLOW_POOLDEVICE_CFG_ROUTES(6),
         FLOW_POOLDEVICE_CFG_ROUTES(7),
-        FLOW_POOLDEVICE_CFG_ROUTES(8),
-        FLOW_POOLDEVICE_CFG_ROUTES(9),
-        FLOW_POOLDEVICE_CFG_ROUTES(10),
-        FLOW_POOLDEVICE_CFG_ROUTES(11),
-        FLOW_POOLDEVICE_CFG_ROUTES(12),
-        FLOW_POOLDEVICE_CFG_ROUTES(13),
-        FLOW_POOLDEVICE_CFG_ROUTES(14),
-        FLOW_POOLDEVICE_CFG_ROUTES(15),
 #undef FLOW_POOLDEVICE_CFG_ROUTES
     };
     static_assert((sizeof(kPoolDeviceCfgRoutes) / sizeof(kPoolDeviceCfgRoutes[0])) <= MqttConfigRouteProducer::MaxRoutes,
@@ -405,7 +395,7 @@ void PoolDeviceModule::registerDriverHa_(uint8_t slot)
     snprintf(s.haCommand, sizeof(s.haCommand),
              "{\\\"cmd\\\":\\\"pooldevice.setpoint\\\",\\\"args\\\":{\\\"slot\\\":%u,\\\"value\\\":{{ value | float }}}}", unsigned(slot));
     if (c.kind == PoolControlKind::Discrete && haSvc_->addSelect) {
-        SpiRamJsonDocument options(512);
+        JsonDocument options(psramOnlyJsonAllocator());
         auto array = options.to<JsonArray>();
         for (uint8_t i = 0; i < c.stepCount; ++i) {
             char value[24]; snprintf(value, sizeof(value), "%.6g", double(c.steps[i])); array.add(value);
@@ -417,26 +407,7 @@ void PoolDeviceModule::registerDriverHa_(uint8_t slot)
     } else if (haSvc_->addNumber) {
         const HANumberEntry entry{"pooldev", s.haSuffix, s.def.label, s.haTopic,
             "{{ value_json.setpoint }}", MqttTopics::SuffixCmd, s.haCommand,
-            c.minimum, c.maximum, c.unit == PoolSetpointUnit::Rpm ? 1.0f : 0.1f,
-            "box", nullptr, "mdi:pump", poolSetpointUnitSymbol(c.unit)};
+            c.minimum, c.maximum, 0.1f, "box", nullptr, "mdi:pump", c.unit == PoolSetpointUnit::Celsius ? "Â°C" : "%"};
         (void)haSvc_->addNumber(haSvc_->ctx, &entry);
-    }
-    const auto& serial = s.driverConfig.serial;
-    if (serial.modes.count && haSvc_->addSelect) {
-        snprintf(s.haModeSuffix, sizeof(s.haModeSuffix), "pd%u_mode", unsigned(slot));
-        if (buildPoolModeHaTemplates(serial.modes, slot, s.haModeOptions, sizeof(s.haModeOptions),
-                                    s.haModeCommand, sizeof(s.haModeCommand))) {
-            const HASelectEntry entry{"pooldev", s.haModeSuffix, s.def.label, s.haTopic,
-                "{{ value_json.modes[value_json.mode] }}", MqttTopics::SuffixCmd, s.haModeCommand,
-                s.haModeOptions, "mdi:heat-pump", nullptr};
-            if (!haSvc_->addSelect(haSvc_->ctx, &entry)) LOGW("HA mode registration failed slot=%u", unsigned(slot));
-        } else LOGW("HA mode template exceeds capacity slot=%u", unsigned(slot));
-    }
-    if (serial.telemetryProfile != PoolTelemetryProfile::None && haSvc_->addSensor) {
-        snprintf(s.haTelemetrySuffix, sizeof(s.haTelemetrySuffix), "pd%u_diagnostics", unsigned(slot));
-        const HASensorEntry entry{"pooldev", s.haTelemetrySuffix, s.def.label, s.haTopic,
-            "{{ value_json.telemetry_error }}", "diagnostic", "mdi:heat-pump", nullptr, true, nullptr, false,
-            "{{ value_json.telemetry | tojson }}"};
-        if (!haSvc_->addSensor(haSvc_->ctx, &entry)) LOGW("HA telemetry registration failed slot=%u", unsigned(slot));
     }
 }

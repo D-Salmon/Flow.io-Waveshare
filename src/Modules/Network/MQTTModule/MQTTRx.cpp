@@ -9,7 +9,7 @@
 #include "Core/MqttTopics.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
 
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <string.h>
 
 void MQTTModule::processRx_(const RxMsg& msg)
@@ -54,14 +54,14 @@ void MQTTModule::processRxCmd_(const RxMsg& msg)
     if (!scratch_) return;
 
     static constexpr size_t CMD_DOC_CAPACITY = Limits::JsonCmdBuf;
-    SpiRamJsonDocument doc(CMD_DOC_CAPACITY);
+    JsonDocument doc(psramOnlyJsonAllocator());
 
     doc.clear();
     DeserializationError err = deserializeJson(doc, msg.payload);
     if (err || !doc.is<JsonObjectConst>()) {
         BufferUsageTracker::note(TrackedBufferId::MqttCmdDoc,
-                                 doc.memoryUsage(),
-                                 doc.capacity(),
+                                 measureJson(doc),
+                                 CMD_DOC_CAPACITY,
                                  "cmd",
                                  nullptr);
         publishRxError_(MqttTopics::SuffixAck, ErrorCode::BadCmdJson, "cmd", true);
@@ -81,8 +81,8 @@ void MQTTModule::processRxCmd_(const RxMsg& msg)
         return;
     }
     BufferUsageTracker::note(TrackedBufferId::MqttCmdDoc,
-                             doc.memoryUsage(),
-                             doc.capacity(),
+                             measureJson(doc),
+                             CMD_DOC_CAPACITY,
                              cmdVal,
                              nullptr);
 
@@ -149,14 +149,14 @@ void MQTTModule::processRxCfgSet_(const RxMsg& msg)
     }
 
     static constexpr size_t CFG_DOC_CAPACITY = Limits::JsonCfgBuf;
-    SpiRamJsonDocument cfgDoc(CFG_DOC_CAPACITY);
+    JsonDocument cfgDoc(psramOnlyJsonAllocator());
     cfgDoc.clear();
 
     const DeserializationError cfgErr = deserializeJson(cfgDoc, msg.payload);
     if (cfgErr || !cfgDoc.is<JsonObjectConst>()) {
         BufferUsageTracker::note(TrackedBufferId::MqttCfgDoc,
-                                 cfgDoc.memoryUsage(),
-                                 cfgDoc.capacity(),
+                                 measureJson(cfgDoc),
+                                 CFG_DOC_CAPACITY,
                                  "cfg/set",
                                  nullptr);
         publishRxError_(MqttTopics::SuffixCfgAck, ErrorCode::BadCfgJson, "cfg/set", true);
@@ -169,8 +169,8 @@ void MQTTModule::processRxCfgSet_(const RxMsg& msg)
         break;
     }
     BufferUsageTracker::note(TrackedBufferId::MqttCfgDoc,
-                             cfgDoc.memoryUsage(),
-                             cfgDoc.capacity(),
+                             measureJson(cfgDoc),
+                             CFG_DOC_CAPACITY,
                              cfgPeakSource,
                              "<json>");
 

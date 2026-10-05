@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file ConfigStoreModule.cpp
  * @brief Implementation file.
@@ -45,7 +46,7 @@ uint16_t summarizePatch_(const char* json, char* modulesOut, size_t modulesOutLe
     if (modulesOut && modulesOutLen > 0U) modulesOut[0] = '\0';
     if (!json || json[0] == '\0') return 0;
 
-    DynamicJsonDocument doc(Limits::JsonConfigApplyBuf);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, json);
     if (err || !doc.is<JsonObjectConst>()) return 0;
 

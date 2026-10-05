@@ -3,6 +3,8 @@
   var themeKey = 'flow_web_theme';
   var scriptLoads = new Map();
   var cssLoads = new Map();
+  var prefetchedAssets = new Set();
+  var csrfToken = '';
 
   function sleep(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
@@ -24,7 +26,15 @@
 
   function setBootStatus(text, isError) {
     var bootStatus = document.getElementById('bootStatus');
-    if (!bootStatus) return;
+    if (!bootStatus) {
+      var root = document.getElementById('app-root');
+      if (!root) return;
+      root.className = 'is-booting';
+      root.innerHTML = '';
+      bootStatus = document.createElement('div');
+      bootStatus.id = 'bootStatus';
+      root.appendChild(bootStatus);
+    }
     bootStatus.textContent = text;
     bootStatus.className = isError ? 'boot-status error' : 'boot-status';
   }
@@ -66,6 +76,47 @@
     return path + '?v=' + encodeURIComponent(version);
   }
 
+  function ingestSecurityMeta(meta) {
+    var token = meta && typeof meta.csrf_token === 'string' ? meta.csrf_token.trim() : '';
+    if (/^[0-9a-f]{32}$/i.test(token)) csrfToken = token;
+  }
+
+  function secureFetchOptions(options) {
+    var secured = Object.assign({}, options || {});
+    var method = String(secured.method || 'GET').toUpperCase();
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+      var headers = new Headers(secured.headers || {});
+      if (csrfToken) headers.set('X-Flow-CSRF', csrfToken);
+      secured.headers = headers;
+    }
+    return secured;
+  }
+
+  function isMutatingMethod(options) {
+    var method = String(options && options.method || 'GET').toUpperCase();
+    return method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+  }
+
+  async function refreshCsrfToken() {
+    var response = await fetch('/api/web/meta', { cache: 'no-store' });
+    if (!response.ok) return false;
+    var meta = await response.json().catch(function () { return null; });
+    var previousToken = csrfToken;
+    ingestSecurityMeta(meta);
+    if (meta && meta.ok === true) window.__FLOW_WEB_META__ = meta;
+    return csrfToken.length === 32 && csrfToken !== previousToken;
+  }
+
+  async function csrfAwareMutationFetch(url, options, fetchImpl) {
+    var request = typeof fetchImpl === 'function' ? fetchImpl : fetch;
+    var response = await request(url, secureFetchOptions(options));
+    if (response.status !== 403 || !isMutatingMethod(options)) return response;
+    var rejected = await response.clone().json().catch(function () { return null; });
+    var rejectedCode = rejected && rejected.err && String(rejected.err.code || '');
+    if (rejectedCode !== 'CsrfRejected' || !await refreshCsrfToken()) return response;
+    return request(url, secureFetchOptions(options));
+  }
+
   async function supervisorFetch(url, options, policy) {
     var cfg = policy || {};
     var retries = Number.isFinite(cfg.retries) ? cfg.retries : 4;
@@ -74,15 +125,34 @@
       : [300, 700, 1500, 2600];
 
     var lastError = null;
+    var csrfRefreshAttempted = false;
     for (var attempt = 0; attempt <= retries; attempt += 1) {
       try {
-        var response = await fetch(url, options || {});
+        var response = await fetch(url, secureFetchOptions(options));
+        if (response.status === 401 && !String(url || '').startsWith('/api/auth/')) {
+          window.location.replace('/login');
+          return response;
+        }
+        if (response.status === 403 && !csrfRefreshAttempted && isMutatingMethod(options)) {
+          var rejected = await response.clone().json().catch(function () { return null; });
+          var rejectedCode = rejected && rejected.err && String(rejected.err.code || '');
+          if (rejectedCode === 'CsrfRejected') {
+            csrfRefreshAttempted = true;
+            if (await refreshCsrfToken()) continue;
+          }
+        }
         if (response.status !== 503) return response;
         if (attempt >= retries) return response;
         var retryAfterHeader = response.headers ? response.headers.get('Retry-After') : '';
         var fallback = backoff[Math.min(attempt, backoff.length - 1)] || 1200;
         var waitMs = parseRetryAfterMs(retryAfterHeader, fallback);
-        setBootStatus('Supervisor occupé, nouvelle tentative...');
+        // A transient 503 can also occur while an already loaded page fetches
+        // data for a menu. Do not replace the complete application in that
+        // case: the retry should remain invisible and the current page must
+        // stay usable.
+        if (window.__FLOW_WEB_APP_READY__ !== true) {
+          setBootStatus('Appareil occupé, nouvelle tentative...');
+        }
         await sleep(waitMs);
       } catch (err) {
         lastError = err;
@@ -191,6 +261,29 @@
     return promise;
   }
 
+  function prefetchAsset(href, kind) {
+    var url = String(href || '').trim();
+    if (!url || prefetchedAssets.has(url)) return Promise.resolve(false);
+    prefetchedAssets.add(url);
+    return new Promise(function (resolve) {
+      var link = document.createElement('link');
+      var settled = false;
+      var finish = function (loaded) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(loaded);
+      };
+      var timer = setTimeout(function () { finish(false); }, 12000);
+      link.rel = 'prefetch';
+      link.href = url;
+      link.as = kind === 'style' ? 'style' : 'script';
+      link.onload = function () { finish(true); };
+      link.onerror = function () { finish(false); };
+      document.head.appendChild(link);
+    });
+  }
+
   async function fetchShellMarkup(url) {
     var res = await supervisorFetch(url, { cache: 'no-store' }, { retries: 4 });
     if (!res.ok) throw new Error('shell');
@@ -202,6 +295,7 @@
     if (!res.ok) throw new Error('meta');
     var data = await res.json();
     if (!data || data.ok !== true) throw new Error('meta');
+    ingestSecurityMeta(data);
     window.__FLOW_WEB_META__ = data;
     var version = '';
     if (typeof data.web_asset_version === 'string') {
@@ -227,11 +321,34 @@
       storeVersion(version);
 
       await loadCssOnce(assetUrl('/webinterface/app-core.css', version), { retries: 3 });
+      await loadCssOnce(assetUrl('/webinterface/network.css', version), { retries: 3 });
+      await loadScriptOnce(assetUrl('/webinterface/network.js', version), { retries: 3 });
       root.className = '';
       root.innerHTML = await fetchShellMarkup(assetUrl('/webinterface/sh.html', version));
-      await loadScriptOnce(assetUrl('/webinterface/app.js', version), { retries: 3 });
+      window.__FLOW_WEB_APP_READY__ = false;
+      var appRuntimeError = '';
+      var captureAppError = function (event) {
+        if (appRuntimeError) return;
+        var message = event && event.message ? String(event.message) : 'exception JavaScript';
+        var source = event && event.filename ? String(event.filename).split('/').pop() : 'app.js';
+        var line = event && event.lineno ? ':' + event.lineno : '';
+        var column = event && event.colno ? ':' + event.colno : '';
+        appRuntimeError = message + ' @ ' + source + line + column;
+      };
+      window.addEventListener('error', captureAppError);
+      try {
+        await loadScriptOnce(assetUrl('/webinterface/app.js', version), { retries: 3 });
+      } finally {
+        window.removeEventListener('error', captureAppError);
+      }
+      if (window.__FLOW_WEB_APP_READY__ !== true) {
+        throw new Error(appRuntimeError || 'app_init');
+      }
     } catch (err) {
-      setBootStatus("Chargement de l'interface impossible.", true);
+      var detail = err && err.message ? String(err.message) : String(err || 'erreur inconnue');
+      window.__FLOW_WEB_BOOT_ERROR__ = detail;
+      try { console.error('[flow-web] bootstrap failed:', err); } catch (consoleErr) {}
+      setBootStatus("Chargement de l'interface impossible (" + detail + ").", true);
     }
   }
 
@@ -239,11 +356,17 @@
     sleep: sleep,
     assetUrl: assetUrl,
     parseRetryAfterMs: parseRetryAfterMs,
+    csrfToken: function () { return csrfToken; },
+    ingestSecurityMeta: ingestSecurityMeta,
+    secureFetchOptions: secureFetchOptions,
+    csrfAwareMutationFetch: csrfAwareMutationFetch,
     supervisorFetch: supervisorFetch,
     loadScriptOnce: loadScriptOnce,
     loadCssOnce: loadCssOnce,
+    prefetchAsset: prefetchAsset,
     bootstrap: bootstrap,
     applyStoredTheme: applyStoredTheme,
     setBootStatus: setBootStatus
   };
+  void bootstrap();
 })();

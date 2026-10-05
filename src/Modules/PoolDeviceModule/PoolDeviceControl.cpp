@@ -77,9 +77,6 @@ PoolDeviceSvcStatus PoolDeviceModule::svcMetaImpl_(uint8_t slot, PoolDeviceSvcMe
     outMeta->capabilities = s.driverConfig.capabilities;
     outMeta->driverReady = s.driverReady;
     outMeta->guidedOn = s.desiredOn;
-    outMeta->guidedTarget = s.desired;
-    outMeta->runModes = s.driverConfig.serial.modes;
-    outMeta->telemetryProfile = s.driverConfig.serial.telemetryProfile;
     outMeta->outputCount = s.driverConfig.capabilities.kind == PoolControlKind::Rs485 ? 0 :
         (s.driverConfig.capabilities.kind == PoolControlKind::Discrete ? s.driverConfig.capabilities.stepCount : 1);
     for (uint8_t i = 0; i < outMeta->outputCount; ++i) outMeta->outputs[i] = s.driverConfig.outputs[i];
@@ -125,16 +122,12 @@ PoolDeviceSvcStatus PoolDeviceModule::svcSetRunningImpl_(uint8_t slot, uint8_t o
 PoolDeviceSvcStatus PoolDeviceModule::svcSetManualRunningImpl_(uint8_t slot, uint8_t on)
 { return setRunning_(slot, on, true); }
 
-PoolDeviceSvcStatus PoolDeviceModule::svcSetRunningAtSetpointImpl_(uint8_t slot, uint8_t on, float setpoint)
-{ return setRunning_(slot, on, false, &setpoint); }
-
-PoolDeviceSvcStatus PoolDeviceModule::setRunning_(uint8_t slot, uint8_t on, bool manual, const float* setpoint)
+PoolDeviceSvcStatus PoolDeviceModule::setRunning_(uint8_t slot, uint8_t on, bool manual)
 {
     if (!lockState_()) return POOLDEV_SVC_ERR_NOT_READY;
     if (slot >= POOL_DEVICE_MAX || !slots_[slot].used) { unlockState_(); return POOLDEV_SVC_ERR_UNKNOWN_SLOT; }
     auto target = slots_[slot].desired;
     target.running = on != 0;
-    if (setpoint) target.setpoint = *setpoint;
     const auto result = setTarget_(slot, &target, manual);
     unlockState_();
     return result;
@@ -630,8 +623,7 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
             !s.feedback.error && s.feedback.quality != PoolFeedbackQuality::Stale;
         effective.running = resolveOverride_(i, safe, uint64_t(esp_timer_get_time()) / 1000) && safe;
         if (s.driverReady) {
-            if (!s.revision || effective.running != s.effective.running || effective.setpoint != s.effective.setpoint ||
-                effective.mode != s.effective.mode) {
+            if (!s.revision || effective.running != s.effective.running || effective.setpoint != s.effective.setpoint) {
                 s.effective = effective;
                 if (++s.revision == 0) ++s.revision;
                 s.driver.get().applyTarget(effective, s.revision);

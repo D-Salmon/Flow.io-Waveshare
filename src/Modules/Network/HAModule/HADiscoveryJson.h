@@ -9,14 +9,14 @@ inline void availability(JsonObject root, const char* statusTopic,
                          const char* stateTopic = nullptr,
                          const char* stateTemplate = nullptr)
 {
-    JsonArray topics = root.createNestedArray("avty");
+    JsonArray topics = root["avty"].to<JsonArray>();
     if (statusTopic && statusTopic[0]) {
-        JsonObject status = topics.createNestedObject();
+        JsonObject status = topics.add<JsonObject>();
         status["t"] = statusTopic;
         status["val_tpl"] = "{{ 'online' if value_json.online else 'offline' }}";
     }
     if (stateTopic && stateTopic[0] && stateTemplate && stateTemplate[0]) {
-        JsonObject state = topics.createNestedObject();
+        JsonObject state = topics.add<JsonObject>();
         state["t"] = stateTopic;
         state["val_tpl"] = stateTemplate;
     }
@@ -59,7 +59,7 @@ inline void binarySensor(JsonObject root, const char* stateTopic,
 
 inline bool serialize(const JsonDocument& doc, char* out, size_t capacity)
 {
-    if (!out || doc.overflowed() || doc.capacity() == 0) return false;
+    if (!out || doc.overflowed()) return false;
     const size_t size = measureJson(doc);
     if (size >= capacity) return false;
     return serializeJson(doc, out, capacity) == size;

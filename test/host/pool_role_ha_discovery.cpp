@@ -9,6 +9,8 @@ struct Capture {
     std::vector<HASensorEntry> sensors;
     std::vector<HANumberEntry> numbers;
     std::vector<HAButtonEntry> buttons;
+    std::vector<HADiscoveryRemovalEntry> removals;
+    size_t removalLimit = 64;
     bool accept = true;
     HAService service() {
         HAService ha{};
@@ -25,12 +27,17 @@ struct Capture {
             auto& self = *static_cast<Capture*>(ctx);
             self.buttons.push_back(*entry); return self.accept;
         };
+        ha.addDiscoveryRemoval = [](void* ctx, const HADiscoveryRemovalEntry* entry) {
+            auto& self = *static_cast<Capture*>(ctx);
+            if (self.removals.size() >= self.removalLimit) return false;
+            self.removals.push_back(*entry); return self.accept;
+        };
         return ha;
     }
 };
 
 static std::string unescape(const char* value) {
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;
     const auto quoted = std::string("\"") + value + "\"";
     assert(!deserializeJson(doc, quoted));
     return doc.as<std::string>();
@@ -40,7 +47,7 @@ int main() {
     using namespace PoolRoleHaDiscovery;
     const PoolDeviceAssignments defaults{0, 1, 2, 3, 4, 5, 7};
     Storage oldStorage{};
-    assert(prepare(oldStorage, defaults, 16));
+    assert(prepare(oldStorage, defaults, 8));
     Capture old;
     assert(registerEntries(old.service(), oldStorage));
     assert(old.sensors.size() == 7 && old.numbers.size() == 8 && old.buttons.size() == 8);
@@ -48,11 +55,11 @@ int main() {
     assert(std::strcmp(old.numbers[0].objectSuffix, "pd0_flow") == 0);
     assert(std::strcmp(old.buttons[0].objectSuffix, "pd_refill_ph") == 0);
 
-    // Exercise every configured role on every new slot, including the upper boundary.
-    for (uint8_t slot = 8; slot < 16; ++slot) {
+    // Exercise every configured role on every available slot, including the upper boundary.
+    for (uint8_t slot = 0; slot < 8; ++slot) {
         PoolDeviceAssignments assignments{slot, slot, slot, slot, slot, slot, slot};
         Storage storage{};
-        assert(prepare(storage, assignments, 16));
+        assert(prepare(storage, assignments, 8));
         Capture captured;
         assert(registerEntries(captured.service(), storage));
         assignments = defaults; // Discovery remains frozen after registration.
@@ -63,7 +70,7 @@ int main() {
             assert(buffers.slot == expected);
             assert(std::string(buffers.state) == "rt/pdm/state/pd" + std::to_string(expected));
             for (const auto* payload : {buffers.on, buffers.off}) {
-                DynamicJsonDocument doc(512);
+                JsonDocument doc;
                 assert(!deserializeJson(doc, unescape(payload)));
                 assert(doc["cmd"] == "poollogic.device.write");
                 assert(doc["args"]["slot"] == expected);
@@ -86,27 +93,46 @@ int main() {
             const auto end = command.find("}}", start);
             assert(start != std::string::npos && end != std::string::npos);
             command.replace(start, end + 2 - start, "12");
-            DynamicJsonDocument doc(512);
+            JsonDocument doc;
             assert(!deserializeJson(doc, command));
-            assert(doc.containsKey("pdm/" + id));
+            assert(doc["pdm/" + id].is<JsonObject>());
         }
         for (size_t i = 0; i < captured.buttons.size(); ++i) {
             const auto& entry = captured.buttons[i];
             assert(std::strcmp(entry.objectSuffix, old.buttons[i].objectSuffix) == 0);
             assert(std::strcmp(entry.name, old.buttons[i].name) == 0);
-            DynamicJsonDocument doc(512);
+            JsonDocument doc;
             assert(!deserializeJson(doc, entry.payloadPress));
-            if (doc["cmd"] == "pooldevice.uptime.reset_all") assert(!doc.containsKey("args"));
+            if (doc["cmd"] == "pooldevice.uptime.reset_all") assert(doc["args"].isNull());
             else assert(doc["args"]["slot"] == slot);
         }
     }
     // Mixed mappings must not leak one role's buffers into another role.
     Storage mixed{};
-    assert(prepare(mixed, {15, 14, 13, 12, 11, 10, 9}, 16));
-    const uint8_t expected[] = {15, 14, 13, 12, 11, 10, 6, 9};
+    assert(prepare(mixed, {7, 6, 5, 4, 3, 2, 1}, 8));
+    const uint8_t expected[] = {7, 6, 5, 4, 3, 2, 6, 1};
     for (uint8_t role = 0; role < PoolIds::DeviceCount; ++role) assert(mixed.roles[role].slot == expected[role]);
     Storage invalid{};
-    assert(!prepare(invalid, PoolDeviceAssignments{}, 16));
+    assert(prepare(invalid, PoolDeviceAssignments{}, 8));
+    Capture disabled;
+    assert(registerEntries(disabled.service(), invalid));
+    assert(disabled.sensors.empty() && disabled.numbers.empty());
+    assert(disabled.removals.size() == 22);
+    // Leave room for legacy alarm/override cleanup and disabled switches.
+    Capture migration;
+    migration.removals.resize(8 + 12 + 7 + 7);
+    assert(registerEntries(migration.service(), invalid));
+    assert(migration.removals.size() == 56);
+    Capture full;
+    full.removalLimit = 1;
+    assert(!registerEntries(full.service(), invalid));
+    assert(disabled.buttons.size() == 1); // Global reset remains available.
+    assert(prepare(invalid, {0, 1, POOL_DEVICE_INVALID, 3, 4, 2, 7}, 8));
+    Capture electrolysis;
+    assert(registerEntries(electrolysis.service(), invalid));
+    assert(electrolysis.removals.size() == 6);
+    for (const auto& sensor : electrolysis.sensors)
+        assert(std::string(sensor.objectSuffix).find("pd_chl_pmp") == std::string::npos);
     assert(!prepare(invalid, {16, 1, 2, 3, 4, 5, 7}, 16));
     assert(!prepare(invalid, {8, 1, 2, 3, 4, 5, 7}, 8));
     assert(assignedSlot(255, defaults) == POOL_DEVICE_INVALID);

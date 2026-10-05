@@ -174,6 +174,7 @@ bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
         }
         ///Logger::log(LogLevel::Info, "MOD", "Init %s", ordered[i]->moduleId());
         Log::debug(LOG_MODULE_ID, "init: %s", toString(moduleId));
+        Serial.printf("[BOOT] init %s\r\n", toString(moduleId));
         ordered[i]->init(cfg, services);
         if (logModuleId != (LogModuleId)LogModuleIdValue::Unknown) {
             (void)Log::registerModule(logModuleId, toString(moduleId));
@@ -185,9 +186,11 @@ bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
     wireCoreServices(services, cfg);
 
     /// Load persistent config after all modules registered their variables.
+    Serial.println("[BOOT] loading persistent configuration");
     cfg.loadPersistent();
 
     for (uint8_t i = 0; i < orderedCount; ++i) {
+        Serial.printf("[BOOT] configure %s\r\n", toString(ordered[i]->moduleId()));
         ordered[i]->onConfigLoaded(cfg, services);
     }
 

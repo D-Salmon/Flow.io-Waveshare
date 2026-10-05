@@ -174,38 +174,6 @@
         {
           "value": 7,
           "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.7.label"
-        },
-        {
-          "value": 8,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.8.label"
-        },
-        {
-          "value": 9,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.9.label"
-        },
-        {
-          "value": 10,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.10.label"
-        },
-        {
-          "value": 11,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.11.label"
-        },
-        {
-          "value": 12,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.12.label"
-        },
-        {
-          "value": 13,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.13.label"
-        },
-        {
-          "value": 14,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.14.label"
-        },
-        {
-          "value": 15,
-          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_device_slot.15.label"
         }
       ],
       "poollogic_disinfection_type": [

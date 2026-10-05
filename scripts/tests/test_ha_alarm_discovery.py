@@ -25,7 +25,8 @@ def function(source, name):
 PREAMBLE = r'''
 #include "Core/Services/IAlarm.h"
 #include "Core/Services/IHA.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
+#include <esp_heap_caps.h>
 #include "Modules/Network/HAModule/HADiscoveryJson.h"
 #include <cassert>
 #include <cstring>
@@ -129,7 +130,7 @@ void checkMqttState(AlarmModule& module) {
     MqttBuildContext context{topic, sizeof(topic), payload, sizeof(payload)};
     assert(mqtt.buildAlarm_(MQTTModule::AlarmMsgMeta, context) == MqttBuildResult::Ready);
     assert(context.retain && std::string(topic) == "flow/test/rt/alarms/m");
-    SpiRamJsonDocument state(1024);
+    JsonDocument state;
     assert(!deserializeJson(state, payload));
     assert(state["a"] == 2 && state["r"] == 1 && state["h"] == 3);
     context.retain = false;
@@ -227,20 +228,20 @@ int main() {
             const auto& sensor = captured.binary[i];
             assert(!sensor.includeNameInUniqueId);
             assert(sensor.attributesTemplate);
-            SpiRamJsonDocument document(4096);
+            JsonDocument document;
             HADiscoveryJson::button(document.to<JsonObject>(), "flow/device/cmd", entry.payloadPress);
             document["name"] = entry.name;
             HADiscoveryJson::availability(document.as<JsonObject>(), "flow/device/status",
                                            entry.availabilityTopicSuffix, entry.availabilityTemplate);
             char output[2048]{};
             assert(HADiscoveryJson::serialize(document, output, sizeof(output)));
-            SpiRamJsonDocument parsed(4096);
+            JsonDocument parsed;
             assert(!deserializeJson(parsed, output));
             assert(std::string(parsed["name"]) == entry.name);
             assert(parsed["ret"] == false);
             assert(parsed["avty"].size() == 2);
             assert(parsed["avty_mode"] == "all");
-            SpiRamJsonDocument command(512);
+            JsonDocument command;
             assert(!deserializeJson(command, parsed["pl_prs"].as<const char*>()));
             assert(command["cmd"] == "alarms.reset");
             unsigned id = command["args"]["id"];
@@ -282,7 +283,7 @@ int main() {
                 bool allowed = active && latch && condition == AlarmCondState::False;
                 char output[256];
                 assert(module.buildAlarmState_(slot.id, output, sizeof(output)));
-                SpiRamJsonDocument state(512);
+                JsonDocument state;
                 assert(!deserializeJson(state, output));
                 assert(state["r"].as<bool>() == allowed);
                 assert(state["l"].as<bool>() == latch);
@@ -306,7 +307,9 @@ int main() {
     }
     failAllocation = true;
     {
-        SpiRamJsonDocument empty(4096);
+        JsonDocument empty(psramOnlyJsonAllocator());
+        empty["required"] = true;
+        assert(empty.overflowed());
         char output[100];
         assert(!HADiscoveryJson::serialize(empty, output, sizeof(output)));
     }
@@ -329,7 +332,7 @@ class AlarmDiscoveryTest(unittest.TestCase):
                 command = json.loads(payload)
                 self.assertIsInstance(command['cmd'], str)
                 count += 1
-        self.assertEqual(count, 9)
+        self.assertEqual(count, 1)
 
     def test_discovery_roundtrip_and_reset_rules(self):
         header = (ROOT / 'src/Modules/AlarmModule/AlarmModule.h').read_text()
@@ -353,7 +356,7 @@ class AlarmDiscoveryTest(unittest.TestCase):
             (work / 'test.cpp').write_text(program)
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
                             '-I', str(work), '-I', str(ROOT / 'src'), '-I', str(ROOT / 'include'),
-                            '-I', str(ARDUINO_JSON), str(work / 'test.cpp'), '-o', str(work / 'test')], check=True)
+                            '-I', str(ARDUINO_JSON), str(work / 'test.cpp'), str(ROOT / 'src/Core/PsramJsonAllocator.cpp'), '-o', str(work / 'test')], check=True)
             subprocess.run([str(work / 'test')], check=True)
 
 

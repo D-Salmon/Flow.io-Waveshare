@@ -16,9 +16,6 @@ WAVESHARE_ANALOG_LAST_SLOT = 20
 WAVESHARE_DIGITAL_INPUT_LAST_SLOT = 12
 WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT = 15
 
-# End-inclusive derived-value slot index. Keep aligned with ValueIds::DerivedCapacity.
-VALUE_DERIVED_LAST_SLOT = 15
-
 try:
     Import("env")  # type: ignore
 except Exception:
@@ -173,47 +170,6 @@ def _expand_digital_input_slot_translations(translations: Dict[str, str], last_s
         new_lower = f"i{slot:02d}"
         old_upper = "I07"
         new_upper = f"I{slot:02d}"
-        for key, value in templates:
-            new_key = key.replace(old_lower, new_lower)
-            if new_key in translations:
-                continue
-            translations[new_key] = value.replace(old_lower, new_lower).replace(old_upper, new_upper)
-
-
-def _expand_value_slot_docs(docs: Dict[str, dict], last_slot: int) -> None:
-    """Clone the v00 derived-value descriptors for every derived-value slot."""
-    prefix = "io/value/v00"
-    templates = [
-        (key, value)
-        for key, value in docs.items()
-        if (key == prefix or key.startswith(prefix + "/")) and isinstance(value, dict)
-    ]
-    for slot in range(1, last_slot + 1):
-        old_lower = "v00"
-        new_lower = f"v{slot:02d}"
-        old_upper = "V00"
-        new_upper = f"V{slot:02d}"
-        for key, value in templates:
-            new_key = key.replace(old_lower, new_lower)
-            if new_key in docs:
-                continue
-            encoded = json.dumps(value, ensure_ascii=False)
-            encoded = encoded.replace(old_lower, new_lower).replace(old_upper, new_upper)
-            docs[new_key] = json.loads(encoded)
-
-
-def _expand_value_slot_translations(translations: Dict[str, str], last_slot: int) -> None:
-    """Clone v00 translations used by generated derived-value descriptors."""
-    templates = [
-        (key, value)
-        for key, value in translations.items()
-        if ".v00." in key and isinstance(value, str)
-    ]
-    for slot in range(1, last_slot + 1):
-        old_lower = "v00"
-        new_lower = f"v{slot:02d}"
-        old_upper = "V00"
-        new_upper = f"V{slot:02d}"
         for key, value in templates:
             new_key = key.replace(old_lower, new_lower)
             if new_key in translations:
@@ -442,8 +398,10 @@ def _apply_profile_specific_io_enum_sets(meta: dict, profile: str, tft_enabled: 
                 101: "ADSInt1 - ADS1115 interne canal 1 [101]",
                 102: "ADSInt2 - ADS1115 interne canal 2 [102]",
                 103: "ADSInt3 - ADS1115 interne canal 3 [103]",
-                110: "ADSExt0 - ADS1115 externe paire diff 0 [110]",
-                111: "ADSExt1 - ADS1115 externe paire diff 1 [111]",
+                110: "ADSExt0 - ADS1115 externe canal A0 [110]",
+                111: "ADSExt1 - ADS1115 externe canal A1 [111]",
+                112: "ADSExt2 - ADS1115 externe canal A2 [112]",
+                113: "ADSExt3 - ADS1115 externe canal A3 [113]",
                 120: "OneWireWater - DS18B20 GPIO20 [120]",
                 121: "OneWireAir - DS18B20 GPIO19 [121]",
                 130: "SHT40Temp - SHT40 canal 0 [130]",
@@ -606,14 +564,16 @@ def _apply_profile_specific_io_enum_sets(meta: dict, profile: str, tft_enabled: 
     slot_entries = enum_sets.get(slot_key)
     if profile == "waveshare" and isinstance(slot_entries, list):
         current = [item for item in slot_entries if isinstance(item, dict)]
+        slot_labels_waveshare = {slot: f"pd{slot} -> d{slot:02d} [{slot}]" for slot in range(8)}
         current_by_value: Dict[int, dict] = {}
         for entry in current:
             value = _to_int(entry.get("value"))
             if value is not None:
                 current_by_value[value] = entry
         relabeled: List[dict] = []
-        for value, entry in sorted(current_by_value.items()):
-            relabeled.append(sanitize_enum_entry(entry, f"pd{value} -> d{value:02d} [{value}]"))
+        for value in range(8):
+            entry = current_by_value.get(value, {"value": value})
+            relabeled.append(sanitize_enum_entry(entry, slot_labels_waveshare[value]))
         enum_sets[slot_key] = relabeled
 
     return meta
@@ -644,10 +604,6 @@ def main() -> None:
     cfgmods_docs, cfgmods_meta, cfgmods_files = _load_text_docs(src_root, stem="cfgmods", locale=locale)
     i18n, i18n_files = _load_text_translations(src_root, locale=locale)
 
-    # Derived values are a core capability: every profile exposes the same 16 slots.
-    _expand_value_slot_docs(cfgdocs_docs, VALUE_DERIVED_LAST_SLOT)
-    _expand_value_slot_translations(i18n, VALUE_DERIVED_LAST_SLOT)
-
     pio_env = _detect_pio_env()
     profile = _profile_override_from_project_options() or _profile_from_pio_env(pio_env)
     tft_enabled = _env_flag("FLOW_CFGDOC_TFT_ENABLED")
@@ -670,8 +626,8 @@ def main() -> None:
             digital_last=WAVESHARE_DIGITAL_INPUT_LAST_SLOT,
             output_last=WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT,
         )
-        _prune_pool_device_docs(cfgdocs_docs, last_slot=WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT)
-        _prune_pool_device_docs(cfgmods_docs, last_slot=WAVESHARE_DIGITAL_OUTPUT_LAST_SLOT)
+        _prune_pool_device_docs(cfgdocs_docs, last_slot=7)
+        _prune_pool_device_docs(cfgmods_docs, last_slot=7)
 
     combined_meta = _resolve_meta_i18n(_merge_meta_dict(cfgdocs_meta, cfgmods_meta), i18n)
     if profile == "waveshare":

@@ -16,7 +16,7 @@ struct Ds18b20DriverConfig {
 
 class Ds18b20Driver : public IAnalogSourceDriver {
 public:
-    Ds18b20Driver(const char* driverId, OneWireBus* bus, const uint8_t address[8],
+    Ds18b20Driver(const char* driverId, IOneWireTemperatureBus* bus, const uint8_t address[8],
                   const Ds18b20DriverConfig& cfg);
 
     const char* id() const override { return driverId_; }
@@ -28,7 +28,7 @@ public:
 
 private:
     const char* driverId_ = nullptr;
-    OneWireBus* bus_ = nullptr;
+    IOneWireTemperatureBus* bus_ = nullptr;
     uint8_t address_[8] = {0};
     Ds18b20DriverConfig cfg_{};
 

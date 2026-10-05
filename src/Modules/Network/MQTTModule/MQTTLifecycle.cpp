@@ -518,6 +518,7 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void MQTTModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 {
+    loadAndArmBootValidation_();
     if (!cfgProducer_) {
         cfgProducer_ = new (std::nothrow) MqttConfigRouteProducer();
     }
@@ -645,4 +646,44 @@ void MQTTModule::loop()
     reportClientTaskStackIfDue_(nowMs);
 
     vTaskDelay(pdMS_TO_TICKS(Limits::Mqtt::Timing::LoopDelayMs));
+}
+
+void MQTTModule::persistBootValidation_(bool valid)
+{
+    if (mqttValidCurrentBoot_ == valid) return;
+    if (!cfgSvc_ || !cfgSvc_->writeRuntimeBlob) {
+        LOGW("mqtt boot validation persistence unavailable");
+        return;
+    }
+
+    const uint8_t marker = valid ? 1U : 0U;
+    if (!cfgSvc_->writeRuntimeBlob(cfgSvc_->ctx,
+                                   NvsKeys::Mqtt::PreviousBootValid,
+                                   &marker,
+                                   sizeof(marker))) {
+        LOGW("mqtt boot validation persistence failed value=%u", (unsigned)marker);
+        return;
+    }
+
+    mqttValidCurrentBoot_ = valid;
+    LOGI("mqtt boot validation persisted value=%u", (unsigned)marker);
+}
+
+void MQTTModule::loadAndArmBootValidation_()
+{
+    uint8_t marker = 0U;
+    size_t actualLen = 0U;
+    const bool readOk = cfgSvc_ && cfgSvc_->readRuntimeBlob &&
+                        cfgSvc_->readRuntimeBlob(cfgSvc_->ctx,
+                                                 NvsKeys::Mqtt::PreviousBootValid,
+                                                 &marker,
+                                                 sizeof(marker),
+                                                 &actualLen);
+    mqttValidPreviousBoot_ = readOk && actualLen == sizeof(marker) && marker == 1U;
+    mqttValidCurrentBoot_ = mqttValidPreviousBoot_;
+    LOGI("mqtt previous boot validation=%u", (unsigned)mqttValidPreviousBoot_);
+
+    // Mark this boot unvalidated until an actual MQTT connection succeeds.
+    // The next boot can then expose recovery immediately if MQTT is unavailable.
+    if (mqttValidCurrentBoot_) persistBootValidation_(false);
 }

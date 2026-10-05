@@ -20,9 +20,9 @@ inline void metric(JsonObject out, const PoolHistoryMetricSummary& value) {
 inline void activity(JsonObject out, const PoolHistoryActivitySummary& value) {
     number(out["seconds"], value.valid, value.runningSec);
     out["observed_seconds"] = value.observedSec;
-    JsonArray periods = out.createNestedArray("periods");
+    JsonArray periods = out["periods"].to<JsonArray>();
     for (const auto& period : value.periods) {
-        JsonObject item = periods.createNestedObject();
+        JsonObject item = periods.add<JsonObject>();
         number(item["seconds"], period.valid, period.runningSec);
         item["observed_seconds"] = period.observedSec;
     }
@@ -33,15 +33,15 @@ inline void day(JsonObject out, const PoolHistoryDaySummary& value) {
     out["complete"] = value.complete;
     out["from"] = value.observedFromUtc;
     out["until"] = value.observedUntilUtc;
-    activity(out.createNestedObject("filtration"), value.filtration);
-    activity(out.createNestedObject("heating"), value.heating);
+    activity(out["filtration"].to<JsonObject>(), value.filtration);
+    activity(out["heating"].to<JsonObject>(), value.heating);
     const PoolHistoryMetricSummary* metrics[] = {
         &value.waterTemperature, &value.airTemperature, &value.ph, &value.orp,
         &value.daytimeWaterTemperature, &value.nighttimeWaterTemperature,
         &value.phSetpoint, &value.orpSetpoint, &value.heaterSetpoint
     };
-    JsonArray items = out.createNestedArray("metrics");
-    for (const auto* item : metrics) metric(items.createNestedObject(), *item);
+    JsonArray items = out["metrics"].to<JsonArray>();
+    for (const auto* item : metrics) metric(items.add<JsonObject>(), *item);
     number(out["night_delta"], value.dayToNightTemperatureVariationValid,
            value.dayToNightTemperatureVariationC);
     number(out["refill_litres"], value.refillVolumeValid, value.refillVolumeLitres);

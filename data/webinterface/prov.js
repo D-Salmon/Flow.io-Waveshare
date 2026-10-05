@@ -4,7 +4,8 @@
   const el = (id) => document.getElementById(id);
   const state = {
     scanTimer: 0,
-    saving: false
+    saving: false,
+    csrfToken: ""
   };
 
   function setStatus(text, tone) {
@@ -22,7 +23,14 @@
   }
 
   async function apiJson(url, options, label) {
-    const res = await fetch(url, options || {});
+    const secured = Object.assign({}, options || {});
+    const method = String(secured.method || "GET").toUpperCase();
+    if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
+      const headers = new Headers(secured.headers || {});
+      if (state.csrfToken) headers.set("X-Flow-CSRF", state.csrfToken);
+      secured.headers = headers;
+    }
+    const res = await fetch(url, secured);
     const data = await res.json().catch(() => null);
     if (!res.ok || !data || data.ok === false) {
       const msg = data && data.err && data.err.code ? data.err.code : (label || url);
@@ -125,6 +133,8 @@
   async function loadMeta() {
     try {
       const meta = await apiJson("/api/web/meta", { cache: "no-store" }, "meta");
+      const token = typeof meta.csrf_token === "string" ? meta.csrf_token.trim() : "";
+      if (/^[0-9a-f]{32}$/i.test(token)) state.csrfToken = token;
       const chip = el("provFirmware");
       if (chip) chip.textContent = meta.firmware_version || meta.profile_name || "Provisioning";
     } catch (err) {
@@ -138,7 +148,10 @@
       const data = await apiJson("/api/wifi/config", { cache: "no-store" }, "wifi");
       el("provWifiEnabled").checked = toBool(data.enabled);
       el("provWifiSsid").value = data.ssid || "";
-      el("provWifiPass").value = data.pass || "";
+      el("provWifiPass").value = "";
+      el("provWifiPass").placeholder = data.password_configured
+        ? "Laisser vide pour conserver"
+        : "Mot de passe reseau";
       setStatus("Configuration reseau prete.", "ok");
       refreshScan(true);
     } catch (err) {
@@ -166,7 +179,7 @@
 
       setStatus("Configuration reseau enregistree. Redemarrage en cours...", "ok");
       if (!data.reboot_scheduled) {
-        await fetch("/api/system/reboot", { method: "POST" }).catch(() => null);
+        await apiJson("/api/system/reboot", { method: "POST" }, "reboot").catch(() => null);
       }
     } catch (err) {
       state.saving = false;
@@ -194,6 +207,8 @@
   }
 
   bind();
-  loadMeta();
-  loadWifi();
+  void (async () => {
+    await loadMeta();
+    await loadWifi();
+  })();
 }());

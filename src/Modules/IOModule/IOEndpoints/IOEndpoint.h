@@ -27,6 +27,7 @@ enum IOEndpointCapability : uint8_t {
 struct IOEndpointValue {
     uint32_t timestampMs = 0;
     bool valid = false;
+    bool held = false;
     uint8_t valueType = IO_EP_VALUE_FLOAT;
     union {
         bool b;

@@ -176,6 +176,7 @@ private:
     static const char* wlStatusName_(wl_status_t st);
     bool isStartupTransientWindow_() const;
     void logConfigSummary_() const;
+    bool startConnectFallback_(const char* ssid, const char* pass, bool transientBoot);
     void startConnect();
     void stopMdns_();
     void syncMdns_();

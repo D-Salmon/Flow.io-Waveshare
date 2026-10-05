@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file ConfigMenuModel.cpp
  * @brief Implementation file.
@@ -514,7 +515,7 @@ uint8_t ConfigMenuModel::moduleRowCount_(const char* module) const
         return 0;
     }
 
-    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, jsonBuf);
     free(jsonBuf);
     if (err || !doc.is<JsonObjectConst>()) return 0;
@@ -647,7 +648,7 @@ bool ConfigMenuModel::readModuleNameField_(const char* modulePath,
         return false;
     }
 
-    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, jsonBuf);
     free(jsonBuf);
     if (err || !doc.is<JsonObjectConst>()) return false;
@@ -723,7 +724,7 @@ bool ConfigMenuModel::configRowAt_(const char* module, uint8_t index, Row& out) 
         return false;
     }
 
-    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, jsonBuf);
     free(jsonBuf);
     if (err || !doc.is<JsonObjectConst>()) return false;
@@ -968,7 +969,7 @@ void ConfigMenuModel::buildModuleView_(ConfigMenuView& out) const
         return;
     }
 
-    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, jsonBuf);
     free(jsonBuf);
     if (err || !doc.is<JsonObjectConst>()) return;

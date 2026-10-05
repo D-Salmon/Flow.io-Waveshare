@@ -1,5 +1,6 @@
 """Exercise the production watchdog snapshot/age calculation with controlled time."""
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 import unittest
@@ -16,7 +17,7 @@ class WebWatchdogTests(unittest.TestCase):
             cpp.write_text(code)
             binary = Path(tmp) / 'test'
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                            '-fsanitize=address,undefined', str(cpp), '-o', str(binary)], check=True)
+                            *(['-fsanitize=address,undefined'] if os.name != 'nt' else []), str(cpp), '-o', str(binary)], check=True)
             subprocess.run([str(binary)], check=True)
 
 if __name__ == '__main__':

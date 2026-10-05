@@ -9,6 +9,36 @@
       "type": "Bool",
       "label_t": "cfgdocs.ethernet.enabled.label",
       "help_t": "cfgdocs.ethernet.enabled.help"
+    },
+    "ethernet/dhcp": {
+      "type": "Bool",
+      "label_t": "cfgdocs.ethernet.dhcp.label",
+      "help_t": "cfgdocs.ethernet.dhcp.help"
+    },
+    "ethernet/ip": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.ethernet.ip.label",
+      "help_t": "cfgdocs.ethernet.ip.help"
+    },
+    "ethernet/subnet": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.ethernet.subnet.label",
+      "help_t": "cfgdocs.ethernet.subnet.help"
+    },
+    "ethernet/gateway": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.ethernet.gateway.label",
+      "help_t": "cfgdocs.ethernet.gateway.help"
+    },
+    "ethernet/dns1": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.ethernet.dns1.label",
+      "help_t": "cfgdocs.ethernet.dns1.help"
+    },
+    "ethernet/dns2": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.ethernet.dns2.label",
+      "help_t": "cfgdocs.ethernet.dns2.help"
     }
   }
 }

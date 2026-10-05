@@ -2,6 +2,8 @@
   "locale": "en",
   "translations": {
     "cfgdocs.hmi.buzzer.enable.help": "Enable the local acknowledgement beep after a configuration is applied in ConfigStore.",
-    "cfgdocs.hmi.buzzer.enable.label": "Buzzer enabled"
+    "cfgdocs.hmi.buzzer.enable.label": "Buzzer enabled",
+    "cfgdocs.hmi.buzzer.alarm_sound.help": "Enable audible notifications for Alarm or Critical severity. Diagnostic warnings remain silent.",
+    "cfgdocs.hmi.buzzer.alarm_sound.label": "Alarm sound"
   }
 }

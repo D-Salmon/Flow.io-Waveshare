@@ -57,7 +57,7 @@ int main() {
     assert(sizeof(Buttons) / sizeof(*Buttons) == 3);
     for (size_t i = 0; i < 3; ++i) {
         const auto& entry = Buttons[i];
-        DynamicJsonDocument discovery(4096), payload(512);
+        JsonDocument discovery, payload;
         auto root = discovery.to<JsonObject>();
         HADiscoveryJson::button(root, "flow/device/cmd", entry.payloadPress);
         HADiscoveryJson::availability(root, "flow/device/status", entry.availabilityTopicSuffix, entry.availabilityTemplate);
@@ -68,14 +68,14 @@ int main() {
         assert(discovery["avty_mode"] == "all");
         assert(discovery["avty"].size() == 2);
         assert(!deserializeJson(payload, discovery["pl_prs"].as<const char*>()));
-        assert(!payload.containsKey("args"));
-        assert(!payload["args"].containsKey("slot"));
-        assert(!payload["args"].containsKey("duration_s"));
+        assert(payload["args"].isUnbound());
+        assert(payload["args"]["slot"].isUnbound());
+        assert(payload["args"]["duration_s"].isUnbound());
         assert(entry.includeNameInUniqueId == false);
         assert(strcmp(entry.availabilityTemplate, i % 3 == 2 ? Releasable : Available) == 0);
     }
     for (const auto& entry : Sensors) {
-        DynamicJsonDocument doc(4096);
+        JsonDocument doc;
         HADiscoveryJson::sensor(doc.to<JsonObject>(), entry.stateTopicSuffix, entry.valueTemplate,
                                entry.isText, entry.attributesTemplate);
         char encoded[4096];
@@ -83,7 +83,7 @@ int main() {
         assert(!deserializeJson(doc, encoded));
         assert(strcmp(doc["val_tpl"], entry.valueTemplate) == 0);
         if (entry.isText) {
-            assert(!doc.containsKey("stat_cla"));
+            assert(doc["stat_cla"].isUnbound());
             assert(strcmp(doc["json_attr_tpl"], entry.attributesTemplate) == 0);
             assert(strcmp(doc["json_attr_t"], entry.stateTopicSuffix) == 0);
             assert(strstr(entry.valueTemplate, "forced_on"));
@@ -95,7 +95,7 @@ int main() {
     }
     // Templates containing quotes and newlines remain intact in JSON.
     {
-        DynamicJsonDocument doc(4096);
+        JsonDocument doc;
         const char* templ = "{{ value_json[\"quoted\"] }}\n";
         HADiscoveryJson::sensor(doc.to<JsonObject>(), "state", templ, true);
         char encoded[4096];
@@ -106,7 +106,7 @@ int main() {
     for (const auto& entry : {Duration}) {
         // Exercise the escaping expected by the existing number serializer.
         std::string json = std::string("{\"cmd_tpl\":\"") + entry.commandTemplate + "\"}";
-        DynamicJsonDocument doc(2048);
+        JsonDocument doc;
         assert(!deserializeJson(doc, json));
         std::string command = doc["cmd_tpl"].as<std::string>();
         const std::string expression = "{{ value | int }}";

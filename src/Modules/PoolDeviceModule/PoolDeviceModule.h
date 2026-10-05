@@ -120,10 +120,6 @@ private:
         char haTopic[40]{};
         char haCommand[160]{};
         char haOptions[160]{};
-        char haModeSuffix[24]{};
-        char haModeCommand[1024]{};
-        char haModeOptions[512]{};
-        char haTelemetrySuffix[32]{};
         bool driverReady = false;
         PoolDeviceTarget desired{};
         PoolDeviceTarget effective{};
@@ -208,8 +204,7 @@ private:
     char overrideOptions_[1024]{};
     PoolDeviceSvcStatus svcSetRunningImpl_(uint8_t slot, uint8_t on);
     PoolDeviceSvcStatus svcSetManualRunningImpl_(uint8_t slot, uint8_t on);
-    PoolDeviceSvcStatus setRunning_(uint8_t slot, uint8_t on, bool manual, const float* setpoint = nullptr);
-    PoolDeviceSvcStatus svcSetRunningAtSetpointImpl_(uint8_t slot, uint8_t on, float setpoint);
+    PoolDeviceSvcStatus setRunning_(uint8_t slot, uint8_t on, bool manual);
     PoolDeviceSvcStatus setTarget_(uint8_t slot, const PoolDeviceTarget* target, bool manual);
     PoolDeviceSvcStatus svcSetWritesEnabledImpl_(uint8_t enabled);
     uint8_t svcWritesEnabledImpl_() const;
@@ -245,9 +240,6 @@ private:
     static const char* blockReasonStr_(uint8_t reason);
 
     // Commands
-    enum class TargetField : uint8_t { Setpoint, Mode };
-    bool handlePoolTarget_(const CommandRequest&, char* reply, size_t length, TargetField);
-    static bool cmdPoolMode_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdPoolSetpoint_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdPoolWrite_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdPoolRefill_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
@@ -317,8 +309,7 @@ private:
         ServiceBinding::bind<&PoolDeviceModule::svcReleaseOverrideImpl_>,
         ServiceBinding::bind<&PoolDeviceModule::svcOverrideCommandImpl_>,
         ServiceBinding::bind<&PoolDeviceModule::svcOverrideDurationImpl_>,
-        ServiceBinding::bind<&PoolDeviceModule::svcSetManualRunningImpl_>,
-        ServiceBinding::bind<&PoolDeviceModule::svcSetRunningAtSetpointImpl_>
+        ServiceBinding::bind<&PoolDeviceModule::svcSetManualRunningImpl_>
     };
     DomainStatusServiceProvider domainStatusProvider_{};
     EventBus* eventBus_ = nullptr;

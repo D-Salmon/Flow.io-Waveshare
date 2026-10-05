@@ -40,10 +40,15 @@
         "children": [
           "ethernet",
           "wifi",
-          "time",
-          "mqtt"
+          "mqtt",
+          "time"
         ]
       }
+    ],
+    "cfg_tree_hidden_paths": [
+      "ethernet",
+      "mqtt",
+      "wifi"
     ]
   }
 }

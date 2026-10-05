@@ -8,17 +8,20 @@
     "wifi/enabled": {
       "type": "Bool",
       "label_t": "cfgdocs.wifi.enabled.label",
-      "help_t": "cfgdocs.wifi.enabled.help"
+      "help_t": "cfgdocs.wifi.enabled.help",
+      "order": 0
     },
     "wifi/pass": {
       "type": "CharArray",
       "label_t": "cfgdocs.wifi.pass.label",
-      "help_t": "cfgdocs.wifi.pass.help"
+      "help_t": "cfgdocs.wifi.pass.help",
+      "order": 2
     },
     "wifi/ssid": {
       "type": "CharArray",
       "label_t": "cfgdocs.wifi.ssid.label",
-      "help_t": "cfgdocs.wifi.ssid.help"
+      "help_t": "cfgdocs.wifi.ssid.help",
+      "order": 1
     }
   }
 }

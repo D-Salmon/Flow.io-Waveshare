@@ -1,3 +1,5 @@
+#include <ArduinoJson.h>
+ArduinoJson::Allocator* psramOnlyJsonAllocator() { return ArduinoJson::detail::DefaultAllocator::instance(); }
 #include "fixture.h"
 int main() {
     { // Periodic frequency unchanged, then forced save reads the latest hardware count.

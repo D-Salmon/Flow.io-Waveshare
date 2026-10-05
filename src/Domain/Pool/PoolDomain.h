@@ -10,7 +10,7 @@ namespace PoolDomain {
 inline constexpr DomainSlotPreset kDomainSlots[] = {
     {PoolIds::SensorOrp, IO_SLOT_ANALOG_INPUT, "ORP", "ORP", 0, true, 0},
     {PoolIds::SensorPh, IO_SLOT_ANALOG_INPUT, "pH", "pH", 1, true, 0},
-    {PoolIds::SensorPsi, IO_SLOT_ANALOG_INPUT, "PSI", "PSI", 2, true, 0},
+    {PoolIds::SensorPsi, IO_SLOT_ANALOG_INPUT, "PSI", "Pression", 2, true, 0},
     {PoolIds::SensorSpareAnalog, IO_SLOT_ANALOG_INPUT, "Spare", "Spare", 3, true, 0},
     {PoolIds::SensorWaterTemp, IO_SLOT_ANALOG_INPUT, "Water Temperature", "Water Temperature", 4, true, 0},
     {PoolIds::SensorAirTemp, IO_SLOT_ANALOG_INPUT, "Air Temperature", "Air Temperature", 5, true, 0},
@@ -26,7 +26,7 @@ inline constexpr DomainSlotPreset kDomainSlots[] = {
     {PoolIds::ActuatorChlorinePump, IO_SLOT_DIGITAL_OUTPUT, "io_chl_pmp", "Chlorine Pump", 2, true, 0},
     {PoolIds::ActuatorRobot, IO_SLOT_DIGITAL_OUTPUT, "io_robot", "Robot", 3, true, 0},
     {PoolIds::ActuatorFillPump, IO_SLOT_DIGITAL_OUTPUT, "io_fill_pmp", "Remplissage", 4, true, 0},
-    {PoolIds::ActuatorChlorineGenerator, IO_SLOT_DIGITAL_OUTPUT, "io_chl_gen", "Electrolyse", 5, true, 0},
+    {PoolIds::ActuatorChlorineGenerator, IO_SLOT_DIGITAL_OUTPUT, "EXIO6", "Relais libre CH6", 5, true, 0},
     {PoolIds::ActuatorLights, IO_SLOT_DIGITAL_OUTPUT, "io_lights", "Lights", 6, true, 0},
     {PoolIds::ActuatorWaterHeater, IO_SLOT_DIGITAL_OUTPUT, "io_wat_htr", "Water Heater", 7, true, 0},
 };
@@ -66,8 +66,8 @@ inline constexpr PoolDevicePreset kPoolDevices[] = {
     {PoolIds::DeviceRobot, PoolIds::ActuatorRobot, "io_robot", "Robot", "mdi:robot-vacuum", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, PoolIds::DeviceFiltrationPump, 0},
     {PoolIds::DeviceFillPump, PoolIds::ActuatorFillPump, "io_fill_pmp", "Fill Pump", "mdi:waves-arrow-up", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID,
      PoolDefaults::FillPumpMaxUptimeDaySec},
-    {PoolIds::DeviceChlorineGenerator, PoolIds::ActuatorChlorineGenerator, "io_chl_gen", "Chlorine Generator", "mdi:flash", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f,
-     PoolIds::DeviceFiltrationPump, PoolDefaults::ChlorineGeneratorMaxUptimeDaySec},
+    {PoolIds::DeviceChlorineGenerator, PoolIds::ActuatorChlorineGenerator, "EXIO6", "Relais libre CH6", "mdi:electric-switch", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f,
+     POOL_DEVICE_INVALID, 0},
     {PoolIds::DeviceLights, PoolIds::ActuatorLights, "io_lights", "Lights", "mdi:lightbulb", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID, 0},
     {PoolIds::DeviceWaterHeater, PoolIds::ActuatorWaterHeater, "io_wat_htr", "Water Heater", "mdi:water-boiler", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f,
      POOL_DEVICE_INVALID, 0},

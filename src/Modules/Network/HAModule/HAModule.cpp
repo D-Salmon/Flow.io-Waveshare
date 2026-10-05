@@ -5,7 +5,7 @@
 
 #include "HAModule.h"
 #include "HADiscoveryJson.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include "Core/BufferUsageTracker.h"
 #include "Core/FirmwareVersion.h"
 #include "Modules/Network/HAModule/HARuntime.h"
@@ -559,13 +559,12 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
                              const char* availabilityTemplate,
                              bool isText,
                              MqttBuildContext* outCtx,
-                             const char* attributesTemplate, const char* identityName)
+                             const char* attributesTemplate)
 {
     if (!outCtx || !stateTopic || !valueTemplate) return false;
     (void)hasEntityName; // Preserve existing sensor naming and unique IDs.
-    SpiRamJsonDocument doc(4096);
-    if (!initDiscoveryDocument_(doc, "sensor", objectId, identityName ? identityName : name, true)) return false;
-    doc["name"] = name;
+    JsonDocument doc(psramOnlyJsonAllocator());
+    if (!initDiscoveryDocument_(doc, "sensor", objectId, name, true)) return false;
     if (unit && unit[0]) doc["unit_of_meas"] = unit;
     if (entityCategory && entityCategory[0]) doc["ent_cat"] = entityCategory;
     if (icon && icon[0]) doc["ic"] = icon;
@@ -583,7 +582,7 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
 bool HAModule::initDiscoveryDocument_(JsonDocument& doc, const char* component,
                                       const char* objectId, const char* name, bool includeNameInUniqueId)
 {
-    if (!objectId || !name || doc.capacity() == 0) return false;
+    if (!objectId || !name || doc.overflowed()) return false;
     char defaultEntityId[224]{};
     char uniqueId[256]{};
     if (!buildDefaultEntityId(component, objectId, defaultEntityId, sizeof(defaultEntityId)) ||
@@ -595,8 +594,8 @@ bool HAModule::initDiscoveryDocument_(JsonDocument& doc, const char* component,
     doc["uniq_id"] = uniqueId;
     doc["has_entity_name"] = false;
     doc["o"]["name"] = originName_;
-    JsonObject device = doc.createNestedObject("dev");
-    device.createNestedArray("ids").add(deviceIdent_);
+    JsonObject device = doc["dev"].to<JsonObject>();
+    device["ids"].to<JsonArray>().add(deviceIdent_);
     device["name"] = deviceName_;
     device["mf"] = cfgData_.vendor;
     device["mdl"] = cfgData_.model;
@@ -612,7 +611,7 @@ bool HAModule::publishBinarySensor(const char* objectId, const char* name,
                                    MqttBuildContext* outCtx)
 {
     if (!outCtx || !stateTopic || !valueTemplate) return false;
-    SpiRamJsonDocument doc(4096);
+    JsonDocument doc(psramOnlyJsonAllocator());
     if (!initDiscoveryDocument_(doc, "binary_sensor", objectId, name, includeNameInUniqueId)) return false;
     if (deviceClass && deviceClass[0]) doc["dev_cla"] = deviceClass;
     if (entityCategory && entityCategory[0]) doc["ent_cat"] = entityCategory;
@@ -814,7 +813,7 @@ bool HAModule::publishButton(const char* objectId, const char* name,
                              MqttBuildContext* outCtx)
 {
     if (!outCtx || !commandTopic || !payloadPress) return false;
-    SpiRamJsonDocument doc(4096);
+    JsonDocument doc(psramOnlyJsonAllocator());
     if (!initDiscoveryDocument_(doc, "button", objectId, name, includeNameInUniqueId)) return false;
     if (entityCategory && entityCategory[0]) doc["ent_cat"] = entityCategory;
     if (icon && icon[0]) doc["ic"] = icon;
@@ -910,7 +909,7 @@ void HAModule::refreshDeviceNameFromMqttConfig_()
     bool truncated = false;
     if (!cfgSvc_->toJsonModule(cfgSvc_->ctx, "mqtt", mqttJson, sizeof(mqttJson), &truncated)) return;
 
-    StaticJsonDocument<512> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, mqttJson);
     if (err || !doc.is<JsonObjectConst>()) return;
 
@@ -1058,7 +1057,7 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
         if (buildObjectId(e.objectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) {
             mqttSvc_->formatTopic(mqttSvc_->ctx, e.stateTopicSuffix, stateTopicBuf_, sizeof(stateTopicBuf_));
             ok = publishSensor(objectIdBuf_, e.name, stateTopicBuf_, e.valueTemplate,
-                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx, e.attributesTemplate, e.identityName);
+                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx, e.attributesTemplate);
         }
     } else {
         cursor = (uint16_t)(cursor + sensorCount_);

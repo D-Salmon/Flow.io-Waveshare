@@ -8,6 +8,7 @@
 #include "Core/Services/IActivityLog.h"
 #include "Core/Services/ITime.h"
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 
 class ActivityLogModule : public Module {
 public:
@@ -44,6 +45,22 @@ private:
                                      void* writerCtx);
     static bool serviceClear_(void* ctx);
 
+    static uint32_t serviceRequestDelete_(void* ctx, const uint32_t* sequences, uint16_t count, bool all);
+    struct DeleteRequest {
+        uint32_t sequences[kCapacity];
+        uint16_t count;
+        bool all;
+    };
+    uint32_t requestDelete_(const uint32_t* sequences, uint16_t count, bool all);
+    void processDelete_();
+    uint16_t removeRing_(uint32_t sequence, bool all);
+    DeleteRequest* pendingDelete_ = nullptr;
+    uint32_t deleteId_ = 0;
+    uint8_t deleteState_ = 0;
+    uint16_t deleteRemoved_ = 0;
+    bool recoverRewrite_();
+    SemaphoreHandle_t storageMutex_ = nullptr;
+    StaticSemaphore_t storageMutexStatic_{};
     bool emit_(const ActivityEvent& in);
     bool clear_();
     void getStats_(ActivityLogStats& out) const;

@@ -193,6 +193,14 @@ bool PoolLogicModule::serviceGetDeviceAssignments_(void* ctx, PoolDeviceAssignme
     *outAssignments = {self->filtrationDeviceSlot_, self->phPumpDeviceSlot_,
                        self->orpPumpDeviceSlot_, self->robotDeviceSlot_,
                        self->fillingDeviceSlot_, self->swgDeviceSlot_, self->heaterDeviceSlot_};
+    // The fork shares one relay between dosing and electrolysis.
+    if (self->disinfectionType_ == DisinfectionSwg) {
+        outAssignments->disinfectionPump = POOL_DEVICE_INVALID;
+    } else {
+        outAssignments->chlorineGenerator = POOL_DEVICE_INVALID;
+        if (self->disinfectionType_ == DisinfectionDisabled)
+            outAssignments->disinfectionPump = POOL_DEVICE_INVALID;
+    }
     return true;
 }
 
@@ -354,6 +362,29 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
     // Registration order mirrors the published config branches so init remains
     // easy to diff against the generated cfgdocs and MQTT routes.
+    treatmentAutoModeVar_.moduleName = kCfgModuleModes;
+    cfg.registerVar(treatmentAutoModeVar_, kCfgModuleId, kCfgBranchModes);
+    robotAutoModeVar_.moduleName = kCfgModuleModes;
+    cfg.registerVar(robotAutoModeVar_, kCfgModuleId, kCfgBranchModes);
+    fillingEnabledVar_.moduleName = kCfgModuleRefill;
+    cfg.registerVar(fillingEnabledVar_, kCfgModuleId, kCfgBranchRefill);
+    pressureMonitoringEnabledVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(pressureMonitoringEnabledVar_, kCfgModuleId, kCfgBranchSensors);
+    flowSwitchEnabledVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(flowSwitchEnabledVar_, kCfgModuleId, kCfgBranchSensors);
+    flowSwitchIoIdVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(flowSwitchIoIdVar_, kCfgModuleId, kCfgBranchSensors);
+    filtrationContactorFeedbackIoIdVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(filtrationContactorFeedbackIoIdVar_, kCfgModuleId, kCfgBranchSensors);
+    swgContactorFeedbackIoIdVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(swgContactorFeedbackIoIdVar_, kCfgModuleId, kCfgBranchSensors);
+    filtrationContactorFeedbackActiveHighVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(filtrationContactorFeedbackActiveHighVar_, kCfgModuleId, kCfgBranchSensors);
+    swgContactorFeedbackActiveHighVar_.moduleName = kCfgModuleSensors;
+    cfg.registerVar(swgContactorFeedbackActiveHighVar_, kCfgModuleId, kCfgBranchSensors);
+    cfg.registerVar(sensorHoldWaterTempVar_, kCfgModuleId, kCfgBranchSafety);
+    flowSwitchDelayVar_.moduleName = kCfgModuleSafety;
+    cfg.registerVar(flowSwitchDelayVar_, kCfgModuleId, kCfgBranchSafety);
     cfg.registerVar(enabledVar_, kCfgModuleId, kCfgBranchModes);
 
     cfg.registerVar(autoModeVar_, kCfgModuleId, kCfgBranchModes);
@@ -373,6 +404,9 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(startMinVar_, kCfgModuleId, kCfgBranchFiltration);
     cfg.registerVar(stopMaxVar_, kCfgModuleId, kCfgBranchFiltration);
     cfg.registerVar(calcStartVar_, kCfgModuleId, kCfgBranchFiltration);
+    cfg.registerVar(calcStartMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
+    cfg.registerVar(calcStopMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
+    cfg.registerVar(calcDurationMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
     cfg.registerVar(calcStopVar_, kCfgModuleId, kCfgBranchFiltration);
 
     cfg.registerVar(phIdVar_, kCfgModuleId, kCfgBranchSensors);
@@ -1173,7 +1207,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             1000,
             60000,
             "ph_pump_max_uptime",
-            "pH pump max uptime reached",
+            "Durée maximale pompe pH",
             "poollogic"
         };
         if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &phPumpMaxUptimeAlarm, &PoolLogicModule::condPhPumpMaxUptimeStatic_, this)) {
@@ -1188,7 +1222,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             1000,
             60000,
             "chlorine_pump_uptime",
-            "Chlorine pump max uptime reached",
+            "Durée maximale pompe chlore",
             "poollogic"
         };
         if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &chlorinePumpMaxUptimeAlarm, &PoolLogicModule::condChlorinePumpMaxUptimeStatic_, this)) {
@@ -1208,6 +1242,74 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         };
         if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &waterLevelLowAlarm, &PoolLogicModule::condWaterLevelLowStatic_, this)) {
             LOGW("PoolLogic failed to register AlarmId::PoolWaterLevelLow");
+        }
+        const AlarmRegistration waterTemperatureUnavailableAlarm{
+            AlarmId::PoolWaterTemperatureUnavailable,
+            AlarmSeverity::Warning,
+            false,
+            5UL * 60UL * 1000UL,
+            1000,
+            60UL * 60UL * 1000UL,
+            "water_temp_unavailable",
+            "Température d'eau indisponible",
+            "poollogic"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx,
+                                      &waterTemperatureUnavailableAlarm,
+                                      &PoolLogicModule::condWaterTemperatureUnavailableStatic_,
+                                      this)) {
+            LOGW("PoolLogic failed to register AlarmId::PoolWaterTemperatureUnavailable");
+        }
+
+        const AlarmRegistration filtrationContactorMismatchAlarm{
+            AlarmId::PoolFiltrationContactorMismatch,
+            AlarmSeverity::Critical,
+            true,
+            5000,
+            1000,
+            60000,
+            "filtr_cont_mismatch",
+            "Défaut surveillance disjoncteur filtration",
+            "poollogic"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx,
+                                      &filtrationContactorMismatchAlarm,
+                                      &PoolLogicModule::condFiltrationContactorMismatchStatic_,
+                                      this)) {
+            LOGW("PoolLogic failed to register AlarmId::PoolFiltrationContactorMismatch");
+        }
+
+        const AlarmRegistration swgContactorMismatchAlarm{
+            AlarmId::PoolChlorineGeneratorContactorMismatch,
+            AlarmSeverity::Critical,
+            true,
+            5000,
+            1000,
+            60000,
+            "swg_contactor_mismatch",
+            "Défaut surveillance disjoncteur électrolyseur",
+            "poollogic"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx,
+                                      &swgContactorMismatchAlarm,
+                                      &PoolLogicModule::condSwgContactorMismatchStatic_,
+                                      this)) {
+            LOGW("PoolLogic failed to register AlarmId::PoolChlorineGeneratorContactorMismatch");
+        }
+
+        const AlarmRegistration noFlowAlarm{
+            AlarmId::PoolNoFlow,
+            AlarmSeverity::Critical,
+            true,
+            2000,
+            1000,
+            60000,
+            "no_flow",
+            "Débit de filtration absent",
+            "poollogic"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &noFlowAlarm, &PoolLogicModule::condNoFlowStatic_, this)) {
+            LOGW("PoolLogic failed to register AlarmId::PoolNoFlow");
         }
     } else {
         LOGW("PoolLogic running without alarm service");
@@ -1294,6 +1396,7 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
     LOGI("PoolLogic disinfection=%s swg_control=%s",
          disinfectionTypeStr_(disinfectionType_),
          swgControlModeStr_(swgControlMode_));
+    alignSubordinateAutomationModes_();
     logDeviceSlotConfig_();
     resetOverridePolicies_();
 
@@ -1308,6 +1411,47 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
     portENTER_CRITICAL(&pendingMux_);
     pendingDailyRecalc_ = true;
     portEXIT_CRITICAL(&pendingMux_);
+}
+
+void PoolLogicModule::applyAutoMode_(bool requested)
+{
+    if (!cfgStore_) return;
+    (void)cfgStore_->set(enabledVar_, true);
+    enabled_ = true;
+    (void)cfgStore_->set(autoModeVar_, requested);
+    autoMode_ = requested;
+    alignSubordinateAutomationModes_();
+}
+
+bool PoolLogicModule::disinfectionAutoMode_() const
+{
+    return poolDisinfectionAutoMode(static_cast<PoolDisinfectionMethod>(disinfectionType_),
+                                   orpAutoMode_, treatmentAutoMode_);
+}
+
+void PoolLogicModule::alignSubordinateAutomationModes_()
+{
+    if (!cfgStore_) return;
+
+    const bool automatic = enabled_ && autoMode_;
+    const bool phShouldBeAuto = automatic;
+    const bool orpShouldBeAuto = automatic && disinfectionType_ == DisinfectionChlorineBromine;
+    const bool treatmentShouldBeAuto = automatic &&
+                                       (disinfectionType_ == DisinfectionSwg ||
+                                        disinfectionType_ == DisinfectionActiveOxygen);
+
+    if (phAutoMode_ != phShouldBeAuto) {
+        (void)cfgStore_->set(phAutoModeVar_, phShouldBeAuto);
+        phAutoMode_ = phShouldBeAuto;
+    }
+    if (orpAutoMode_ != orpShouldBeAuto) {
+        (void)cfgStore_->set(orpAutoModeVar_, orpShouldBeAuto);
+        orpAutoMode_ = orpShouldBeAuto;
+    }
+    if (treatmentAutoMode_ != treatmentShouldBeAuto) {
+        (void)cfgStore_->set(treatmentAutoModeVar_, treatmentShouldBeAuto);
+        treatmentAutoMode_ = treatmentShouldBeAuto;
+    }
 }
 
 bool PoolLogicModule::activityTimeReady_() const
@@ -1417,16 +1561,21 @@ void PoolLogicModule::onEventStatic_(const Event& e, void* user)
 
 void PoolLogicModule::onEvent_(const Event& e)
 {
-    if (!enabled_) return;
-
     if (e.id == EventId::ConfigChanged) {
         if (!e.payload || e.len < sizeof(ConfigChangedPayload)) return;
         const ConfigChangedPayload* p = (const ConfigChangedPayload*)e.payload;
         if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
+            (p->localBranchId == kCfgBranchSensors || p->localBranchId == kCfgBranchSafety)) {
+            sensorHoldBindingsReady_ = false;
+        }
+
+        if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
             p->localBranchId == kCfgBranchFiltration) {
             if (strcmp(p->nvsKey, NvsKeys::PoolLogic::FiltrationCalcStart) == 0 ||
-                strcmp(p->nvsKey, NvsKeys::PoolLogic::FiltrationCalcStop) == 0) {
-                (void)applyFiltrationWindowSlot_(filtrationCalcStart_, filtrationCalcStop_);
+                strcmp(p->nvsKey, NvsKeys::PoolLogic::FiltrationCalcStop) == 0 ||
+                strcmp(p->nvsKey, "pl_fstartm") == 0 || strcmp(p->nvsKey, "pl_fstopm") == 0 ||
+                strcmp(p->nvsKey, "pl_fdurm") == 0) {
+                (void)applyFiltrationWindowSlot_(filtrationCalcStartMinute_, filtrationCalcStopMinute_, filtrationCalcDurationMinute_);
             } else {
                 portENTER_CRITICAL(&pendingMux_);
                 pendingDailyRecalc_ = true;
@@ -1437,18 +1586,18 @@ void PoolLogicModule::onEvent_(const Event& e)
         if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
             p->localBranchId == kCfgBranchModes &&
             p->nvsKey) {
-            if (strcmp(p->nvsKey, NvsKeys::PoolLogic::AutoMode) == 0 && autoMode_) {
-                portENTER_CRITICAL(&pendingMux_);
-                pendingFiltrationReconcile_ = true;
-                portEXIT_CRITICAL(&pendingMux_);
+            if (strcmp(p->nvsKey, NvsKeys::PoolLogic::AutoMode) == 0) {
+                alignSubordinateAutomationModes_();
+                if (autoMode_) {
+                    portENTER_CRITICAL(&pendingMux_);
+                    pendingFiltrationReconcile_ = true;
+                    portEXIT_CRITICAL(&pendingMux_);
+                }
             } else if (strcmp(p->nvsKey, NvsKeys::PoolLogic::DisinfectionType) == 0) {
                 if (disinfectionType_ > DisinfectionDisabled) disinfectionType_ = DisinfectionChlorineBromine;
                 (void)writeDeviceDesired_(orpPumpDeviceSlot_, false);
                 (void)writeDeviceDesired_(swgDeviceSlot_, false);
-                if (disinfectionType_ == DisinfectionChlorineBromine && !orpAutoMode_ && cfgStore_) {
-                    (void)cfgStore_->set(orpAutoModeVar_, true);
-                    orpAutoMode_ = true;
-                }
+                alignSubordinateAutomationModes_();
                 resetTemporalPidState_(orpPidState_, millis());
                 orpPidEnabled_ = false;
                 LOGI("PoolLogic disinfection changed: %s", disinfectionTypeStr_(disinfectionType_));
@@ -1566,6 +1715,12 @@ void PoolLogicModule::normalizeDeviceSlots_()
     normalize(phPumpDeviceSlot_, PoolIds::DevicePhPump, phPumpDeviceVar_, "ph_pump");
     normalize(orpPumpDeviceSlot_, PoolIds::DeviceChlorinePump, orpPumpDeviceVar_, "dis_pump");
     normalize(heaterDeviceSlot_, PoolIds::DeviceWaterHeater, heaterDeviceVar_, "heater");
+    // Every disinfection strategy uses the same dosing/electrolysis relay.
+    if (swgDeviceSlot_ != orpPumpDeviceSlot_) {
+        swgDeviceSlot_ = orpPumpDeviceSlot_;
+        if (cfgStore_) (void)cfgStore_->set(swgDeviceVar_, swgDeviceSlot_);
+    }
+
 }
 
 void PoolLogicModule::logDeviceSlotConfig_() const

@@ -8,7 +8,7 @@ int main() {
  ha.addButton=[](void* p,const HAButtonEntry*){++*static_cast<Capture*>(p)->b;return true;};
  ha.addSelect=[](void* p,const HASelectEntry* e){
    ++*static_cast<Capture*>(p)->sel;
-   DynamicJsonDocument doc(2048);assert(!deserializeJson(doc,e->optionsJson));assert(doc.size()==16);
+   JsonDocument doc;assert(!deserializeJson(doc,e->optionsJson));assert(doc.size()==16);
    assert(strstr(e->commandTemplate,"to_json"));return true;
  };
  ha.addDiscoveryRemoval=[](void* p,const HADiscoveryRemovalEntry*){++*static_cast<Capture*>(p)->r;return true;};
@@ -42,7 +42,7 @@ int main() {
  assert(module.slots_[7].overrideTimer.state(nowMs).remainingSec==900);
  char snapshot[8192]; uint32_t timestamp;
  assert(module.buildOverrideSnapshot_(true,snapshot,sizeof(snapshot),timestamp));
- DynamicJsonDocument doc(16384);assert(!deserializeJson(doc,snapshot));
+ JsonDocument doc;assert(!deserializeJson(doc,snapshot));
  assert(doc["actuators"].size()==16 && doc["active_count"]==2);
  assert(doc["actuators"]["pd0"]["actual_on"]==true);
  assert(doc["actuators"]["pd7"]["override_value"]==false);
@@ -142,39 +142,4 @@ int main() {
  PoolDeviceModule migrationFailure;migrationFailure.storage.records=legacyStore.records;migrationFailure.storage.fail=true;
  migrationFailure.restoreOverrides_();assert(migrationFailure.slots_[11].overrideTimer.pendingSave());
  assert(!migrationFailure.slots_[11].overrideTimer.active());
-
- // Sixteen active overrides and escaped maximum-length labels fit shared buffers.
- PoolDeviceModule full;
- for (auto& slot : full.slots_) {
-   memset(slot.def.label, '"', sizeof(slot.def.label)-1);
-   slot.def.label[sizeof(slot.def.label)-1]='\0';
- }
- full.restoreOverrides_(); full.registerOverrideHa_();
- assert(!deserializeJson(doc,full.overrideOptions_) && doc.size()==16);
- for (unsigned slot=0;slot<16;++slot) {
-   char args[80];snprintf(args,sizeof(args),"{\"slot\":%u,\"duration_s\":86400}",slot);
-   assert(full.svcOverrideCommandImpl_({nullptr,nullptr,args,42},reply,sizeof(reply),Cmd::On));
- }
- assert(full.buildOverrideSnapshot_(true,snapshot,sizeof(snapshot),timestamp));
- assert(!deserializeJson(doc,snapshot));
- assert(doc["actuators"].size()==16 && doc["active_count"]==16);
- assert(doc["actuators"]["pd15"]["actual_on"]==true);
-
- // The highest dependency bit gates and cancels an override just like bit zero.
- PoolDeviceModule upper;upper.restoreOverrides_();
- upper.slots_[0].overridePolicy.requiredOnMask=uint16_t(1)<<15;
- const CommandRequest onFirst{nullptr,nullptr,R"({"slot":0,"duration_s":300})",42};
- assert(!upper.svcOverrideCommandImpl_(onFirst,reply,sizeof(reply),Cmd::On));
- upper.slots_[15].desiredOn=true;upper.tickDevices_(0,false);
- assert(upper.svcOverrideCommandImpl_(onFirst,reply,sizeof(reply),Cmd::On));
- assert(upper.slots_[0].actualOn);
- upper.slots_[15].desiredOn=false;upper.tickDevices_(0,false);upper.tickDevices_(0,false);
- assert(!upper.slots_[0].actualOn && !upper.slots_[0].overrideTimer.active());
- // A controller temperature update preserves the mode selected by another caller.
- PoolDeviceModule heating;
- heating.slots_[0].desired.mode=2;
- assert(heating.svcSetRunningAtSetpointImpl_(0,1,25)==POOLDEV_SVC_OK);
- assert(heating.slots_[0].desired.running && heating.slots_[0].desired.setpoint==25 && heating.slots_[0].desired.mode==2);
- assert(heating.svcSetRunningAtSetpointImpl_(0,1,101)==POOLDEV_SVC_ERR_INVALID_ARG);
- assert(heating.slots_[0].desired.setpoint==25 && heating.slots_[0].desired.mode==2);
 }

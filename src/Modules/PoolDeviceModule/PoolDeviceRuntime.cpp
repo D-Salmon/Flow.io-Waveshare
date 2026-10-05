@@ -14,8 +14,7 @@
 #include <Arduino.h>
 #include <math.h>
 #include <string.h>
-#include "Core/SpiRamJsonDocument.h"
-#include "Drivers/PoolTelemetryJson.h"
+#include "Core/PsramJsonAllocator.h"
 
 namespace {
 static constexpr const char* kPoolDeviceCfgTopicBase = "cfg/pdm";
@@ -200,7 +199,7 @@ bool PoolDeviceModule::buildStateSnapshot_(uint8_t slotIdx, char* out, size_t le
     }
 
     const auto& s = slots_[slotIdx];
-    SpiRamJsonDocument doc(4096);
+    JsonDocument doc(psramOnlyJsonAllocator());
     doc["id"] = s.id;
     doc["name"] = s.def.label;
     doc["enabled"] = entry.enabled;
@@ -216,28 +215,20 @@ bool PoolDeviceModule::buildStateSnapshot_(uint8_t slotIdx, char* out, size_t le
     doc["minimum"] = s.driverConfig.capabilities.minimum;
     doc["maximum"] = s.driverConfig.capabilities.maximum;
     doc["startup"] = s.driverConfig.capabilities.startup;
-    auto steps = doc.createNestedArray("steps");
+    auto steps = doc["steps"].to<JsonArray>();
     for (uint8_t i = 0; i < s.driverConfig.capabilities.stepCount; ++i) steps.add(s.driverConfig.capabilities.steps[i]);
     doc["setpoint"] = s.desired.setpoint;
-    doc["mode"] = s.desired.mode;
-    if (s.driverConfig.serial.modes.count) {
-        auto modes = doc.createNestedArray("modes");
-        for (uint8_t i = 0; i < s.driverConfig.serial.modes.count; ++i) modes.add(s.driverConfig.serial.modes.options[i].label);
-    }
-    auto effective = doc.createNestedObject("effective");
+    auto effective = doc["effective"].to<JsonObject>();
     effective["on"] = s.effective.running; effective["setpoint"] = s.effective.setpoint;
-    effective["mode"] = s.effective.mode;
     const auto& f = s.feedback;
-    auto applied = doc.createNestedObject("applied");
+    auto applied = doc["applied"].to<JsonObject>();
     applied["valid"] = f.appliedValid; applied["on"] = f.applied.running;
     applied["setpoint"] = f.applied.setpoint; applied["revision"] = f.appliedRevision;
-    applied["mode"] = f.applied.mode;
-    auto observed = doc.createNestedObject("observed");
+    auto observed = doc["observed"].to<JsonObject>();
     observed["valid"] = f.observedValid; observed["on"] = f.observed.running;
     observed["setpoint"] = f.observed.setpoint; observed["ts"] = f.observedAtMs;
     doc["quality"] = uint8_t(f.quality); doc["phase"] = uint8_t(f.phase);
     doc["online"] = f.online; doc["error"] = f.error;
-    writePoolTelemetryJson(doc.as<JsonObject>(), s.driverConfig.serial.telemetryProfile, f.telemetry);
     doc["ts"] = entry.tsMs;
     if (doc.overflowed() || measureJson(doc) >= len) { unlockState_(); return false; }
     serializeJson(doc, out, len);

@@ -37,7 +37,7 @@ async function installDialog(page, entry) {
     script.textContent = 'let runtimeActionBusyKey = ""; let runtimeActionDialog = null; let runtimeActionDialogRefresh = null; const runtimeActionFeedback = new Map();\n'
       + runtimeActions + '\ndocument.querySelector(".status-card").appendChild(buildRuntimeActionDialogButton(testEntry));';
     document.body.appendChild(script);
-  }, { runtimeActions: app.slice(start, end), entry });
+  }, { runtimeActions: app.slice(app.indexOf('    function poolAlarmLabel('), app.indexOf('    async function fetchPoolAlarmSlots(')) + app.slice(start, end), entry });
 }
 
 module.exports = { project, loadDialog, installDialog };

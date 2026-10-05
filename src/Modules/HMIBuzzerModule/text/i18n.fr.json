@@ -1,6 +1,8 @@
 {
   "translations": {
     "cfgdocs.hmi.buzzer.enable.help": "Active le bip local de validation après application d'une configuration dans le ConfigStore.",
-    "cfgdocs.hmi.buzzer.enable.label": "Buzzer actif"
+    "cfgdocs.hmi.buzzer.enable.label": "Buzzer actif",
+    "cfgdocs.hmi.buzzer.alarm_sound.help": "Active les notifications sonores pour les alarmes de niveau Alarme ou Critique. Les avertissements de diagnostic restent silencieux.",
+    "cfgdocs.hmi.buzzer.alarm_sound.label": "Son des alarmes"
   }
 }

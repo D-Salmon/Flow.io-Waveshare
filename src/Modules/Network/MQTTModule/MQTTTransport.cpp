@@ -1,3 +1,10 @@
+#include <esp_crt_bundle.h>
+#ifndef FLOW_MQTT_REQUIRE_TLS
+#define FLOW_MQTT_REQUIRE_TLS 1
+#endif
+#ifndef FLOW_MQTT_REQUIRE_AUTH
+#define FLOW_MQTT_REQUIRE_AUTH 1
+#endif
 /**
  * @file MQTTTransport.cpp
  * @brief Broker transport setup and ESP-IDF client event handling for MQTTModule.
@@ -52,6 +59,32 @@ bool MQTTModule::ensureClient_()
         return false;
     }
 
+#if FLOW_MQTT_REQUIRE_AUTH
+    if (cfgData_.user[0] == '\0' || cfgData_.pass[0] == '\0') {
+        LOGW("mqtt cfg rejected: non-empty username and password are required");
+        return false;
+    }
+#endif
+
+    const char* brokerHost = cfgData_.host;
+    bool useTls = FLOW_MQTT_REQUIRE_TLS != 0;
+    if (strncmp(brokerHost, "mqtts://", 8U) == 0) {
+        brokerHost += 8U;
+        useTls = true;
+    } else if (strncmp(brokerHost, "mqtt://", 7U) == 0) {
+#if FLOW_MQTT_REQUIRE_TLS
+        LOGW("mqtt cfg rejected: insecure mqtt:// transport is disabled");
+        return false;
+#else
+        brokerHost += 7U;
+        useTls = false;
+#endif
+    }
+    if (brokerHost[0] == '\0') {
+        LOGW("mqtt cfg invalid: empty host after scheme");
+        return false;
+    }
+
     int32_t effectivePort = cfgData_.port;
     if (effectivePort <= 0 || effectivePort > 65535) {
         LOGW("mqtt cfg invalid port=%ld, fallback=%u",
@@ -59,21 +92,36 @@ bool MQTTModule::ensureClient_()
              (unsigned)Limits::Mqtt::Defaults::Port);
         effectivePort = Limits::Mqtt::Defaults::Port;
     }
+#if FLOW_MQTT_REQUIRE_TLS
+    if (useTls && effectivePort == 1883) {
+        LOGI("mqtt legacy port 1883 migrated in memory to TLS port 8883");
+        effectivePort = 8883;
+    }
+#endif
 
-    const int uriLen = snprintf(brokerUri_, sizeof(brokerUri_), "mqtt://%s:%ld", cfgData_.host, (long)effectivePort);
+    const int uriLen = snprintf(brokerUri_,
+                                sizeof(brokerUri_),
+                                "%s://%s:%ld",
+                                useTls ? "mqtts" : "mqtt",
+                                brokerHost,
+                                (long)effectivePort);
     if (!(uriLen > 0 && (size_t)uriLen < sizeof(brokerUri_))) {
         LOGW("mqtt cfg invalid: broker uri too long");
         return false;
     }
-    LOGD("mqtt cfg host=%s port=%ld user=%s client_id=%s",
-         cfgData_.host,
+    LOGD("mqtt cfg host=%s port=%ld tls=%d user=%s client_id=%s",
+         brokerHost,
          (long)effectivePort,
+         (int)useTls,
          cfgData_.user[0] ? cfgData_.user : "<empty>",
          deviceId_);
 
     esp_mqtt_client_config_t cfg = {};
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
     cfg.broker.address.uri = brokerUri_;
+    if (useTls) {
+        cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+    }
     cfg.credentials.client_id = deviceId_;
     if (cfgData_.user[0] != '\0') {
         cfg.credentials.username = cfgData_.user;
@@ -91,6 +139,9 @@ bool MQTTModule::ensureClient_()
     cfg.outbox.limit = Limits::Mqtt::Client::OutboxLimitBytes;
 #else
     cfg.uri = brokerUri_;
+    if (useTls) {
+        cfg.crt_bundle_attach = arduino_esp_crt_bundle_attach;
+    }
     cfg.client_id = deviceId_;
     if (cfgData_.user[0] != '\0') {
         cfg.username = cfgData_.user;
@@ -191,6 +242,7 @@ void MQTTModule::connectMqtt_()
 
 void MQTTModule::onConnect_(bool)
 {
+    persistBootValidation_(true);
     suppressDisconnectEvent_ = false;
 
     (void)esp_mqtt_client_subscribe(client_, topicCmd_, 0);

@@ -32,7 +32,7 @@ void test_weather_parser_exposes_seven_past_days_and_two_forecast_days()
       }
     })json";
 
-    StaticJsonDocument<4096> document;
+    JsonDocument document;
     TEST_ASSERT_FALSE(deserializeJson(document, kPayload));
 
     PoolWeatherSnapshot weather{};
@@ -81,7 +81,7 @@ void test_weather_parser_rejects_misaligned_daily_arrays()
       }
     })json";
 
-    StaticJsonDocument<1536> document;
+    JsonDocument document;
     TEST_ASSERT_FALSE(deserializeJson(document, kPayload));
 
     PoolWeatherSnapshot weather{};
@@ -287,7 +287,7 @@ void test_openai_responses_parser_extracts_all_output_text_parts()
       ]
     })json";
 
-    StaticJsonDocument<2048> document;
+    JsonDocument document;
     TEST_ASSERT_FALSE(deserializeJson(document, kPayload));
     OpenAiResponsesParser::Result result{};
     char text[512]{};
@@ -311,7 +311,7 @@ void test_openai_responses_parser_reports_api_error()
       "error": {"message":"The configured model is unavailable.","type":"invalid_request_error","code":"model_not_found"}
     })json";
 
-    StaticJsonDocument<512> document;
+    JsonDocument document;
     TEST_ASSERT_FALSE(deserializeJson(document, kPayload));
     OpenAiResponsesParser::Result result{};
     char text[128]{};
@@ -338,7 +338,7 @@ void test_openai_responses_parser_keeps_long_rate_limit_diagnostic()
       }
     })json";
 
-    StaticJsonDocument<512> document;
+    JsonDocument document;
     TEST_ASSERT_FALSE(deserializeJson(document, kPayload));
     char error[64]{};
     TEST_ASSERT_TRUE(OpenAiResponsesParser::extractApiError(
@@ -359,7 +359,7 @@ void test_openai_responses_parser_rejects_incomplete_output()
       ]}]
     })json";
 
-    StaticJsonDocument<768> document;
+    JsonDocument document;
     TEST_ASSERT_FALSE(deserializeJson(document, kPayload));
     OpenAiResponsesParser::Result result{};
     char text[128]{};

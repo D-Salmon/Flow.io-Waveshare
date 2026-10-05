@@ -119,5 +119,11 @@ struct UserService {
                                   size_t usernameOutLen,
                                   char* passwordOut,
                                   size_t passwordOutLen);
+    /** Replace the primary administrator from the physical Rescue workflow. */
+    bool (*replaceAdministrator)(void* ctx,
+                                 const char* username,
+                                 const char* password,
+                                 char* errOut,
+                                 size_t errOutLen);
     void* ctx;
 };

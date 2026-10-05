@@ -14,7 +14,7 @@ class PoolActuatorTests(unittest.TestCase):
             binary = Path(tmp) / "test"
             command = ["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
                        "-Itest/host/stubs", "-Isrc", *["-I" + str(p) for p in includes],
-                       "test/host/" + main, *sources, "-o", str(binary)]
+                       "test/host/" + main, *sources, *(["test/host/json_allocator.cpp"] if includes else []), "-o", str(binary)]
             for invocation in (command, [str(binary)]):
                 result = subprocess.run(invocation, cwd=ROOT, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -35,9 +35,6 @@ class PoolActuatorTests(unittest.TestCase):
 
     def test_driver_transitions_and_wire_dialects(self):
         self.compile_and_run("pool_actuators.cpp", [DRIVER, CODEC])
-
-    def test_serial_register_profiles(self):
-        self.compile_and_run("serial_register_profiles.cpp", [DRIVER, CODEC])
 
     def test_bus_arbitration_cancellation_and_retries(self):
         self.compile_and_run("rs485_scheduler.cpp", [

@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 #include "Modules/Network/EthernetModule/EthernetModule.h"
 
 #include "Core/EventBus/EventPayloads.h"
@@ -14,6 +15,7 @@
 #include <esp_err.h>
 #include <esp_mac.h>
 #include <esp_netif_ip_addr.h>
+#include <esp_netif.h>
 #include <string.h>
 
 namespace {
@@ -459,7 +461,7 @@ void EthernetModule::loadSystemDeviceName_()
     if (cfgStore_) {
         char systemJson[128] = {0};
         if (cfgStore_->toJsonModule("system", systemJson, sizeof(systemJson), nullptr, false)) {
-            StaticJsonDocument<128> doc;
+            JsonDocument doc(psramPreferredJsonAllocator());
             if (deserializeJson(doc, systemJson) == DeserializationError::Ok && doc.is<JsonObjectConst>()) {
                 const char* configured = doc.as<JsonObjectConst>()["devicename"] | "";
                 if (!isBlank_(configured, sizeof(deviceName_))) {
@@ -560,7 +562,59 @@ void EthernetModule::syncRuntimeState_()
     if (linkDirty_) {
         linkDirty_ = false;
     }
-    setNetworkReady(*dataStore_, gotIp_ || wifiStaConnected_());
+    const bool wifiUp = wifiStaConnected_();
+    syncDefaultNetif_(gotIp_, wifiUp);
+    setNetworkReady(*dataStore_, gotIp_ || wifiUp);
+}
+
+void EthernetModule::syncDefaultNetif_(bool ethUp, bool wifiUp)
+{
+    const ActiveNetIf activeIf = ethUp ? ActiveNetIf::Eth
+                                : (wifiUp ? ActiveNetIf::Wifi : ActiveNetIf::None);
+
+    // Explicitly steer the system's default esp-netif. This governs not
+    // just outbound packet routing but, critically, which interface's OWN
+    // DNS server list getaddrinfo()/lwip's resolver consults - each
+    // esp_netif keeps its own DNS config (see NetworkInterface::config()
+    // in arduino-esp32), and hostname resolution reads it from whichever
+    // netif is currently "default". The core's automatic route_prio
+    // arbitration (STA=100 > ETH=50) only re-evaluates default-netif
+    // selection when an interface's IP status actually transitions; the
+    // Ethernet interface here is started even with no cable plugged in
+    // (see the recovery-fallback handling in onConfigLoaded) and, having
+    // never gained an IP, never triggers that arbitration - so on a
+    // Wi-Fi-only boot the resolver could be left pointed at Ethernet's
+    // still-blank DNS config even though Wi-Fi is fully connected and
+    // routing correctly. Forcing it here after every interface change
+    // fixes that regardless of arbitration timing.
+    esp_netif_t* target = (activeIf == ActiveNetIf::Eth) ? ETH.netif()
+                         : (activeIf == ActiveNetIf::Wifi) ? WiFi.STA.netif()
+                         : nullptr;
+    if (target && esp_netif_get_default_netif() != target) {
+        const esp_err_t err = esp_netif_set_default_netif(target);
+        if (err == ESP_OK) {
+            LOGI("default network route -> %s", activeIf == ActiveNetIf::Eth ? "eth" : "wifi");
+        } else {
+            LOGW("esp_netif_set_default_netif failed: %s", esp_err_to_name(err));
+        }
+    }
+
+    if (activeIf != lastActiveIf_ && lastActiveIf_ != ActiveNetIf::None && activeIf != ActiveNetIf::None && dataStore_) {
+        // Direct handover between physical interfaces (e.g. the Ethernet
+        // cable is pulled while Wi-Fi stays associated, or vice versa).
+        // The combined "network ready" flag never flips false in this
+        // case, so nothing normally tells consumers such as the MQTT
+        // module that their socket/DNS state is bound to a dead route.
+        // Pulse the flag so they tear down and reconnect via the (now
+        // automatically updated) default interface.
+        LOGI("network interface handover: %s -> %s, pulsing networkReady",
+             lastActiveIf_ == ActiveNetIf::Eth ? "eth" : "wifi",
+             activeIf == ActiveNetIf::Eth ? "eth" : "wifi");
+        setNetworkReady(*dataStore_, false);
+        setNetworkReady(*dataStore_, true);
+    }
+
+    lastActiveIf_ = activeIf;
 }
 
 bool EthernetModule::wifiStaConnected_() const

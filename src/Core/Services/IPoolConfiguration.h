@@ -13,6 +13,18 @@ enum class PoolDisinfectionMethod : uint8_t {
     Disabled,
 };
 
+constexpr bool poolDisinfectionAutoMode(PoolDisinfectionMethod method,
+                                       bool orpAutoMode,
+                                       bool treatmentAutoMode)
+{
+    switch (method) {
+        case PoolDisinfectionMethod::ChlorineBromine: return orpAutoMode;
+        case PoolDisinfectionMethod::SaltElectrolysis:
+        case PoolDisinfectionMethod::ActiveOxygen: return treatmentAutoMode;
+        default: return false;
+    }
+}
+
 constexpr const char* poolDisinfectionMethodName(PoolDisinfectionMethod method)
 {
     switch (method) {

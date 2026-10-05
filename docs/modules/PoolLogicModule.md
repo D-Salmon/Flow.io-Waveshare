@@ -25,14 +25,6 @@ Les équipements sans rôle PoolLogic utilisent la commande `pooldevice.write`.
 Les switches d'équipement Home Assistant Waveshare utilisent le même point
 d'entrée, avec le slot de leur état runtime, pour partager ce comportement.
 
-Les affectations de `poollogic/devices` acceptent `pd0` à `pd15`. Après chargement
-et validation de la configuration, `PoolConfigurationService::getDeviceAssignments`
-expose les slots effectifs à la découverte HA. Les noms et identifiants des entités
-métier restent stables ; leurs topics et commandes ciblent les appareils choisis.
-Les annonces sont figées jusqu'au prochain démarrage : après une modification
-d'affectation, redémarrer avant d'utiliser les anciennes commandes HA. L'éclairage
-reste associé à `pd6`, car il n'a pas d'affectation configurable dans PoolLogic.
-
 | Équipement (rôle configuré) | Commande manuelle résolue |
 | --- | --- |
 | Filtration | `poollogic.filtration.write` |

@@ -5,7 +5,7 @@
 
 #include "IOModule.h"
 #include "IOConfigDescriptorStorage.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
 #include "Core/ModuleLog.h"
 #include "Domain/Pool/PoolIds.h"
@@ -43,6 +43,7 @@ void IOModule::applyBoardDefaults_(const BoardSpec& board)
     if (!ioBus) return;
     boardDefaultI2cSda_ = ioBus->sdaPin;
     boardDefaultI2cScl_ = ioBus->sclPin;
+    boardDefaultI2cFrequencyHz_ = ioBus->frequencyHz ? ioBus->frequencyHz : 100000U;
     cfgData_.i2cSda = boardDefaultI2cSda_;
     cfgData_.i2cScl = boardDefaultI2cScl_;
 }
@@ -418,10 +419,35 @@ void* allocPsramBytes_(size_t bytes)
     return mem;
 }
 
-void IOModule::setOneWireBuses(OneWireBus* water, OneWireBus* air)
+void IOModule::setOneWireBuses(IOneWireTemperatureBus* water, IOneWireTemperatureBus* air)
 {
     oneWireWater_ = water;
     oneWireAir_ = air;
+    useDs2484_ = false;
+    oneWireWaterIndex_ = 0;
+    oneWireAirIndex_ = 0;
+}
+
+void IOModule::useDs2484OneWireBus(uint8_t address, uint8_t waterIndex, uint8_t airIndex)
+{
+    useDs2484_ = true;
+    ds2484Address_ = address;
+    oneWireWaterIndex_ = waterIndex;
+    oneWireAirIndex_ = airIndex;
+    oneWireWater_ = &ds2484Bus_;
+    oneWireAir_ = &ds2484Bus_;
+}
+
+void IOModule::useSelectableTemperatureBuses(uint8_t address,
+                                             uint8_t waterIndex,
+                                             uint8_t airIndex,
+                                             IOneWireTemperatureBus* directWater,
+                                             IOneWireTemperatureBus* directAir)
+{
+    selectableTemperatureBuses_ = true;
+    directOneWireWater_ = directWater;
+    directOneWireAir_ = directAir;
+    useDs2484OneWireBus(address, waterIndex, airIndex);
 }
 
 void IOModule::setBindingPorts(const IOBindingPortSpec* ports, uint8_t count)
@@ -803,21 +829,6 @@ int32_t IOModule::analogPrecision(uint8_t idx) const
     return sanitizeAnalogPrecision_(analogCfg_[idx].precision);
 }
 
-const char* IOModule::derivedValueName(uint8_t slot) const
-{
-    return valueConfig_ && slot < ValueIds::DerivedCapacity ? valueConfig_->definitions[slot].name : "";
-}
-
-bool IOModule::derivedValuePublished(uint8_t slot) const
-{
-    if (!runtimeReady_ || slot >= ValueIds::DerivedCapacity) return false;
-    const ValueId id = ValueIds::Derived + slot;
-    for (uint8_t i = 0; i < valueRouteCount_; ++i) {
-        if (valueRoutes_[i] == id) return true;
-    }
-    return false;
-}
-
 uint32_t IOModule::takeAnalogConfigDirtyMask()
 {
     const uint32_t mask = analogConfigDirtyMask_;
@@ -1017,13 +1028,15 @@ bool IOModule::buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uin
     (void)invalidAsUndefined;
     IOEndpointValue value{};
     if (!ep->read(value)) value.valid = false;
-    SpiRamJsonDocument doc(1536);
-    if (!doc.capacity()) return false;
+    JsonDocument doc(psramOnlyJsonAllocator());
+    if (doc.overflowed()) return false;
     const char* id = ep->id();
     const char* label = endpointLabel(ep->numericId);
     doc["id"] = id ? id : "";
     doc["name"] = label && label[0] ? label : id ? id : "";
     doc["available"] = value.valid;
+    doc["held"] = value.held;
+    doc["sample_ts"] = value.timestampMs;
     if (!value.valid) doc["value"] = nullptr;
     else if (value.valueType == IO_EP_VALUE_BOOL) doc["value"] = value.v.b;
     else if (value.valueType == IO_EP_VALUE_FLOAT) doc["value"] = value.v.f;
@@ -1419,6 +1432,87 @@ void IOModule::invalidateAnalogSlot_(AnalogSlot& slot, uint32_t nowMs)
     markIoCycleChanged_(slot.ioId);
 }
 
+bool IOModule::analogHoldActive_(uint32_t nowMs) const
+{
+    if (!circulating_) return true;
+    return (int32_t)(nowMs - holdSettleUntilMs_) < 0;
+}
+
+IoStatus IOModule::ioSetAnalogHold_(IoId id, uint8_t hold)
+{
+    if (id < IO_ID_AI_BASE || id >= IO_ID_AI_MAX || !analogSlots_) return IO_ERR_UNKNOWN_ID;
+    AnalogSlot& slot = analogSlots_[(uint8_t)(id - IO_ID_AI_BASE)];
+    if (!slot.used || !slot.endpoint) return IO_ERR_NOT_READY;
+    slot.holdWhenIdle = (hold != 0U);
+    if (!slot.holdWhenIdle) {
+        const bool wasHeld = slot.held;
+        slot.held = false;
+        slot.heldValid = false;
+        slot.heldTimestampMs = 0U;
+        slot.heldPendingValid = false;
+        slot.heldPendingTimestampMs = 0U;
+        if (wasHeld && dataStore_) {
+            uint8_t rtIdx = 0;
+            if ((rtIdx = slot.endpoint->runtimeIndex) < IO_MAX_ENDPOINTS) {
+                (void)setIoEndpointHeld(*dataStore_, rtIdx, false);
+            }
+        }
+    }
+    return IO_OK;
+}
+
+IoStatus IOModule::ioSetAnalogHoldRefAge_(uint16_t seconds)
+{
+    holdRefAgeMs_ = (uint32_t)seconds * 1000UL;
+    return IO_OK;
+}
+
+void IOModule::updateHoldReference_(AnalogSlot& slot, float rounded, uint32_t nowMs)
+{
+    if (holdRefAgeMs_ == 0U || !slot.heldPendingValid) {
+        slot.heldValue = rounded;
+        slot.heldValid = true;
+        slot.heldTimestampMs = nowMs;
+        slot.heldPending = rounded;
+        slot.heldPendingValid = true;
+        slot.heldPendingTimestampMs = nowMs;
+        slot.heldRotateMs = nowMs;
+        return;
+    }
+    if ((uint32_t)(nowMs - slot.heldRotateMs) < holdRefAgeMs_) return;
+    slot.heldValue = slot.heldPending;
+    slot.heldValid = true;
+    slot.heldTimestampMs = slot.heldPendingTimestampMs;
+    slot.heldPending = rounded;
+    slot.heldPendingTimestampMs = nowMs;
+    slot.heldRotateMs = nowMs;
+}
+
+IoStatus IOModule::ioSetCirculating_(uint8_t circulating, uint16_t settleSec)
+{
+    const bool on = (circulating != 0U);
+    if (circulationKnown_ && on == circulating_) return IO_OK;
+    const uint32_t nowMs = millis();
+    circulationKnown_ = true;
+    circulating_ = on;
+    if (!on) {
+        holdSettleUntilMs_ = nowMs;
+        return IO_OK;
+    }
+    if (analogSlots_) {
+        for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
+            AnalogSlot& slot = analogSlots_[i];
+            if (!slot.used || !slot.holdWhenIdle) continue;
+            slot.median.clear();
+            slot.lastSampleSeqValid = false;
+            slot.heldPendingValid = false;
+            slot.heldPendingTimestampMs = 0U;
+        }
+    }
+    holdSettleUntilMs_ = nowMs + ((uint32_t)settleSec * 1000UL);
+    return IO_OK;
+}
+
 bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
 {
     if (idx >= MAX_ANALOG_ENDPOINTS) return false;
@@ -1476,7 +1570,49 @@ bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
         }
     }
 
-    slot.endpoint->update(rounded, true, nowMs);
+    const bool holdWindow = analogHoldActive_(nowMs);
+    if (slot.holdWhenIdle && holdWindow) {
+        const float displayed = slot.heldValid ? slot.heldValue : rounded;
+        const uint32_t displayedTs = slot.heldValid ? slot.heldTimestampMs : nowMs;
+        slot.endpoint->update(displayed, slot.heldValid, displayedTs, true);
+        if (!slot.held) {
+            slot.held = true;
+            if (dataStore_) {
+                uint8_t rtIdx = 0;
+                if ((rtIdx = slot.endpoint->runtimeIndex) < IO_MAX_ENDPOINTS) {
+                    if (slot.heldValid) {
+                        (void)setIoEndpointFloat(*dataStore_, rtIdx, displayed, displayedTs);
+                    } else {
+                        (void)setIoEndpointInvalid(*dataStore_, rtIdx, IO_VALUE_FLOAT, nowMs);
+                    }
+                    (void)setIoEndpointHeld(*dataStore_, rtIdx, true);
+                }
+            }
+            markIoCycleChanged_(slot.ioId);
+        }
+        if (dataStore_) {
+            ValueNumber value; value.f = displayed;
+            dataStore_->values.write(ValueIds::Analog + idx, value, displayedTs,
+                                    ValueQuality::Unknown);
+        }
+        return true;
+    }
+
+    const bool leavingHold = slot.held;
+    slot.held = false;
+    if (leavingHold && dataStore_) {
+        uint8_t rtIdx = 0;
+        if ((rtIdx = slot.endpoint->runtimeIndex) < IO_MAX_ENDPOINTS) {
+            (void)setIoEndpointFloat(*dataStore_, rtIdx, rounded, nowMs);
+            (void)setIoEndpointHeld(*dataStore_, rtIdx, false);
+        }
+    }
+    slot.endpoint->update(rounded, true, nowMs, false);
+    if (slot.holdWhenIdle && !holdWindow) {
+        updateHoldReference_(slot, rounded, nowMs);
+    }
+
+
     if (dataStore_) {
         ValueNumber sample; sample.f = rounded;
         dataStore_->values.write(ValueIds::Analog + idx, sample, esp_timer_get_time() / 1000ULL);
@@ -1633,7 +1769,7 @@ void IOModule::forceAnalogSnapshotPublish_(uint8_t analogIdx, uint32_t nowMs)
     if (!slot.endpoint->read(v) || !v.valid || v.valueType != IO_EP_VALUE_FLOAT) return;
 
     float republished = ioRoundToPrecision(v.v.f, slot.def.precision);
-    slot.endpoint->update(republished, true, nowMs);
+    slot.endpoint->update(republished, true, slot.held ? v.timestampMs : nowMs, slot.held);
     if (dataStore_) {
         (void)setIoEndpointFloat(*dataStore_, slot.endpoint->runtimeIndex, republished, nowMs);
     }
@@ -2022,6 +2158,7 @@ IoStatus IOModule::ioReadValue_(IoId id, IoValue* outValue) const
         if (!s.endpoint->read(v) || !v.valid) return IO_ERR_NOT_READY;
 
         outValue->valid = 1U;
+        outValue->held = v.held ? 1U : 0U;
         outValue->tsMs = v.timestampMs;
         outValue->cycleSeq = lastCycle_ ? lastCycle_->seq : 0U;
         if (v.valueType == IO_EP_VALUE_BOOL) {
@@ -2388,7 +2525,8 @@ bool IOModule::expanderUsable_(IOExpanderId expanderId) const
 
 uint8_t IOModule::expanderAddress_(IOExpanderId expanderId) const
 {
-    return expanderId < IO_MAX_EXPANDERS ? expanderI2cAddresses_[expanderId] : 0;
+    const IOExpanderConfig* cfg = expanderConfig_(expanderId);
+    return cfg ? cfg->address : 0;
 }
 
 uint8_t IOModule::expanderMaskDefault_(IOExpanderId expanderId) const
@@ -2501,6 +2639,27 @@ bool IOModule::validateExpanderTopology_()
                      (unsigned)port.portId);
                 topologyValid = false;
             }
+        }
+    }
+
+    for (uint8_t i = 0; i < IO_MAX_EXPANDERS; ++i) {
+        if (!runtimeExpanders_[i].configValid || !expanderEnabled_(i)) continue;
+        const uint8_t address = expanderAddress_(i);
+        if (address < 0x08U || address > 0x77U) {
+            LOGE("Invalid I2C address expander=%u addr=0x%02X", (unsigned)i, address);
+            runtimeExpanders_[i].configValid = false;
+            continue;
+        }
+        for (uint8_t previous = 0; previous < i; ++previous) {
+            const IOExpanderSpec* previousSpec = expanderSpec_(previous);
+            if (!previousSpec || !expanderEnabled_(previous)) continue;
+            if (expanderAddress_(previous) != address) continue;
+            LOGE("I2C address collision expanders=%u/%u addr=0x%02X",
+                 (unsigned)previous,
+                 (unsigned)i,
+                 address);
+            runtimeExpanders_[previous].configValid = false;
+            runtimeExpanders_[i].configValid = false;
         }
     }
 
@@ -2642,12 +2801,16 @@ bool IOModule::resolveDigitalOutputBinding_(PhysicalPortId portId,
     return false;
 }
 
-bool IOModule::resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uint8_t outAddr[8])
+bool IOModule::resolveDsBusAddress_(IOneWireTemperatureBus* bus,
+                                    const char* runtimeKey,
+                                    uint8_t index,
+                                    uint8_t outAddr[8])
 {
     if (!bus || !runtimeKey || !outAddr) return false;
 
     bus->begin();
     const uint8_t count = bus->deviceCount();
+    const int directPin = bus->pin();
 
     size_t len = 0U;
     const bool readOk = cfgSvc_ && cfgSvc_->readRuntimeBlob
@@ -2657,49 +2820,61 @@ bool IOModule::resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uin
         char cached[24]{};
         formatDs18Address_(outAddr, cached, sizeof(cached));
         if (bus->hasAddress(outAddr)) {
-            LOGI("DS18B20 resolved from cache key=%s GPIO=%d count=%u rom=%s",
+            LOGI("DS18B20 resolved from cache key=%s transport=%s pin=%d count=%u rom=%s",
                  runtimeKey,
-                 bus->pin(),
+                 directPin >= 0 ? "gpio" : "ds2484",
+                 directPin,
                  (unsigned)count,
                  cached);
             return true;
         }
-        LOGW("Cached DS18B20 address for %s not found on current bus GPIO=%d count=%u rom=%s; rescanning",
+        LOGW("Cached DS18B20 address for %s not found transport=%s pin=%d count=%u rom=%s; rescanning",
              runtimeKey,
-             bus->pin(),
+             directPin >= 0 ? "gpio" : "ds2484",
+             directPin,
              (unsigned)count,
              cached);
     }
 
-    if (count != 1U) {
-        LOGW("DS18B20 scan unresolved key=%s GPIO=%d count=%u expected=1",
+    if (count <= index) {
+        LOGW("DS18B20 scan unresolved key=%s transport=%s pin=%d count=%u index=%u",
              runtimeKey,
-             bus->pin(),
-             (unsigned)count);
+             directPin >= 0 ? "gpio" : "ds2484",
+             directPin,
+             (unsigned)count,
+             (unsigned)index);
         for (uint8_t i = 0; i < count; ++i) {
             uint8_t found[8]{};
             if (!bus->getAddress(i, found)) continue;
             char rom[24]{};
             formatDs18Address_(found, rom, sizeof(rom));
-            LOGW("DS18B20 scan key=%s GPIO=%d index=%u rom=%s",
+            LOGW("DS18B20 scan key=%s transport=%s pin=%d index=%u rom=%s",
                  runtimeKey,
-                 bus->pin(),
+                 directPin >= 0 ? "gpio" : "ds2484",
+                 directPin,
                  (unsigned)i,
                  rom);
         }
         return false;
     }
-    if (!bus->getAddress(0, outAddr)) {
-        LOGW("DS18B20 scan failed to read address key=%s GPIO=%d count=%u",
+    if (!bus->getAddress(index, outAddr)) {
+        LOGW("DS18B20 scan failed key=%s transport=%s pin=%d count=%u index=%u",
              runtimeKey,
-             bus->pin(),
-             (unsigned)count);
+             directPin >= 0 ? "gpio" : "ds2484",
+             directPin,
+             (unsigned)count,
+             (unsigned)index);
         return false;
     }
 
     char resolved[24]{};
     formatDs18Address_(outAddr, resolved, sizeof(resolved));
-    LOGI("DS18B20 resolved by scan key=%s GPIO=%d rom=%s", runtimeKey, bus->pin(), resolved);
+    LOGI("DS18B20 resolved by scan key=%s transport=%s pin=%d index=%u rom=%s",
+         runtimeKey,
+         directPin >= 0 ? "gpio" : "ds2484",
+         directPin,
+         (unsigned)index,
+         resolved);
 
     if (cfgSvc_ && cfgSvc_->writeRuntimeBlobAsync) {
         (void)cfgSvc_->writeRuntimeBlobAsync(cfgSvc_->ctx, runtimeKey, outAddr, 8U);
@@ -2710,8 +2885,6 @@ bool IOModule::resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uin
 bool IOModule::configureRuntime_()
 {
     if (runtimeReady_) return true;
-    for (auto& address : analogI2cAddresses_) address = 0;
-    for (auto& address : expanderI2cAddresses_) address = 0;
     if (!cfgData_.enabled) return false;
     if (!validateExpanderTopology_()) {
         LOGE("I/O topology validation failed");
@@ -2719,6 +2892,29 @@ bool IOModule::configureRuntime_()
     }
 
     if (!dataStore_) return false;
+    bool waterUsesDs2484 = useDs2484_;
+    bool airUsesDs2484 = useDs2484_;
+    if (selectableTemperatureBuses_) {
+        waterUsesDs2484 = cfgData_.ds18WaterTransport == 0U;
+        airUsesDs2484 = cfgData_.ds18AirTransport == 0U;
+        useDs2484_ = waterUsesDs2484 || airUsesDs2484;
+
+        if (waterUsesDs2484) {
+            oneWireWater_ = nullptr;
+        } else {
+            oneWireWater_ = directOneWireWater_;
+            oneWireWaterIndex_ = 0U;
+        }
+        if (airUsesDs2484) {
+            oneWireAir_ = nullptr;
+        } else {
+            oneWireAir_ = directOneWireAir_;
+            oneWireAirIndex_ = 0U;
+        }
+        LOGI("DS18B20 water transport: %s", waterUsesDs2484 ? "Qwiic DS2484 0x18" : "direct GPIO20");
+        LOGI("DS18B20 air transport: %s", airUsesDs2484 ? "Qwiic DS2484 0x18" : "direct GPIO19");
+    }
+
     pulseStorageReady_ = loadPulseCheckpoint_();
     if (!pulseStorageReady_) LOGE("Pulse checkpoint unavailable or corrupt; counters disabled");
     bool needAnalogSource[IO_SRC_COUNT] = {false};
@@ -2826,7 +3022,10 @@ bool IOModule::configureRuntime_()
         }
     }
 
-    const bool needI2c =
+    const bool needDs2484 =
+        (waterUsesDs2484 && needAnalogSource[IO_SRC_DS18_WATER]) ||
+        (airUsesDs2484 && needAnalogSource[IO_SRC_DS18_AIR]);
+    const bool needI2c = needDs2484 ||
         needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE] ||
         needAnalogSource[IO_SRC_ADS_EXTERNAL_DIFF] ||
         needAnalogSource[IO_SRC_SHT40] ||
@@ -2848,14 +3047,34 @@ bool IOModule::configureRuntime_()
             return false;
         }
         // Concrete bus/driver assembly is centralized here so the rest of the module can stay on kernel types.
-        i2cBus_->begin(cfgData_.i2cSda, cfgData_.i2cScl);
+        i2cBus_->begin(cfgData_.i2cSda, cfgData_.i2cScl, boardDefaultI2cFrequencyHz_);
         if (!i2cBus_->beginOk()) {
             LOGW("i2c.begin failed sda=%d scl=%d freq=%lu",
                  i2cBus_->beginSda(),
                  i2cBus_->beginScl(),
                  (unsigned long)i2cBus_->beginFrequencyHz());
         }
-        resolveI2cAddresses_(needAnalogSource);
+        const bool ads48Present = i2cBus_->probe(0x48);
+        const bool ads49Present = i2cBus_->probe(0x49);
+        LOGI("ADS1115 probe 0x48: %s", ads48Present ? "found" : "not found");
+        LOGI("ADS1115 probe 0x49: %s", ads49Present ? "found" : "not found");
+        if (needDs2484) {
+            const bool ds2484Present = i2cBus_->probe(ds2484Address_);
+            LOGI("DS2484 probe 0x%02X: %s",
+                 ds2484Address_,
+                 ds2484Present ? "found" : "not found");
+            ds2484Bus_.configure(i2cBus_, ds2484Address_);
+            if (waterUsesDs2484) {
+                oneWireWater_ = &ds2484Bus_;
+                oneWireWaterIndex_ = 0U;
+            }
+            if (airUsesDs2484) {
+                oneWireAir_ = &ds2484Bus_;
+                // In a mixed setup, air can be the only sensor on the DS2484 bus.
+                oneWireAirIndex_ = (waterUsesDs2484 && needAnalogSource[IO_SRC_DS18_WATER]) ? 1U : 0U;
+            }
+        }
+
     }
 
     for (uint8_t i = 0; i < MAX_DIGITAL_SLOTS; ++i) {
@@ -3132,41 +3351,78 @@ bool IOModule::configureRuntime_()
     }
 
     Ads1115DriverConfig adsInternalCfg{};
-    adsInternalCfg.address = analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE];
+    adsInternalCfg.address = cfgData_.adsInternalAddr;
     adsInternalCfg.gain = (uint8_t)cfgData_.adsGain;
     adsInternalCfg.dataRate = (uint8_t)cfgData_.adsRate;
     adsInternalCfg.pollMs = (cfgData_.adsPollMs < 20) ? 20 : (uint32_t)cfgData_.adsPollMs;
     adsInternalCfg.differentialPairs = false;
 
     Ads1115DriverConfig adsExternalCfg = adsInternalCfg;
-    adsExternalCfg.address = analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF];
-    adsExternalCfg.differentialPairs = true;
+    adsExternalCfg.address = cfgData_.adsExternalAddr;
+    adsExternalCfg.differentialPairs = false;
 
-    if (needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE] && analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE] != 0) {
+    if (needAnalogSource[IO_SRC_SHT40] || cfgData_.sht40Enabled) {
+        const bool present = i2cBus_->probe(cfgData_.sht40Address);
+        LOGI("SHT40 probe 0x%02X: %s", cfgData_.sht40Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_BMP280] || cfgData_.bmp280Enabled) {
+        const bool present = i2cBus_->probe(cfgData_.bmp280Address);
+        LOGI("BMP280 probe 0x%02X: %s", cfgData_.bmp280Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_BME680] || cfgData_.bme680Enabled) {
+        const bool present = i2cBus_->probe(cfgData_.bme680Address);
+        LOGI("BME680 probe 0x%02X: %s", cfgData_.bme680Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_INA226] || cfgData_.ina226Enabled) {
+        const bool present = i2cBus_->probe(cfgData_.ina226Address);
+        LOGI("INA226 probe 0x%02X: %s", cfgData_.ina226Address, present ? "found" : "not found");
+    }
+
+    if (needPcfOutput || needTcaOutput || needMcpInput || needMcpOutput) {
+        for (uint8_t expIdx = 0; expIdx < IO_MAX_EXPANDERS; ++expIdx) {
+            const IOExpanderSpec* spec = expanderSpec_(expIdx);
+            if (!spec || !expanderUsable_(spec->expanderId)) continue;
+            const uint8_t address = expanderAddress_(spec->expanderId);
+            const bool present = i2cBus_->probe(address);
+            const char* name = (spec->kind == IO_EXPANDER_KIND_TCA9554) ? "TCA9554" :
+                               (spec->kind == IO_EXPANDER_KIND_PCF8574) ? "PCF8574" :
+                               (spec->kind == IO_EXPANDER_KIND_MCP23017) ? "MCP23017" : "expander";
+            LOGI("%s probe expander=%u addr=0x%02X: %s",
+                 name,
+                 (unsigned)spec->expanderId,
+                 address,
+                 present ? "found" : "not found");
+        }
+    }
+
+    if (needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE]) {
         IAnalogSourceDriver* driver = allocAdsDriver_("ads_internal", i2cBus_, adsInternalCfg);
         if (!driver) {
             LOGW("ADS internal pool exhausted");
         } else
         if (!makeAnalogProvider(driver).begin()) {
-            LOGW("ADS internal not detected at 0x%02X", analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE]);
+            LOGW("ADS internal not detected at 0x%02X", cfgData_.adsInternalAddr);
         } else {
             analogProviders_[IO_SRC_ADS_INTERNAL_SINGLE] = makeAnalogProvider(driver);
-            if (analogI2cAddresses_[IO_SRC_ADS_INTERNAL_SINGLE] == 0x49) {
+            if (cfgData_.adsInternalAddr == 0x49) {
                 LOGI("ADS1115 found at 0x49 (internal)");
             }
         }
     }
 
-    if (needAnalogSource[IO_SRC_ADS_EXTERNAL_DIFF] && analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF] != 0) {
+    if (needAnalogSource[IO_SRC_ADS_EXTERNAL_DIFF]) {
         IAnalogSourceDriver* driver = allocAdsDriver_("ads_external", i2cBus_, adsExternalCfg);
         if (!driver) {
             LOGW("ADS external pool exhausted");
         } else
         if (!makeAnalogProvider(driver).begin()) {
-            LOGW("ADS external not detected at 0x%02X", analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF]);
+            LOGW("ADS external not detected at 0x%02X", cfgData_.adsExternalAddr);
         } else {
             analogProviders_[IO_SRC_ADS_EXTERNAL_DIFF] = makeAnalogProvider(driver);
-            if (analogI2cAddresses_[IO_SRC_ADS_EXTERNAL_DIFF] == 0x49) {
+            if (cfgData_.adsExternalAddr == 0x49) {
                 LOGI("ADS1115 found at 0x49 (external)");
             }
         }
@@ -3177,7 +3433,7 @@ bool IOModule::configureRuntime_()
     dsCfg.conversionWaitMs = 750;
 
     if (needAnalogSource[IO_SRC_DS18_WATER] && oneWireWater_) {
-        oneWireWaterAddrValid_ = resolveDsBusAddress_(oneWireWater_, NvsKeys::Io::DsRomWater, oneWireWaterAddr_);
+        oneWireWaterAddrValid_ = resolveDsBusAddress_(oneWireWater_, NvsKeys::Io::DsRomWater, oneWireWaterIndex_, oneWireWaterAddr_);
         if (oneWireWaterAddrValid_) {
             IAnalogSourceDriver* driver = allocDsDriver_("ds18_water", oneWireWater_, oneWireWaterAddr_, dsCfg);
             if (driver) {
@@ -3192,7 +3448,7 @@ bool IOModule::configureRuntime_()
     }
 
     if (needAnalogSource[IO_SRC_DS18_AIR] && oneWireAir_) {
-        oneWireAirAddrValid_ = resolveDsBusAddress_(oneWireAir_, NvsKeys::Io::DsRomAir, oneWireAirAddr_);
+        oneWireAirAddrValid_ = resolveDsBusAddress_(oneWireAir_, NvsKeys::Io::DsRomAir, oneWireAirIndex_, oneWireAirAddr_);
         if (oneWireAirAddrValid_) {
             IAnalogSourceDriver* driver = allocDsDriver_("ds18_air", oneWireAir_, oneWireAirAddr_, dsCfg);
             if (driver) {
@@ -3209,9 +3465,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_SHT40]) {
         if (!cfgData_.sht40Enabled) {
             LOGW("SHT40 required by analog slots but disabled");
-        } else if (analogI2cAddresses_[IO_SRC_SHT40] != 0) {
+        } else {
             Sht40DriverConfig shtCfg{};
-            shtCfg.address = analogI2cAddresses_[IO_SRC_SHT40];
+            shtCfg.address = cfgData_.sht40Address;
             shtCfg.pollMs = (cfgData_.sht40PollMs < 250) ? 250U : (uint32_t)cfgData_.sht40PollMs;
 
             IAnalogSourceDriver* driver = allocSht40Driver_("sht40", i2cBus_, shtCfg);
@@ -3229,9 +3485,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_BMP280]) {
         if (!cfgData_.bmp280Enabled) {
             LOGW("BMP280 required by analog slots but disabled");
-        } else if (analogI2cAddresses_[IO_SRC_BMP280] != 0) {
+        } else {
             Bmp280DriverConfig bmpCfg{};
-            bmpCfg.address = analogI2cAddresses_[IO_SRC_BMP280];
+            bmpCfg.address = cfgData_.bmp280Address;
             bmpCfg.pollMs = (cfgData_.bmp280PollMs < 100) ? 100U : (uint32_t)cfgData_.bmp280PollMs;
 
             IAnalogSourceDriver* driver = allocBmp280Driver_("bmp280", i2cBus_, bmpCfg);
@@ -3249,9 +3505,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_BME680]) {
         if (!cfgData_.bme680Enabled) {
             LOGW("BME680 required by analog slots but disabled");
-        } else if (analogI2cAddresses_[IO_SRC_BME680] != 0) {
+        } else {
             Bme680DriverConfig bmeCfg{};
-            bmeCfg.address = analogI2cAddresses_[IO_SRC_BME680];
+            bmeCfg.address = cfgData_.bme680Address;
             bmeCfg.pollMs = (cfgData_.bme680PollMs < 250) ? 250U : (uint32_t)cfgData_.bme680PollMs;
 
             IAnalogSourceDriver* driver = allocBme680Driver_("bme680", i2cBus_, bmeCfg);
@@ -3269,9 +3525,9 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_INA226]) {
         if (!cfgData_.ina226Enabled) {
             LOGW("INA226 required by analog slots but disabled");
-        } else if (analogI2cAddresses_[IO_SRC_INA226] != 0) {
+        } else {
             Ina226DriverConfig inaCfg{};
-            inaCfg.address = analogI2cAddresses_[IO_SRC_INA226];
+            inaCfg.address = cfgData_.ina226Address;
             inaCfg.pollMs = (cfgData_.ina226PollMs < 100) ? 100U : (uint32_t)cfgData_.ina226PollMs;
             inaCfg.shuntOhms = (cfgData_.ina226ShuntOhms > 0.0f) ? cfgData_.ina226ShuntOhms : 0.1f;
 
@@ -3420,7 +3676,7 @@ IAnalogSourceDriver* IOModule::allocAdsDriver_(const char* driverId, I2CBus* bus
     return new (mem) Ads1115Driver(driverId, bus, cfg);
 }
 
-IAnalogSourceDriver* IOModule::allocDsDriver_(const char* driverId, OneWireBus* bus, const uint8_t address[8], const Ds18b20DriverConfig& cfg)
+IAnalogSourceDriver* IOModule::allocDsDriver_(const char* driverId, IOneWireTemperatureBus* bus, const uint8_t address[8], const Ds18b20DriverConfig& cfg)
 {
     if (dsDriverPoolUsed_ >= 2) return nullptr;
     void* mem = dsDriverPool_[dsDriverPoolUsed_++];
@@ -3508,7 +3764,6 @@ IMaskOutputDriver* IOModule::beginMaskExpander_(IOExpanderId expanderId, uint8_t
 
     rt.beginAttempted = true;
     const uint8_t address = expanderAddress_(expanderId);
-    if (!address) return nullptr;
     if (expectedKind == IO_EXPANDER_KIND_PCF8574) {
         rt.pcf = static_cast<Pcf8574Driver*>(allocPcfDriver_("pcf8574", i2cBus_, address));
         if (!rt.pcf) return nullptr;
@@ -3546,7 +3801,6 @@ Mcp23017Driver* IOModule::beginMcpExpander_(IOExpanderId expanderId)
 
     rt.beginAttempted = true;
     const uint8_t address = expanderAddress_(expanderId);
-    if (!address) return nullptr;
     rt.mcp = allocMcpDriver_("mcp23017", i2cBus_, address);
     if (!rt.mcp) return nullptr;
     rt.beginOk = rt.mcp->begin();
@@ -3605,6 +3859,11 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::Io;
     if (!ensureScalableStorage_() || !ensureConfigDescriptorStorage_()) return;
 
+    const auto* commands = services.get<CommandService>(ServiceId::Command);
+    if (!commands || !commands->registerHandler ||
+        !commands->registerHandler(commands->ctx, "io.counter.reset", &IOModule::cmdResetCounter_, this)) {
+        LOGE("Failed to register io.counter.reset");
+    }
     cfgStore_ = &cfg;
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
@@ -3630,34 +3889,30 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(i2cSclVar_, kCfgModuleId, kCfgBranchIoBus);
     cfg.registerVar(adsPollVar_, kCfgModuleId, kCfgBranchIoAds1115);
     cfg.registerVar(dsPollVar_, kCfgModuleId, kCfgBranchIoDs18b20);
+    cfg.registerVar(dsTransportVar_, kCfgModuleId, kCfgBranchIoDs18b20);
+    cfg.registerVar(dsWaterTransportVar_, kCfgModuleId, kCfgBranchIoDs18b20);
+    cfg.registerVar(dsAirTransportVar_, kCfgModuleId, kCfgBranchIoDs18b20);
     cfg.registerVar(digitalPollVar_, kCfgModuleId, kCfgBranchIoGpio);
     cfg.registerVar(adsInternalAddrVar_, kCfgModuleId, kCfgBranchIoAdsInt);
-    cfg.registerVar(adsInternalSecondaryAddrVar_, kCfgModuleId, kCfgBranchIoAdsInt);
     cfg.registerVar(adsExternalAddrVar_, kCfgModuleId, kCfgBranchIoAdsExt);
-    cfg.registerVar(adsExternalSecondaryAddrVar_, kCfgModuleId, kCfgBranchIoAdsExt);
     cfg.registerVar(adsGainVar_, kCfgModuleId, kCfgBranchIoAds1115);
     cfg.registerVar(adsRateVar_, kCfgModuleId, kCfgBranchIoAds1115);
     cfg.registerVar(sht40EnabledVar_, kCfgModuleId, kCfgBranchIoSht40);
     cfg.registerVar(sht40AddressVar_, kCfgModuleId, kCfgBranchIoSht40);
-    cfg.registerVar(sht40SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoSht40);
     cfg.registerVar(sht40PollVar_, kCfgModuleId, kCfgBranchIoSht40);
     cfg.registerVar(bmp280EnabledVar_, kCfgModuleId, kCfgBranchIoBmp280);
     cfg.registerVar(bmp280AddressVar_, kCfgModuleId, kCfgBranchIoBmp280);
-    cfg.registerVar(bmp280SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoBmp280);
     cfg.registerVar(bmp280PollVar_, kCfgModuleId, kCfgBranchIoBmp280);
     cfg.registerVar(bme680EnabledVar_, kCfgModuleId, kCfgBranchIoBme680);
     cfg.registerVar(bme680AddressVar_, kCfgModuleId, kCfgBranchIoBme680);
-    cfg.registerVar(bme680SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoBme680);
     cfg.registerVar(bme680PollVar_, kCfgModuleId, kCfgBranchIoBme680);
     cfg.registerVar(ina226EnabledVar_, kCfgModuleId, kCfgBranchIoIna226);
     cfg.registerVar(ina226AddressVar_, kCfgModuleId, kCfgBranchIoIna226);
-    cfg.registerVar(ina226SecondaryAddressVar_, kCfgModuleId, kCfgBranchIoIna226);
     cfg.registerVar(ina226PollVar_, kCfgModuleId, kCfgBranchIoIna226);
     cfg.registerVar(ina226ShuntOhmsVar_, kCfgModuleId, kCfgBranchIoIna226);
 #define FLOW_IO_REGISTER_EXPANDER_CFG(INDEX, BRANCH) \
     cfg.registerVar(exp##INDEX##EnabledVar_, kCfgModuleId, BRANCH); \
     cfg.registerVar(exp##INDEX##AddressVar_, kCfgModuleId, BRANCH); \
-    cfg.registerVar(exp##INDEX##SecondaryAddressVar_, kCfgModuleId, BRANCH); \
     cfg.registerVar(exp##INDEX##MaskDefaultVar_, kCfgModuleId, BRANCH);
     FLOW_IO_REGISTER_EXPANDER_CFG(0, kCfgBranchIoExp0)
     FLOW_IO_REGISTER_EXPANDER_CFG(1, kCfgBranchIoExp1)
@@ -3721,12 +3976,18 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void IOModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services)
 {
-    const auto* commands = services.get<CommandService>(ServiceId::Command);
-    if (!commands || !commands->registerHandler ||
-        !commands->registerHandler(commands->ctx, "io.counter.reset", &IOModule::cmdResetCounter_, this)) {
-        LOGE("Failed to register io.counter.reset");
-    }
     cfgStore_ = &cfg;
+    if (cfgData_.adsInternalAddr != 0x48U && cfgData_.adsInternalAddr != 0x49U) {
+        cfgData_.adsInternalAddr = 0x48U;
+    }
+    cfgData_.adsExternalAddr = cfgData_.adsInternalAddr == 0x48U ? 0x49U : 0x48U;
+
+    if (selectableTemperatureBuses_) {
+        const uint8_t legacyTransport = cfgData_.ds18Transport == 1U ? 1U : 0U;
+        if (cfgData_.ds18WaterTransport > 1U) cfgData_.ds18WaterTransport = legacyTransport;
+        if (cfgData_.ds18AirTransport > 1U) cfgData_.ds18AirTransport = legacyTransport;
+    }
+
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
         analogCfg_[i].bindingPort = normalizeConfiguredBindingPort(analogCfg_[i].bindingPort);

@@ -7,12 +7,15 @@
 
 #include <string.h>
 
-OneWireBus::OneWireBus(int pin) : pin_(pin), oneWire_(), dt_(&oneWire_) {}
+OneWireBus::OneWireBus(int pin) : pin_(pin) {}
 
 void OneWireBus::begin() {
     if (pin_ < 0) return;
     if (started_) return;
+    // GPIO19/20 can belong to the USB console. Merely constructing the
+    // fallback bus must not claim them when DS2484 is selected instead.
     oneWire_.begin((uint8_t)pin_);
+    dt_.setOneWire(&oneWire_);
     dt_.begin();
     dt_.setWaitForConversion(false);
     started_ = true;

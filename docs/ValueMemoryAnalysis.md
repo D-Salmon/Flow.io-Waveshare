@@ -38,10 +38,10 @@ La compilation `Flowio-waveshare-esp32-s3` réussit : RAM statique 91 572 octets
 
 Le gain de RAM interne attendu doit être confirmé sur carte après démarrage du web et sous charge HTTP/MQTT. Une trace complète du panic, accompagnée de l’ELF correspondant, reste nécessaire pour identifier le crash signalé. Ce correctif ne constitue pas une preuve de résolution de tous les crashes.
 
-## Notifications d’état EventBus
+## Notifications initiales EventBus
 
-Les changements DataStore produits avant le lancement des tâches ne remplissent plus la file EventBus. `PendingDataKeys` conserve un bit par `DataKey`, avec une section critique courte pour les producteurs concurrents. La tâche EventBus consomme les événements ordinaires puis tente quatre publications d’état par passage. Une tentative refusée conserve la clé en attente. Le parcours circulaire évite qu’une clé fréquemment modifiée monopolise la publication.
+Les changements DataStore produits avant le lancement des tâches ne remplissent plus la file EventBus. `StartupDataChanges` conserve un bit par `DataKey`, avec une section critique courte pour les producteurs concurrents. La tâche EventBus consomme les événements ordinaires puis tente quatre publications initiales par passage. Une tentative refusée conserve la clé en attente. Le parcours circulaire évite qu’une clé fréquemment modifiée monopolise la publication.
 
-La rétention reste active après le démarrage : les rafales de notifications DataStore sont regroupées par clé et leur dernier état est publié progressivement. Les commandes, alarmes et transitions ne sont pas regroupées. `SystemStarted` est conservé séparément jusqu’à acceptation par la file. `tryPost` ne compte pas une file pleine comme une perte lorsque son appelant conserve explicitement l’événement pour réessayer ; `post` conserve le comptage des pertes réelles.
+Après vidage des clés initiales, les notifications DataStore retrouvent leur chemin habituel. Les commandes, alarmes et transitions ne sont pas regroupées. `SystemStarted` est conservé séparément jusqu’à acceptation par la file. `tryPost` ne compte pas une file pleine comme une perte lorsque son appelant conserve explicitement l’événement pour réessayer ; `post` conserve le comptage des pertes réelles.
 
 Validation hôte : saturation préalable des 40 entrées de la véritable implémentation EventBus (API FreeRTOS simulée), publication de toutes les clés, doublons initiaux regroupés, mises à jour concurrentes pendant acceptation/refus, ordre des événements ordinaires, un seul `SystemStarted`, comptage des débordements ordinaires inchangé. L’absence de pertes sur le démarrage matériel complet reste à confirmer dans les logs de la carte.

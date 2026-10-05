@@ -70,7 +70,7 @@ private:
     static constexpr uint8_t MAX_HA_SELECTS = Limits::Ha::Capacity::MaxSelects;
     static constexpr uint16_t MAX_HA_ENTITIES =
         MAX_HA_SENSORS + MAX_HA_BINARY_SENSORS + MAX_HA_SWITCHES + MAX_HA_NUMBERS + MAX_HA_BUTTONS + MAX_HA_SELECTS;
-    static constexpr uint16_t MAX_HA_REMOVALS = 40; // Existing cleanup plus 16 derived-value slots.
+    static constexpr uint16_t MAX_HA_REMOVALS = 64; // Alarm/override migrations and inactive pool roles.
     static constexpr uint16_t MAX_HA_MESSAGES = MAX_HA_ENTITIES + MAX_HA_REMOVALS;
     static constexpr uint16_t HA_PENDING_WORDS = (MAX_HA_MESSAGES + 31U) / 32U;
 
@@ -221,7 +221,7 @@ private:
                        const char* availabilityTemplate = nullptr,
                        bool isText = false,
                        MqttBuildContext* outCtx = nullptr,
-                       const char* attributesTemplate = nullptr, const char* identityName = nullptr);
+                       const char* attributesTemplate = nullptr);
     bool publishBinarySensor(const char* objectId, const char* name,
                              const char* stateTopic, const char* valueTemplate,
                              const char* deviceClass = nullptr,

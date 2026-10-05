@@ -1,3 +1,13 @@
+# Flow.io Waveshare — fork 3.4.3
+
+Cette branche contient le fork adapté de la base expérimentale 2.0.1 avec les fonctions de notre version de référence 3.4.3 : sécurité Web et OTA, sondes directes ou Qwiic, politiques de filtration et de désinfection, réseau Ethernet/Wi-Fi/MQTT, affectation des relais, étalonnages et interface française.
+
+Le [compte rendu d’intégration et de validation](docs/integration-3.4.3.md) décrit les fonctions et les corrections apportées. La version déclarée du firmware est **3.4.3**.
+
+Pour construire : installer les dépendances Web avec `pnpm install --frozen-lockfile`, exécuter `pnpm web:minify` puis `pnpm web:check`, et lancer `platformio run`. Les images firmware/SPIFFS et le paquet de mise à jour sont produits dans `binary/`, exclu de Git.
+
+Les réglages propres à la carte et le fichier d’accès AP sont conservés dans `local-device/`, exclu de Git. Le fichier d’accès est créé ou actualisé après un flash, selon les identifiants disponibles.
+
 <p align="center">
   <img src="docs/pictures/Logo_flowio.png" alt="Logo flow.io" width="600">
 </p>

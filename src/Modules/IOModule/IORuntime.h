@@ -81,6 +81,16 @@ static inline bool setIoEndpointFloat(DataStore& ds, uint8_t idx, float value, u
     return true;
 }
 
+static inline bool setIoEndpointHeld(DataStore& ds, uint8_t idx, bool held)
+{
+    if (idx >= IO_MAX_ENDPOINTS) return false;
+    IOEndpointRuntime& ep = ds.dataMutable().io.endpoints[idx];
+    if (ep.held == held) return false;
+    ep.held = held;
+    ds.notifyChanged((DataKey)(DATAKEY_IO_BASE + idx));
+    return true;
+}
+
 static inline bool setIoEndpointInvalid(DataStore& ds, uint8_t idx, uint8_t valueType, uint32_t tsMs)
 {
     if (idx >= IO_MAX_ENDPOINTS) return false;

@@ -1,3 +1,4 @@
+const os = require('node:os');
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -48,10 +49,10 @@ const section = shell.slice(shell.indexOf('      <section id="page-history"'), s
     assert.ok((await page.locator('#historyStatus').textContent()).includes('indisponible'));
     assert.equal(await page.locator('#historyRefresh').isDisabled(), false);
     await page.evaluate(() => { responseMode = 0; return loadHistory(); });
-    await page.screenshot({ path: '/tmp/flowio-history-desktop.png', fullPage: true });
+    await page.screenshot({ path: path.join(os.tmpdir(), 'flowio-history-desktop.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    await page.screenshot({ path: '/tmp/flowio-history-mobile.png', fullPage: true });
+    await page.screenshot({ path: path.join(os.tmpdir(), 'flowio-history-mobile.png'), fullPage: true });
     const count = await page.evaluate(() => requests.length);
     await page.waitForTimeout(1100);
     assert.equal(await page.evaluate(() => requests.length), count, 'No background polling');

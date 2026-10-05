@@ -7,6 +7,7 @@
 
 #include "App/BuildFlags.h"
 #include "Core/FirmwareVersion.h"
+#include "Core/NvsKeys.h"
 
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WifiProvisioningModule)
 #include "Core/ModuleLog.h"
@@ -23,12 +24,41 @@
 #include <strings.h>
 
 namespace {
-constexpr const char* kDefaultApPass = "flowio1234";
 WifiProvisioningModule* gWifiProvisioningInstance = nullptr;
 constexpr wifi_auth_mode_t kProvisioningApAuthMode = WIFI_AUTH_WPA2_PSK;
 constexpr wifi_cipher_type_t kProvisioningApCipher = WIFI_CIPHER_TYPE_CCMP;
 constexpr uint8_t kProvisioningApChannel = 1U;
 constexpr uint8_t kProvisioningApMaxConnections = 2U;
+constexpr uint8_t kProvisioningApPasswordLength = 16U;
+constexpr char kProvisioningApPasswordAlphabet[] =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+struct ProvisioningApPasswordRecord {
+    uint8_t version = 1U;
+    char password[kProvisioningApPasswordLength + 1U] = {0};
+};
+
+bool provisioningApPasswordValid_(const ProvisioningApPasswordRecord& record)
+{
+    if (record.version != 1U ||
+        strnlen(record.password, sizeof(record.password)) != kProvisioningApPasswordLength) {
+        return false;
+    }
+    for (uint8_t i = 0U; i < kProvisioningApPasswordLength; ++i) {
+        if (!strchr(kProvisioningApPasswordAlphabet, record.password[i])) return false;
+    }
+    return true;
+}
+
+void generateProvisioningApPassword_(ProvisioningApPasswordRecord& record)
+{
+    record = ProvisioningApPasswordRecord{};
+    constexpr uint32_t alphabetLength = sizeof(kProvisioningApPasswordAlphabet) - 1U;
+    for (uint8_t i = 0U; i < kProvisioningApPasswordLength; ++i) {
+        record.password[i] = kProvisioningApPasswordAlphabet[esp_random() % alphabetLength];
+    }
+    record.password[kProvisioningApPasswordLength] = '\0';
+}
 
 const char* wifiModeName_(wifi_mode_t mode)
 {
@@ -144,6 +174,16 @@ void WifiProvisioningModule::onStart(ConfigStore&, ServiceRegistry&)
 void WifiProvisioningModule::loop()
 {
     uint32_t now = millis();
+    if (!rescueCredentialsReported_) {
+        rescueCredentialsReported_ = true;
+        // Dedicated USB-only record consumed by the PlatformIO post-upload
+        // helper. It deliberately bypasses LogHub so the secret never enters
+        // the activity log, MQTT or the Web interface.
+        Serial.printf("[FLOWIO_RESCUE_CREDENTIALS] ssid=%s password=%s\r\n",
+                      apSsid_,
+                      apPass_);
+        Serial.flush();
+    }
     if (apStartDuringStartEventPending_) {
         apStartDuringStartEventPending_ = false;
         LOGD("Provisioning AP start event during setup mode=%s", wifiModeName_(WiFi.getMode()));
@@ -317,14 +357,33 @@ void WifiProvisioningModule::onEvent_(const Event& e)
 void WifiProvisioningModule::buildApCredentials_()
 {
     const uint64_t chipId = ESP.getEfuseMac();
-    //const uint8_t b0 = (uint8_t)(chipId >> 16);
-    //const uint8_t b1 = (uint8_t)(chipId >> 8);
-    //const uint8_t b2 = (uint8_t)(chipId >> 0);
-    //snprintf(apSsid_, sizeof(apSsid_), "flow.io-%02X%02X%02X", b0, b1, b2);
     uint64_t id=0;
     for(int i=0; i<17; i=i+8) id |= ((chipId >> (40 - i)) & 0xff) << i;
-    snprintf(apSsid_, sizeof(apSsid_), "flow.io-%06X", id);
-    snprintf(apPass_, sizeof(apPass_), "%s", kDefaultApPass);
+    snprintf(apSsid_, sizeof(apSsid_), "flow.io-%06X", static_cast<unsigned int>(id));
+
+    ProvisioningApPasswordRecord stored{};
+    size_t storedLength = 0U;
+    const bool loaded = cfgStore_ &&
+        cfgStore_->readRuntimeBlob(
+            NvsKeys::Provisioning::ApPassword,
+            &stored,
+            sizeof(stored),
+            &storedLength) &&
+        storedLength == sizeof(stored) &&
+        provisioningApPasswordValid_(stored);
+    if (!loaded) {
+        generateProvisioningApPassword_(stored);
+        if (!cfgStore_ ||
+            !cfgStore_->writeRuntimeBlob(
+                NvsKeys::Provisioning::ApPassword,
+                &stored,
+                sizeof(stored))) {
+            LOGE("Provisioning AP password could not be persisted; it will change after reboot");
+        } else {
+            LOGI("Provisioning AP password generated and stored for this device");
+        }
+    }
+    snprintf(apPass_, sizeof(apPass_), "%s", stored.password);
 }
 
 void WifiProvisioningModule::refreshWifiConfig_()
@@ -334,7 +393,7 @@ void WifiProvisioningModule::refreshWifiConfig_()
     ethernetEnabled_ = false;
     char ethernetJson[96] = {0};
     if (cfgStore_->toJsonModule("ethernet", ethernetJson, sizeof(ethernetJson), nullptr)) {
-        StaticJsonDocument<96> ethDoc;
+        JsonDocument ethDoc;
         if (deserializeJson(ethDoc, ethernetJson) == DeserializationError::Ok && ethDoc.is<JsonObjectConst>()) {
             JsonObjectConst ethRoot = ethDoc.as<JsonObjectConst>();
             ethernetEnabled_ = ethRoot["enabled"] | false;
@@ -356,7 +415,7 @@ void WifiProvisioningModule::refreshWifiConfig_()
         return;
     }
 
-    StaticJsonDocument<320> doc;
+    JsonDocument doc;
     const DeserializationError err = deserializeJson(doc, wifiJson);
     if (err || !doc.is<JsonObjectConst>()) {
         LOGW("Cannot parse wifi config for provisioning");
@@ -541,6 +600,11 @@ bool WifiProvisioningModule::startCaptivePortal_(NetworkPortalReason reason)
          (unsigned)kProvisioningApChannel,
          (unsigned)kProvisioningApMaxConnections,
          apIp[0], apIp[1], apIp[2], apIp[3]);
+    // This deliberately bypasses LogHub/boot-log capture: the AP secret must
+    // only be disclosed to a person with physical USB serial access.
+    Serial.printf("[SECURITY] flow.io provisioning AP SSID=%s password=%s\r\n",
+                  apSsid_,
+                  apPass_);
     return true;
 }
 
@@ -756,4 +820,3 @@ bool WifiProvisioningModule::getApIp_(char* out, size_t len) const
     snprintf(out, len, "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
     return true;
 }
-

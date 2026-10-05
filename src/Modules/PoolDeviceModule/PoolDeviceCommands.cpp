@@ -1,3 +1,4 @@
+#include "Domain/Pool/ManualDosingMode.h"
 /**
  * @file PoolDeviceCommands.cpp
  * @brief Command handlers for manual pool device actions.
@@ -8,7 +9,7 @@
 #include "Domain/Pool/PoolIds.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,7 +17,7 @@ namespace {
 // Commands accept either a plain args object or a wrapped root payload.
 bool parseCmdArgsObject_(const CommandRequest& req, JsonDocument& doc, JsonObjectConst& outObj)
 {
-    if (doc.capacity() == 0U) return false;
+    if (doc.overflowed()) return false;
 
     doc.clear();
     const char* json = req.args ? req.args : req.json;
@@ -63,7 +64,7 @@ bool readConfigBool_(ConfigStore* cfgStore, const char* moduleName, const char* 
     bool truncated = false;
     if (!cfgStore->toJsonModule(moduleName, json, sizeof(json), &truncated) || truncated) return false;
 
-    StaticJsonDocument<192> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, json);
     if (err || !doc.is<JsonObjectConst>()) return false;
     JsonVariantConst value = doc.as<JsonObjectConst>()[key];
@@ -79,7 +80,7 @@ bool readConfigUInt8_(ConfigStore* cfgStore, const char* moduleName, const char*
     bool truncated = false;
     if (!cfgStore->toJsonModule(moduleName, json, sizeof(json), &truncated) || truncated) return false;
 
-    StaticJsonDocument<192> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, json);
     if (err || !doc.is<JsonObjectConst>()) return false;
     JsonVariantConst value = doc.as<JsonObjectConst>()[key];
@@ -198,14 +199,14 @@ void PoolDeviceModule::emitAutoModeDisabledByManualActivity_(ActivityRole role,
 
 bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, size_t replyLen)
 {
-    SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::MissingArgs);
         return false;
     }
 
-    if (!args.containsKey("slot")) {
+    if (args["slot"].isUnbound()) {
         writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::MissingSlot);
         return false;
     }
@@ -219,7 +220,7 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
         return false;
     }
 
-    if (!args.containsKey("value")) {
+    if (args["value"].isUnbound()) {
         writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::MissingValue);
         return false;
     }
@@ -236,18 +237,12 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
     }
 
     PoolDeviceSvcStatus st;
-    if (args.containsKey("setpoint") || args.containsKey("mode")) {
-        if ((args.containsKey("setpoint") && !args["setpoint"].is<float>()) ||
-            (args.containsKey("mode") && !args["mode"].is<uint8_t>())) {
+    if (!args["setpoint"].isUnbound()) {
+        if (!args["setpoint"].is<float>()) {
             writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::MissingValue); return false;
         }
-        if (!lockState_()) { writeCmdError_(reply, replyLen, "pooldevice.write", ErrorCode::NotReady); return false; }
-        auto target = slots_[slot].desired;
-        target.running = requested;
-        if (args.containsKey("setpoint")) target.setpoint = args["setpoint"].as<float>();
-        if (args.containsKey("mode")) target.mode = args["mode"].as<uint8_t>();
+        const PoolDeviceTarget target{requested, args["setpoint"].as<float>()};
         st = setTarget_(slot, &target, true);
-        unlockState_();
     } else st = svcSetManualRunningImpl_(slot, requested ? 1U : 0U);
     if (st != POOLDEV_SVC_OK) {
         ErrorCode code = ErrorCode::Failed;
@@ -271,7 +266,7 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
         char modeJson[160]{};
         bool truncated = false;
         if (cfgStore_->toJsonModule("poollogic/devices", modeJson, sizeof(modeJson), &truncated) && !truncated) {
-            StaticJsonDocument<192> modeDoc;
+            JsonDocument modeDoc(psramPreferredJsonAllocator());
             const DeserializationError modeErr = deserializeJson(modeDoc, modeJson);
             if (!modeErr && modeDoc.is<JsonObjectConst>()) {
                 const JsonObjectConst obj = modeDoc.as<JsonObjectConst>();
@@ -286,60 +281,27 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
             }
         }
 
-        const char* modeKey = nullptr;
-        if (slot == phPumpSlot) modeKey = "ph_auto_mode";
-        else if (slot == orpPumpSlot) modeKey = "disinfection_type";
-
-        if (modeKey) {
-            bool shouldLogAutoDisabled = false;
-            ActivityRole disabledRole = ActivityRole::None;
-            const char* disabledLabel = nullptr;
-            char patch[96]{};
-            if (strcmp(modeKey, "disinfection_type") == 0) {
-                uint8_t disinfectionType = 0;
-                shouldLogAutoDisabled = !readConfigUInt8_(cfgStore_,
-                                                           "poollogic/modes",
-                                                           "disinfection_type",
-                                                           disinfectionType) ||
-                                        disinfectionType != 3U;
-                disabledRole = ActivityRole::Disinfection;
-                disabledLabel = "ORP";
-                snprintf(patch, sizeof(patch), "{\"poollogic/modes\":{\"disinfection_type\":3}}");
-            } else if (strcmp(modeKey, "ph_auto_mode") == 0) {
-                bool phAutoMode = false;
-                shouldLogAutoDisabled = !readConfigBool_(cfgStore_,
-                                                         "poollogic/ph",
-                                                         "ph_auto_mode",
-                                                         phAutoMode) ||
-                                        phAutoMode;
-                disabledRole = ActivityRole::Ph;
-                disabledLabel = "pH";
-                snprintf(patch, sizeof(patch), "{\"poollogic/ph\":{\"ph_auto_mode\":false}}");
-            } else {
-                snprintf(patch, sizeof(patch), "{\"poollogic/modes\":{\"%s\":false}}", modeKey);
-            }
+        const auto target = slot == phPumpSlot ? ManualDosingTarget::Ph :
+                            slot == orpPumpSlot ? ManualDosingTarget::Disinfection : ManualDosingTarget::None;
+        uint8_t disinfectionType = uint8_t(PoolDisinfectionMethod::Disabled);
+        if (target == ManualDosingTarget::Disinfection &&
+            !readConfigUInt8_(cfgStore_, "poollogic/modes", "disinfection_type", disinfectionType)) {
+            writeCmdErrorSlot_(reply, replyLen, "pooldevice.write", ErrorCode::Failed, slot);
+            return false;
+        }
+        const auto mode = manualDosingMode(target, static_cast<PoolDisinfectionMethod>(disinfectionType));
+        if (mode.key) {
+            bool wasAutomatic = false;
+            readConfigBool_(cfgStore_, mode.module, mode.key, wasAutomatic);
+            char patch[128]{};
+            snprintf(patch, sizeof(patch), "{\"%s\":{\"%s\":false}}", mode.module, mode.key);
             if (!cfgStore_->applyJson(patch)) {
-                LOGW("Manual pump start slot=%u failed to clear %s",
-                     (unsigned)slot,
-                     modeKey);
-            } else {
-                if (strcmp(modeKey, "disinfection_type") == 0) {
-                    const PoolDeviceSvcStatus rest = svcSetRunningImpl_(slot, 1U);
-                    if (rest != POOLDEV_SVC_OK) {
-                        writeCmdErrorSlot_(reply, replyLen, "pooldevice.write", ErrorCode::Failed, slot);
-                        return false;
-                    }
-                    LOGI("Manual pump start slot=%u -> disinfection_type=3",
-                         (unsigned)slot);
-                } else {
-                    LOGI("Manual pump start slot=%u -> %s=false",
-                         (unsigned)slot,
-                         modeKey);
-                }
-                if (shouldLogAutoDisabled) {
-                    emitAutoModeDisabledByManualActivity_(disabledRole, slot, disabledLabel, req.actor);
-                }
+                writeCmdErrorSlot_(reply, replyLen, "pooldevice.write", ErrorCode::Failed, slot);
+                return false;
             }
+            if (wasAutomatic) emitAutoModeDisabledByManualActivity_(
+                target == ManualDosingTarget::Ph ? ActivityRole::Ph : ActivityRole::Disinfection,
+                slot, target == ManualDosingTarget::Ph ? "pH" : "Désinfection", req.actor);
         }
     }
 
@@ -379,14 +341,14 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
 
 bool PoolDeviceModule::handlePoolRefill_(const CommandRequest& req, char* reply, size_t replyLen)
 {
-    SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         writeCmdError_(reply, replyLen, "pool.refill", ErrorCode::MissingArgs);
         return false;
     }
 
-    if (!args.containsKey("slot")) {
+    if (args["slot"].isUnbound()) {
         writeCmdError_(reply, replyLen, "pool.refill", ErrorCode::MissingSlot);
         return false;
     }
@@ -413,7 +375,7 @@ bool PoolDeviceModule::handlePoolRefill_(const CommandRequest& req, char* reply,
     remaining = slots_[slot].def.tankCapacityMl;
     unlockState_();
 
-    if (args.containsKey("remaining_ml")) {
+    if (!args["remaining_ml"].isUnbound()) {
         JsonVariantConst rem = args["remaining_ml"];
         if (rem.is<float>() || rem.is<double>() || rem.is<int32_t>() || rem.is<uint32_t>()) {
             remaining = rem.as<float>();
@@ -470,14 +432,14 @@ bool PoolDeviceModule::handlePoolRefill_(const CommandRequest& req, char* reply,
 
 bool PoolDeviceModule::handlePoolResetUptime_(const CommandRequest& req, char* reply, size_t replyLen)
 {
-    SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         writeCmdError_(reply, replyLen, "pool.uptime.reset", ErrorCode::MissingArgs);
         return false;
     }
 
-    if (!args.containsKey("slot")) {
+    if (args["slot"].isUnbound()) {
         writeCmdError_(reply, replyLen, "pool.uptime.reset", ErrorCode::MissingSlot);
         return false;
     }
@@ -609,35 +571,21 @@ uint8_t PoolDeviceModule::resetUptimeAll_()
 bool PoolDeviceModule::cmdPoolSetpoint_(void* ctx, const CommandRequest& req, char* reply, size_t length)
 {
     auto* self = static_cast<PoolDeviceModule*>(ctx);
-    return self && self->handlePoolTarget_(req, reply, length, TargetField::Setpoint);
-}
-
-bool PoolDeviceModule::cmdPoolMode_(void* ctx, const CommandRequest& req, char* reply, size_t length)
-{
-    auto* self = static_cast<PoolDeviceModule*>(ctx);
-    return self && self->handlePoolTarget_(req, reply, length, TargetField::Mode);
-}
-
-bool PoolDeviceModule::handlePoolTarget_(const CommandRequest& req, char* reply, size_t length, TargetField field)
-{
-    const char* command = field == TargetField::Mode ? "pooldevice.mode" : "pooldevice.setpoint";
-    SpiRamJsonDocument doc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument doc(psramOnlyJsonAllocator());
     JsonObjectConst args;
-    if (!parseCmdArgsObject_(req, doc, args) || !args["slot"].is<uint8_t>() ||
-        (field == TargetField::Mode ? !args["value"].is<uint8_t>() : !args["value"].is<float>())) {
-        writeCmdError_(reply, length, command, ErrorCode::MissingArgs); return false;
+    if (!self || !parseCmdArgsObject_(req, doc, args) || !args["slot"].is<uint8_t>() || !args["value"].is<float>()) {
+        writeCmdError_(reply, length, "pooldevice.setpoint", ErrorCode::MissingArgs); return false;
     }
     const uint8_t slot = args["slot"].as<uint8_t>();
-    if (slot >= POOL_DEVICE_MAX || !lockState_()) {
-        writeCmdError_(reply, length, command, ErrorCode::BadSlot); return false;
+    if (slot >= POOL_DEVICE_MAX || !self->lockState_()) {
+        writeCmdError_(reply, length, "pooldevice.setpoint", ErrorCode::BadSlot); return false;
     }
-    PoolDeviceTarget target = slots_[slot].desired;
-    if (field == TargetField::Mode) target.mode = args["value"].as<uint8_t>();
-    else target.setpoint = args["value"].as<float>();
-    const auto result = svcSetTargetImpl_(slot, &target);
-    unlockState_();
+    PoolDeviceTarget target = self->slots_[slot].desired;
+    target.setpoint = args["value"].as<float>();
+    const auto result = self->svcSetTargetImpl_(slot, &target);
+    self->unlockState_();
     if (result != POOLDEV_SVC_OK) {
-        writeCmdError_(reply, length, command, ErrorCode::Failed); return false;
+        writeCmdError_(reply, length, "pooldevice.setpoint", ErrorCode::Failed); return false;
     }
     snprintf(reply, length, "{\"ok\":true,\"accepted\":true,\"slot\":%u}", unsigned(slot));
     return true;

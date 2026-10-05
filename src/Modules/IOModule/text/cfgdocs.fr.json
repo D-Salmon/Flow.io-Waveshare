@@ -102,7 +102,7 @@
     "io/drivers/expander00/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander00.address.label",
-      "help_t": "cfgdocs.io.drivers.expander00.address.help",
+      "help_t": "cfgdocs.io.drivers.expander.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander00/mask_default": {
@@ -118,7 +118,7 @@
     "io/drivers/expander01/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander01.address.label",
-      "help_t": "cfgdocs.io.drivers.expander01.address.help",
+      "help_t": "cfgdocs.io.drivers.expander.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander01/mask_default": {
@@ -134,7 +134,7 @@
     "io/drivers/expander02/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander02.address.label",
-      "help_t": "cfgdocs.io.drivers.expander02.address.help",
+      "help_t": "cfgdocs.io.drivers.expander.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander02/mask_default": {
@@ -150,7 +150,7 @@
     "io/drivers/expander03/address": {
       "type": "UInt8",
       "label_t": "cfgdocs.io.drivers.expander03.address.label",
-      "help_t": "cfgdocs.io.drivers.expander03.address.help",
+      "help_t": "cfgdocs.io.drivers.expander.address.help",
       "display_format": "hex"
     },
     "io/drivers/expander03/mask_default": {
@@ -2073,342 +2073,55 @@
       "help_t": "cfgdocs.io.input.a31.binding_port.help",
       "enum_set": "flowio_binding_port_analog"
     },
-    "io/input/i00/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i00.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i00.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 64
-        },
-        "confirmation_t": "cfgdocs.io.input.i00.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i01/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i01.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i01.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 65
-        },
-        "confirmation_t": "cfgdocs.io.input.i01.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i02/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i02.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i02.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 66
-        },
-        "confirmation_t": "cfgdocs.io.input.i02.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i03/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i03.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i03.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 67
-        },
-        "confirmation_t": "cfgdocs.io.input.i03.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i04/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i04.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i04.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 68
-        },
-        "confirmation_t": "cfgdocs.io.input.i04.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i05/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i05.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i05.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 69
-        },
-        "confirmation_t": "cfgdocs.io.input.i05.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i06/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i06.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i06.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 70
-        },
-        "confirmation_t": "cfgdocs.io.input.i06.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i07/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i07.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i07.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 71
-        },
-        "confirmation_t": "cfgdocs.io.input.i07.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i08/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i08.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i08.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 72
-        },
-        "confirmation_t": "cfgdocs.io.input.i08.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i09/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i09.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i09.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 73
-        },
-        "confirmation_t": "cfgdocs.io.input.i09.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i10/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i10.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i10.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 74
-        },
-        "confirmation_t": "cfgdocs.io.input.i10.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i11/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i11.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i11.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 75
-        },
-        "confirmation_t": "cfgdocs.io.input.i11.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i12/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i12.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i12.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 76
-        },
-        "confirmation_t": "cfgdocs.io.input.i12.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i13/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i13.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i13.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 77
-        },
-        "confirmation_t": "cfgdocs.io.input.i13.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i14/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i14.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i14.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 78
-        },
-        "confirmation_t": "cfgdocs.io.input.i14.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/input/i15/counter_reset": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.input.i15.counter_reset.label",
-      "help_t": "cfgdocs.io.input.i15.counter_reset.help",
-      "widget": "action",
-      "counter_only": true,
-      "action": {
-        "endpoint": "/api/io/counter/reset",
-        "params": {
-          "id": 79
-        },
-        "confirmation_t": "cfgdocs.io.input.i15.counter_reset.confirm",
-        "success_t": "config.counter_reset.success"
-      }
-    },
-    "io/drivers/ads1115_int/secondary_address": {
+    "io/drivers/ds18b20/transport": {
       "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.help",
-      "display_format": "hex"
+      "label_t": "cfgdocs.io.drivers.ds18b20.transport.label",
+      "help_t": "cfgdocs.io.drivers.ds18b20.transport.help",
+      "enum_set": "ds18b20_transport"
     },
-    "io/drivers/ads1115_ext/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/sht40/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.sht40.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.sht40.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/bmp280/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.bmp280.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.bmp280.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/bme680/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.bme680.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.bme680.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/ina226/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.ina226.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.ina226.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander00/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander00.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander00.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander01/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander01.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander01.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander02/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander02.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander02.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander03/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander03.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander03.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/value": {
-      "label_t": "cfgdocs.io.value.label"
-    },
-    "io/value/v00": {
-      "label_t": "cfgdocs.io.value.v00.label"
-    },
-    "io/value/v00/aggregation": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.value.v00.aggregation.label",
-      "help_t": "cfgdocs.io.value.v00.aggregation.help",
-      "enum_set": "flowio_aggregation_mode"
-    },
-    "io/value/v00/offset": {
-      "type": "Double",
-      "label_t": "cfgdocs.io.value.v00.offset.label",
-      "help_t": "cfgdocs.io.value.v00.offset.help"
-    },
-    "io/value/v00/scale": {
-      "type": "Double",
-      "label_t": "cfgdocs.io.value.v00.scale.label",
-      "help_t": "cfgdocs.io.value.v00.scale.help"
-    },
-    "io/value/v00/source": {
-      "type": "UInt16",
-      "label_t": "cfgdocs.io.value.v00.source.label",
-      "help_t": "cfgdocs.io.value.v00.source.help"
-    },
-    "io/value/v00/enabled": {
+    "io/drivers/pcf857x/active_low": {
       "type": "Bool",
-      "label_t": "cfgdocs.io.value.v00.enabled.label",
-      "help_t": "cfgdocs.io.value.v00.enabled.help"
+      "label_t": "cfgdocs.io.drivers.pcf857x.active_low.label",
+      "help_t": "cfgdocs.io.drivers.pcf857x.active_low.help"
     },
-    "io/value/v00/name": {
-      "type": "CharArray",
-      "label_t": "cfgdocs.io.value.v00.name.label",
-      "help_t": "cfgdocs.io.value.v00.name.help"
+    "io/drivers/pcf857x/address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.pcf857x.address.label",
+      "help_t": "cfgdocs.io.drivers.pcf857x.address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/pcf857x/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.drivers.pcf857x.enabled.label",
+      "help_t": "cfgdocs.io.drivers.pcf857x.enabled.help"
+    },
+    "io/drivers/pcf857x/mask_default": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.pcf857x.mask_default.label",
+      "help_t": "cfgdocs.io.drivers.pcf857x.mask_default.help"
+    },
+    "io/drivers/mcp23017/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.drivers.mcp23017.enabled.label",
+      "help_t": "cfgdocs.io.drivers.mcp23017.enabled.help"
+    },
+    "io/drivers/mcp23017/address": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.drivers.mcp23017.address.label",
+      "help_t": "cfgdocs.io.drivers.mcp23017.address.help",
+      "display_format": "hex"
+    },
+    "io/drivers/ds18b20/water_transport": {
+      "type": "UInt8",
+      "label": "Raccordement température eau",
+      "help": "Choix indépendant pour cette sonde. Redémarrage requis.",
+      "enum_set": "ds18b20_transport_per_probe"
+    },
+    "io/drivers/ds18b20/air_transport": {
+      "type": "UInt8",
+      "label": "Raccordement température air",
+      "help": "Choix indépendant pour cette sonde. Redémarrage requis.",
+      "enum_set": "ds18b20_transport_per_probe"
     }
   }
 }

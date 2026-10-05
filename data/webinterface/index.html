@@ -7,16 +7,6 @@
   <link rel="icon" type="image/png" href="/webinterface/favicon.png" />
   <link rel="shortcut icon" type="image/png" href="/webinterface/favicon.png" />
   <title>flow.io</title>
-  <script>
-    (function () {
-      var theme = 'light';
-      try {
-        theme = localStorage.getItem('flow_web_theme') === 'dark' ? 'dark' : 'light';
-      } catch (err) {}
-      document.documentElement.setAttribute('data-theme', theme);
-      document.documentElement.style.colorScheme = theme;
-    })();
-  </script>
   <style>
     :root {
       --boot-bg: #0B1F3A;
@@ -60,12 +50,5 @@
 <body>
   <div id="app-root" class="is-booting"><div id="bootStatus" class="boot-status">Chargement de l'interface...</div></div>
   <script src="/webinterface/app-core.js"></script>
-  <script>
-    (function () {
-      if (window.FlowWebCore && typeof window.FlowWebCore.bootstrap === 'function') {
-        window.FlowWebCore.bootstrap();
-      }
-    })();
-  </script>
 </body>
 </html>

@@ -372,6 +372,11 @@
       "type": "CharArray",
       "label_t": "cfgdocs.tft.s3.alarms.slot07.label.label",
       "help_t": "cfgdocs.tft.s3.alarms.slot07.label.help"
+    },
+    "tft/s3/motion_gpio": {
+      "type": "Int32",
+      "label_t": "cfgdocs.tft.s3.motion_gpio.label",
+      "help_t": "cfgdocs.tft.s3.motion_gpio.help"
     }
   }
 }

@@ -70,7 +70,3 @@ des changements HMI. À la fin:
 - aucune valeur ne doit continuer à chuter fortement entre deux cycles;
 - conserver la sortie `Stack baseline ...` comme référence à comparer aux
   prochaines versions avant tout redimensionnement de stack.
-
-## Horodatage du watchdog web
-
-Le watchdog relève `millis()` après lecture du snapshot de santé web, afin qu’une mise à jour concurrente ne produise pas un âge négatif converti en entier non signé. Les âges utilisent une soustraction non signée pour supporter le débordement de `millis()`. L’activité HTTP/WebSocket la plus récente est sélectionnée par son âge, et non par la valeur brute de son horodatage. Les seuils et la politique de redémarrage restent inchangés.

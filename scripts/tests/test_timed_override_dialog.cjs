@@ -1,3 +1,4 @@
+const os = require('node:os');
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -116,11 +117,11 @@ async function main() {
     await page.getByRole('button', { name: 'Annuler', exact: true }).click();
     await modify.click();
     await page.waitForTimeout(250);
-    await page.screenshot({ path: '/tmp/flow-timed-override-dialog.png', fullPage: true });
+    await page.screenshot({ path: path.join(os.tmpdir(), 'flow-timed-override-dialog.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     const panelBox = await panel.boundingBox();
     assert(panelBox.x >= 0 && panelBox.x + panelBox.width <= 390, 'The entire override panel fits on mobile');
-    await page.screenshot({ path: '/tmp/flow-timed-override-dialog-mobile.png', fullPage: true });
+    await page.screenshot({ path: path.join(os.tmpdir(), 'flow-timed-override-dialog-mobile.png'), fullPage: true });
     assert.deepEqual(errors, []);
     console.log(`Timed override web commands on pd${slot} (automatic=${automatic}), validation, pending time and durable failure: OK`);
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

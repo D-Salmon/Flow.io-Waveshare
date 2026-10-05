@@ -1,0 +1,2335 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1,
+    "source": "text"
+  },
+  "meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1,
+    "cfg_tree_aliases": [
+      {
+        "display": "io/input/analog/a00",
+        "store": "io/input/a00"
+      },
+      {
+        "display": "io/input/analog/a01",
+        "store": "io/input/a01"
+      },
+      {
+        "display": "io/input/analog/a02",
+        "store": "io/input/a02"
+      },
+      {
+        "display": "io/input/analog/a03",
+        "store": "io/input/a03"
+      },
+      {
+        "display": "io/input/analog/a04",
+        "store": "io/input/a04"
+      },
+      {
+        "display": "io/input/analog/a05",
+        "store": "io/input/a05"
+      },
+      {
+        "display": "io/input/analog/a06",
+        "store": "io/input/a06"
+      },
+      {
+        "display": "io/input/analog/a07",
+        "store": "io/input/a07"
+      },
+      {
+        "display": "io/input/analog/a08",
+        "store": "io/input/a08"
+      },
+      {
+        "display": "io/input/analog/a09",
+        "store": "io/input/a09"
+      },
+      {
+        "display": "io/input/analog/a10",
+        "store": "io/input/a10"
+      },
+      {
+        "display": "io/input/analog/a11",
+        "store": "io/input/a11"
+      },
+      {
+        "display": "io/input/analog/a12",
+        "store": "io/input/a12"
+      },
+      {
+        "display": "io/input/analog/a13",
+        "store": "io/input/a13"
+      },
+      {
+        "display": "io/input/analog/a14",
+        "store": "io/input/a14"
+      },
+      {
+        "display": "io/input/analog/a15",
+        "store": "io/input/a15"
+      },
+      {
+        "display": "io/input/analog/a16",
+        "store": "io/input/a16"
+      },
+      {
+        "display": "io/input/analog/a17",
+        "store": "io/input/a17"
+      },
+      {
+        "display": "io/input/analog/a18",
+        "store": "io/input/a18"
+      },
+      {
+        "display": "io/input/analog/a19",
+        "store": "io/input/a19"
+      },
+      {
+        "display": "io/input/analog/a20",
+        "store": "io/input/a20"
+      },
+      {
+        "display": "io/input/digital/i00",
+        "store": "io/input/i00"
+      },
+      {
+        "display": "io/input/digital/i01",
+        "store": "io/input/i01"
+      },
+      {
+        "display": "io/input/digital/i02",
+        "store": "io/input/i02"
+      },
+      {
+        "display": "io/input/digital/i03",
+        "store": "io/input/i03"
+      },
+      {
+        "display": "io/input/digital/i04",
+        "store": "io/input/i04"
+      },
+      {
+        "display": "io/input/digital/i05",
+        "store": "io/input/i05"
+      },
+      {
+        "display": "io/input/digital/i06",
+        "store": "io/input/i06"
+      },
+      {
+        "display": "io/input/digital/i07",
+        "store": "io/input/i07"
+      },
+      {
+        "display": "io/input/digital/i08",
+        "store": "io/input/i08"
+      },
+      {
+        "display": "io/input/digital/i09",
+        "store": "io/input/i09"
+      },
+      {
+        "display": "io/input/digital/i10",
+        "store": "io/input/i10"
+      },
+      {
+        "display": "io/input/digital/i11",
+        "store": "io/input/i11"
+      },
+      {
+        "display": "io/input/digital/i12",
+        "store": "io/input/i12"
+      },
+      {
+        "display": "network/wifi",
+        "store": "wifi"
+      },
+      {
+        "display": "network/ethernet",
+        "store": "ethernet"
+      },
+      {
+        "display": "network/time",
+        "store": "time"
+      },
+      {
+        "display": "network/mqtt",
+        "store": "mqtt"
+      },
+      {
+        "display": "hmi/tft",
+        "store": "tft/s3"
+      }
+    ],
+    "cfg_tree_virtual_branches": [
+      {
+        "display": "io/input",
+        "children": [
+          "analog",
+          "digital"
+        ]
+      },
+      {
+        "display": "io/input/analog",
+        "children": [
+          "a00",
+          "a01",
+          "a02",
+          "a03",
+          "a04",
+          "a05",
+          "a06",
+          "a07",
+          "a08",
+          "a09",
+          "a10",
+          "a11",
+          "a12",
+          "a13",
+          "a14",
+          "a15",
+          "a16",
+          "a17",
+          "a18",
+          "a19",
+          "a20"
+        ]
+      },
+      {
+        "display": "io/input/digital",
+        "children": [
+          "i00",
+          "i01",
+          "i02",
+          "i03",
+          "i04",
+          "i05",
+          "i06",
+          "i07",
+          "i08",
+          "i09",
+          "i10",
+          "i11",
+          "i12"
+        ]
+      },
+      {
+        "display": "network",
+        "children": [
+          "ethernet",
+          "wifi",
+          "time",
+          "mqtt"
+        ]
+      },
+      {
+        "display": "hmi",
+        "children": [
+          "leds",
+          "buzzer",
+          "nextion",
+          "nextion_udp",
+          "tft",
+          "venice"
+        ]
+      }
+    ],
+    "enum_sets": {
+      "flowio_digital_input_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_digital_input_mode.0.label",
+          "label": "0 | Etat",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_digital_input_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_digital_input_mode.1.label",
+          "label": "1 | Compteur d'Impulsions",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_digital_input_mode.1.label"
+        }
+      ],
+      "io_analog_source": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_analog_source.0.label",
+          "label": "ADS Interne",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_analog_source.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_analog_source.1.label",
+          "label": "ADS Externe",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_analog_source.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_analog_source.2.label",
+          "label": "Sonde température eau",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_analog_source.2.label"
+        },
+        {
+          "value": 3,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_analog_source.3.label",
+          "label": "Sonde température air",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_analog_source.3.label"
+        }
+      ],
+      "io_digital_pull_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_digital_pull_mode.0.label",
+          "label": "Aucun",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_digital_pull_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_digital_pull_mode.1.label",
+          "label": "Pull-up",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_digital_pull_mode.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_digital_pull_mode.2.label",
+          "label": "Pull-down",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_digital_pull_mode.2.label"
+        }
+      ],
+      "flowio_binding_port_analog": [
+        {
+          "value": 0,
+          "label": "Non connecté"
+        },
+        {
+          "value": 100,
+          "label": "ADSInt0 - ADS1115 interne canal 0 [100]"
+        },
+        {
+          "value": 101,
+          "label": "ADSInt1 - ADS1115 interne canal 1 [101]"
+        },
+        {
+          "value": 102,
+          "label": "ADSInt2 - ADS1115 interne canal 2 [102]"
+        },
+        {
+          "value": 103,
+          "label": "ADSInt3 - ADS1115 interne canal 3 [103]"
+        },
+        {
+          "value": 110,
+          "label": "ADSExt0 - ADS1115 externe canal A0 [110]"
+        },
+        {
+          "value": 111,
+          "label": "ADSExt1 - ADS1115 externe canal A1 [111]"
+        },
+        {
+          "value": 120,
+          "label": "OneWireWater - DS18B20 GPIO20 [120]"
+        },
+        {
+          "value": 121,
+          "label": "OneWireAir - DS18B20 GPIO19 [121]"
+        },
+        {
+          "value": 130,
+          "label": "SHT40Temp - SHT40 canal 0 [130]"
+        },
+        {
+          "value": 131,
+          "label": "SHT40Humidity - SHT40 canal 1 [131]"
+        },
+        {
+          "value": 132,
+          "label": "BMP280Temp - BMP280 canal 0 [132]"
+        },
+        {
+          "value": 133,
+          "label": "BMP280Pressure - BMP280 canal 1 [133]"
+        },
+        {
+          "value": 134,
+          "label": "BME688Temp - BME688 canal 0 [134]"
+        },
+        {
+          "value": 135,
+          "label": "BME688Humidity - BME688 canal 1 [135]"
+        },
+        {
+          "value": 136,
+          "label": "BME688Pressure - BME688 canal 2 [136]"
+        },
+        {
+          "value": 137,
+          "label": "BME688Gas - BME688 canal 3 [137]"
+        },
+        {
+          "value": 138,
+          "label": "INA226ShuntMv - INA226 canal 0 [138]"
+        },
+        {
+          "value": 139,
+          "label": "INA226BusV - INA226 canal 1 [139]"
+        },
+        {
+          "value": 140,
+          "label": "INA226CurrentMa - INA226 canal 2 [140]"
+        },
+        {
+          "value": 141,
+          "label": "INA226PowerMw - INA226 canal 3 [141]"
+        },
+        {
+          "value": 142,
+          "label": "INA226LoadV - INA226 canal 4 [142]"
+        },
+        {
+          "value": 112,
+          "label": "ADSExt2 - ADS1115 externe canal A2 [112]"
+        },
+        {
+          "value": 113,
+          "label": "ADSExt3 - ADS1115 externe canal A3 [113]"
+        }
+      ],
+      "flowio_binding_port_digital_input": [
+        {
+          "value": 0,
+          "label": "Non connecté"
+        },
+        {
+          "value": 201,
+          "label": "GPIO05 - ESP32-S3 input [201]"
+        },
+        {
+          "value": 202,
+          "label": "GPIO06 - ESP32-S3 input [202]"
+        },
+        {
+          "value": 203,
+          "label": "GPIO07 - ESP32-S3 input [203]"
+        },
+        {
+          "value": 204,
+          "label": "GPIO08 - ESP32-S3 input [204]"
+        },
+        {
+          "value": 205,
+          "label": "GPIO09 - ESP32-S3 input [205]"
+        },
+        {
+          "value": 206,
+          "label": "GPIO10 - ESP32-S3 input [206]"
+        },
+        {
+          "value": 207,
+          "label": "GPIO11 - ESP32-S3 input [207]"
+        },
+        {
+          "value": 220,
+          "label": "GPA0 - MCP23017 input [220]"
+        },
+        {
+          "value": 221,
+          "label": "GPA1 - MCP23017 input, unassigned [221]"
+        },
+        {
+          "value": 222,
+          "label": "GPA2 - MCP23017 input, unassigned [222]"
+        },
+        {
+          "value": 223,
+          "label": "GPA3 - MCP23017 input [223]"
+        },
+        {
+          "value": 224,
+          "label": "GPA4 - MCP23017 input [224]"
+        },
+        {
+          "value": 225,
+          "label": "GPA5 - MCP23017 input [225]"
+        },
+        {
+          "value": 226,
+          "label": "GPA6 - MCP23017 input [226]"
+        }
+      ],
+      "flowio_binding_port_digital_output": [
+        {
+          "value": 0,
+          "label": "Non connecté"
+        },
+        {
+          "value": 300,
+          "label": "EXIO1 - TCA9554 bit 0 [300]"
+        },
+        {
+          "value": 301,
+          "label": "EXIO2 - TCA9554 bit 1 [301]"
+        },
+        {
+          "value": 302,
+          "label": "EXIO3 - TCA9554 bit 2 [302]"
+        },
+        {
+          "value": 303,
+          "label": "EXIO4 - TCA9554 bit 3 [303]"
+        },
+        {
+          "value": 304,
+          "label": "EXIO5 - TCA9554 bit 4 [304]"
+        },
+        {
+          "value": 305,
+          "label": "EXIO6 - TCA9554 bit 5 [305]"
+        },
+        {
+          "value": 306,
+          "label": "EXIO7 - TCA9554 bit 6 [306]"
+        },
+        {
+          "value": 307,
+          "label": "EXIO8 - TCA9554 bit 7 [307]"
+        },
+        {
+          "value": 320,
+          "label": "GPB0 - MCP23017 output [320]"
+        },
+        {
+          "value": 321,
+          "label": "GPB1 - MCP23017 output [321]"
+        },
+        {
+          "value": 322,
+          "label": "GPB2 - MCP23017 output [322]"
+        },
+        {
+          "value": 323,
+          "label": "GPB3 - MCP23017 output [323]"
+        },
+        {
+          "value": 324,
+          "label": "GPB4 - MCP23017 output [324]"
+        },
+        {
+          "value": 325,
+          "label": "GPB5 - MCP23017 output [325]"
+        },
+        {
+          "value": 326,
+          "label": "GPB6 - MCP23017 output [326]"
+        },
+        {
+          "value": 327,
+          "label": "GPB7 - MCP23017 output [327]"
+        }
+      ],
+      "flowio_edge_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_edge_mode.0.label",
+          "label": "Front Descendant [0]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_edge_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_edge_mode.1.label",
+          "label": "Front Montant [1]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_edge_mode.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_edge_mode.2.label",
+          "label": "Deux Fronts [2]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_edge_mode.2.label"
+        }
+      ],
+      "flowio_logical_input_analog": [
+        {
+          "value": 192,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.0.label",
+          "label": "io/input/a00 [192]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.0.label"
+        },
+        {
+          "value": 193,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.1.label",
+          "label": "io/input/a01 [193]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.1.label"
+        },
+        {
+          "value": 194,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.2.label",
+          "label": "io/input/a02 [194]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.2.label"
+        },
+        {
+          "value": 195,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.3.label",
+          "label": "io/input/a03 [195]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.3.label"
+        },
+        {
+          "value": 196,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.4.label",
+          "label": "io/input/a04 [196]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.4.label"
+        },
+        {
+          "value": 197,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.5.label",
+          "label": "io/input/a05 [197]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.5.label"
+        },
+        {
+          "value": 198,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.6.label",
+          "label": "io/input/a06 [198]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.6.label"
+        },
+        {
+          "value": 199,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.7.label",
+          "label": "io/input/a07 [199]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.7.label"
+        },
+        {
+          "value": 200,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.8.label",
+          "label": "io/input/a08 [200]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.8.label"
+        },
+        {
+          "value": 201,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.9.label",
+          "label": "io/input/a09 [201]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.9.label"
+        },
+        {
+          "value": 202,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.10.label",
+          "label": "io/input/a10 [202]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.10.label"
+        },
+        {
+          "value": 203,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.11.label",
+          "label": "io/input/a11 [203]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.11.label"
+        },
+        {
+          "value": 204,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.12.label",
+          "label": "io/input/a12 [204]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.12.label"
+        },
+        {
+          "value": 205,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.13.label",
+          "label": "io/input/a13 [205]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.13.label"
+        },
+        {
+          "value": 206,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.14.label",
+          "label": "io/input/a14 [206]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.14.label"
+        },
+        {
+          "value": 207,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.15.label",
+          "label": "io/input/a15 [207]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.15.label"
+        },
+        {
+          "value": 208,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.16.label",
+          "label": "io/input/a16 [208]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.16.label"
+        },
+        {
+          "value": 209,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.17.label",
+          "label": "io/input/a17 [209]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.17.label"
+        },
+        {
+          "value": 210,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.18.label",
+          "label": "io/input/a18 [210]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.18.label"
+        },
+        {
+          "value": 211,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.19.label",
+          "label": "io/input/a19 [211]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.19.label"
+        },
+        {
+          "value": 212,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.20.label",
+          "label": "io/input/a20 [212]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.20.label"
+        }
+      ],
+      "flowio_logical_input_digital": [
+        {
+          "value": 64,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.0.label",
+          "label": "io/input/i00 [64]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.0.label"
+        },
+        {
+          "value": 65,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.1.label",
+          "label": "io/input/i01 [65]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.1.label"
+        },
+        {
+          "value": 66,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.2.label",
+          "label": "io/input/i02 [66]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.2.label"
+        },
+        {
+          "value": 67,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.3.label",
+          "label": "io/input/i03 [67]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.3.label"
+        },
+        {
+          "value": 68,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.4.label",
+          "label": "io/input/i04 [68]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.4.label"
+        },
+        {
+          "value": 69,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.5.label",
+          "label": "io/input/i05 [69]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.5.label"
+        },
+        {
+          "value": 70,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.6.label",
+          "label": "io/input/i06 [70]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.6.label"
+        },
+        {
+          "value": 71,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.7.label",
+          "label": "io/input/i07 [71]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.7.label"
+        },
+        {
+          "value": 72,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.8.label",
+          "label": "io/input/i08 [72]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.8.label"
+        },
+        {
+          "value": 73,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.9.label",
+          "label": "io/input/i09 [73]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.9.label"
+        },
+        {
+          "value": 74,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.10.label",
+          "label": "io/input/i10 [74]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.10.label"
+        },
+        {
+          "value": 75,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.11.label",
+          "label": "io/input/i11 [75]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.11.label"
+        },
+        {
+          "value": 76,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.12.label",
+          "label": "io/input/i12 [76]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.12.label"
+        }
+      ],
+      "io_output_boot_behavior": [
+        {
+          "value": false,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_output_boot_behavior.0.label",
+          "label": "Appliquer état initial",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_output_boot_behavior.0.label"
+        },
+        {
+          "value": true,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.io_output_boot_behavior.1.label",
+          "label": "Conserver au reboot",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.io_output_boot_behavior.1.label"
+        }
+      ],
+      "ds18b20_transport": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.ds18b20_transport.0.label",
+          "label": "I²C 0x18 - DS2484",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.ds18b20_transport.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.ds18b20_transport.1.label",
+          "label": "Raccordement direct",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.ds18b20_transport.1.label"
+        }
+      ],
+      "ds18b20_transport_per_probe": [
+        {
+          "value": 0,
+          "label": "I²C DS2484 (0x18)"
+        },
+        {
+          "value": 1,
+          "label": "DS18B20 direct GPIO"
+        },
+        {
+          "value": 255,
+          "label": "Transport global"
+        }
+      ],
+      "log_levels": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.0.label",
+          "label": "Debug",
+          "label_i18n": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.1.label",
+          "label": "Info",
+          "label_i18n": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.2.label",
+          "label": "Warning",
+          "label_i18n": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.2.label"
+        },
+        {
+          "value": 3,
+          "label_t": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.3.label",
+          "label": "Error",
+          "label_i18n": "cfgmods_meta.logs.loghubmodule.enum_sets.log_levels.3.label"
+        }
+      ],
+      "timezones_world": [
+        {
+          "value": "UTC12",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.0.label",
+          "label": "Ligne de date ouest (UTC-12:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.0.label"
+        },
+        {
+          "value": "SST11",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.1.label",
+          "label": "Samoa americaines (UTC-11:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.1.label"
+        },
+        {
+          "value": "HST10",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.2.label",
+          "label": "Hawaii (UTC-10:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.2.label"
+        },
+        {
+          "value": "AKST9AKDT,M3.2.0/2,M11.1.0/2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.3.label",
+          "label": "Alaska (UTC-09:00 / ete UTC-08:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.3.label"
+        },
+        {
+          "value": "PST8PDT,M3.2.0/2,M11.1.0/2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.4.label",
+          "label": "Amerique du Nord ouest (UTC-08:00 / ete UTC-07:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.4.label"
+        },
+        {
+          "value": "MST7MDT,M3.2.0/2,M11.1.0/2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.5.label",
+          "label": "Amerique du Nord montagnes (UTC-07:00 / ete UTC-06:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.5.label"
+        },
+        {
+          "value": "CST6CDT,M3.2.0/2,M11.1.0/2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.6.label",
+          "label": "Amerique du Nord centre (UTC-06:00 / ete UTC-05:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.6.label"
+        },
+        {
+          "value": "EST5EDT,M3.2.0/2,M11.1.0/2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.7.label",
+          "label": "Amerique du Nord est (UTC-05:00 / ete UTC-04:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.7.label"
+        },
+        {
+          "value": "AST4ADT,M3.2.0/2,M11.1.0/2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.8.label",
+          "label": "Atlantique nord-ouest (UTC-04:00 / ete UTC-03:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.8.label"
+        },
+        {
+          "value": "NST3:30",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.9.label",
+          "label": "Terre-Neuve (UTC-03:30)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.9.label"
+        },
+        {
+          "value": "BRT3",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.10.label",
+          "label": "Amerique du Sud est (UTC-03:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.10.label"
+        },
+        {
+          "value": "UTC2",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.11.label",
+          "label": "Atlantique sud (UTC-02:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.11.label"
+        },
+        {
+          "value": "AZOT1AZOST,M3.5.0/0,M10.5.0/1",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.12.label",
+          "label": "Acores (UTC-01:00 / ete UTC+00:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.12.label"
+        },
+        {
+          "value": "GMT0BST,M3.5.0/1,M10.5.0",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.13.label",
+          "label": "Royaume-Uni / Portugal (UTC+00:00 / ete UTC+01:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.13.label"
+        },
+        {
+          "value": "CET-1CEST,M3.5.0/2,M10.5.0/3",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.14.label",
+          "label": "Europe centrale (UTC+01:00 / ete UTC+02:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.14.label"
+        },
+        {
+          "value": "EET-2EEST,M3.5.0/3,M10.5.0/4",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.15.label",
+          "label": "Europe de l'Est (UTC+02:00 / ete UTC+03:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.15.label"
+        },
+        {
+          "value": "MSK-3",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.16.label",
+          "label": "Moscou / Afrique de l'Est (UTC+03:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.16.label"
+        },
+        {
+          "value": "UTC-4",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.17.label",
+          "label": "Golfe / Caucase (UTC+04:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.17.label"
+        },
+        {
+          "value": "UTC-5",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.18.label",
+          "label": "Pakistan / Asie centrale (UTC+05:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.18.label"
+        },
+        {
+          "value": "UTC-5:30",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.19.label",
+          "label": "Inde / Sri Lanka (UTC+05:30)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.19.label"
+        },
+        {
+          "value": "UTC-6",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.20.label",
+          "label": "Bangladesh / Bhoutan (UTC+06:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.20.label"
+        },
+        {
+          "value": "UTC-7",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.21.label",
+          "label": "Asie du Sud-Est ouest (UTC+07:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.21.label"
+        },
+        {
+          "value": "UTC-8",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.22.label",
+          "label": "Chine / Singapour / Australie ouest (UTC+08:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.22.label"
+        },
+        {
+          "value": "JST-9",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.23.label",
+          "label": "Japon / Coree (UTC+09:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.23.label"
+        },
+        {
+          "value": "ACST-9:30ACDT,M10.1.0/2,M4.1.0/3",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.24.label",
+          "label": "Australie centrale (UTC+09:30 / ete UTC+10:30)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.24.label"
+        },
+        {
+          "value": "AEST-10AEDT,M10.1.0/2,M4.1.0/3",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.25.label",
+          "label": "Australie est (UTC+10:00 / ete UTC+11:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.25.label"
+        },
+        {
+          "value": "UTC-11",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.26.label",
+          "label": "Pacifique ouest (UTC+11:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.26.label"
+        },
+        {
+          "value": "NZST-12NZDT,M9.5.0/2,M4.1.0/3",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.27.label",
+          "label": "Nouvelle-Zelande (UTC+12:00 / ete UTC+13:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.27.label"
+        },
+        {
+          "value": "UTC-13",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.28.label",
+          "label": "Samoa / Tonga (UTC+13:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.28.label"
+        },
+        {
+          "value": "UTC-14",
+          "label_t": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.29.label",
+          "label": "Kiritimati (UTC+14:00)",
+          "label_i18n": "cfgmods_meta.network.timemodule.enum_sets.timezones_world.29.label"
+        }
+      ],
+      "hours_of_day": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.0.label",
+          "label": "00:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.1.label",
+          "label": "01:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.2.label",
+          "label": "02:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.2.label"
+        },
+        {
+          "value": 3,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.3.label",
+          "label": "03:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.3.label"
+        },
+        {
+          "value": 4,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.4.label",
+          "label": "04:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.4.label"
+        },
+        {
+          "value": 5,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.5.label",
+          "label": "05:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.5.label"
+        },
+        {
+          "value": 6,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.6.label",
+          "label": "06:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.6.label"
+        },
+        {
+          "value": 7,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.7.label",
+          "label": "07:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.7.label"
+        },
+        {
+          "value": 8,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.8.label",
+          "label": "08:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.8.label"
+        },
+        {
+          "value": 9,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.9.label",
+          "label": "09:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.9.label"
+        },
+        {
+          "value": 10,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.10.label",
+          "label": "10:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.10.label"
+        },
+        {
+          "value": 11,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.11.label",
+          "label": "11:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.11.label"
+        },
+        {
+          "value": 12,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.12.label",
+          "label": "12:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.12.label"
+        },
+        {
+          "value": 13,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.13.label",
+          "label": "13:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.13.label"
+        },
+        {
+          "value": 14,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.14.label",
+          "label": "14:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.14.label"
+        },
+        {
+          "value": 15,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.15.label",
+          "label": "15:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.15.label"
+        },
+        {
+          "value": 16,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.16.label",
+          "label": "16:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.16.label"
+        },
+        {
+          "value": 17,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.17.label",
+          "label": "17:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.17.label"
+        },
+        {
+          "value": 18,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.18.label",
+          "label": "18:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.18.label"
+        },
+        {
+          "value": 19,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.19.label",
+          "label": "19:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.19.label"
+        },
+        {
+          "value": 20,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.20.label",
+          "label": "20:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.20.label"
+        },
+        {
+          "value": 21,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.21.label",
+          "label": "21:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.21.label"
+        },
+        {
+          "value": 22,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.22.label",
+          "label": "22:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.22.label"
+        },
+        {
+          "value": 23,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.23.label",
+          "label": "23:00",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.hours_of_day.23.label"
+        }
+      ],
+      "poollogic_device_slot": [
+        {
+          "value": 0,
+          "label": "pd0 -> d00 [0]"
+        },
+        {
+          "value": 1,
+          "label": "pd1 -> d01 [1]"
+        },
+        {
+          "value": 2,
+          "label": "pd2 -> d02 [2]"
+        },
+        {
+          "value": 3,
+          "label": "pd3 -> d03 [3]"
+        },
+        {
+          "value": 4,
+          "label": "pd4 -> d04 [4]"
+        },
+        {
+          "value": 5,
+          "label": "pd5 -> d05 [5]"
+        },
+        {
+          "value": 6,
+          "label": "pd6 -> d06 [6]"
+        },
+        {
+          "value": 7,
+          "label": "pd7 -> d07 [7]"
+        }
+      ],
+      "poollogic_disinfection_type": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.0.label",
+          "label": "Chlore/Brome",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.1.label",
+          "label": "Electrolyse",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.2.label",
+          "label": "Oxygène actif",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.2.label"
+        },
+        {
+          "value": 3,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.3.label",
+          "label": "Désactivé",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_disinfection_type.3.label"
+        }
+      ],
+      "poollogic_swg_control_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.0.label",
+          "label": "Suivi consigne ORP",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.1.label",
+          "label": "Continu sur filtration",
+          "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.1.label"
+        }
+      ],
+      "i18n_languages": [
+        {
+          "value": "fr",
+          "label_t": "cfgmods_meta.system.systemmodule.enum_sets.i18n_languages.0.label",
+          "label": "Francais (fr)",
+          "label_i18n": "cfgmods_meta.system.systemmodule.enum_sets.i18n_languages.0.label"
+        },
+        {
+          "value": "en",
+          "label_t": "cfgmods_meta.system.systemmodule.enum_sets.i18n_languages.1.label",
+          "label": "English (en)",
+          "label_i18n": "cfgmods_meta.system.systemmodule.enum_sets.i18n_languages.1.label"
+        }
+      ],
+      "tft_s3_dashboard_color": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.0.label",
+          "color": "#4A90E2",
+          "label": "#4A90E2",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.1.label",
+          "color": "#20C5D8",
+          "label": "#20C5D8",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.2.label",
+          "color": "#54C27A",
+          "label": "#54C27A",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.2.label"
+        },
+        {
+          "value": 3,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.3.label",
+          "color": "#A97CF4",
+          "label": "#A97CF4",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.3.label"
+        },
+        {
+          "value": 4,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.4.label",
+          "color": "#27B7C8",
+          "label": "#27B7C8",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.4.label"
+        },
+        {
+          "value": 5,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.5.label",
+          "color": "#39B8F2",
+          "label": "#39B8F2",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.5.label"
+        },
+        {
+          "value": 6,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.6.label",
+          "color": "#79C7F2",
+          "label": "#79C7F2",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.6.label"
+        },
+        {
+          "value": 7,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.7.label",
+          "color": "#F29B6B",
+          "label": "#F29B6B",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.7.label"
+        },
+        {
+          "value": 8,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.8.label",
+          "color": "#E96AAE",
+          "label": "#E96AAE",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.8.label"
+        },
+        {
+          "value": 9,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.9.label",
+          "color": "#F3A65A",
+          "label": "#F3A65A",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.9.label"
+        },
+        {
+          "value": 10,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.10.label",
+          "color": "#E9CF54",
+          "label": "#E9CF54",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.10.label"
+        },
+        {
+          "value": 11,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.11.label",
+          "color": "#7BC47F",
+          "label": "#7BC47F",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.11.label"
+        },
+        {
+          "value": 12,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.12.label",
+          "color": "#9CCC4A",
+          "label": "#9CCC4A",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.12.label"
+        },
+        {
+          "value": 13,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.13.label",
+          "color": "#B388FF",
+          "label": "#B388FF",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.13.label"
+        },
+        {
+          "value": 14,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.14.label",
+          "color": "#8C9EFF",
+          "label": "#8C9EFF",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.14.label"
+        },
+        {
+          "value": 15,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.15.label",
+          "color": "#6EC6FF",
+          "label": "#6EC6FF",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.15.label"
+        },
+        {
+          "value": 16,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.16.label",
+          "color": "#B7D64A",
+          "label": "#B7D64A",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.16.label"
+        },
+        {
+          "value": 17,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.17.label",
+          "color": "#F28B82",
+          "label": "#F28B82",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.17.label"
+        },
+        {
+          "value": 18,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.18.label",
+          "color": "#D7A184",
+          "label": "#D7A184",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.18.label"
+        },
+        {
+          "value": 19,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.19.label",
+          "color": "#A8B2BF",
+          "label": "#A8B2BF",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.19.label"
+        },
+        {
+          "value": 20,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.20.label",
+          "color": "#FFFFFF",
+          "label": "#FFFFFF",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_color.20.label"
+        }
+      ],
+      "tft_s3_dashboard_runtime_ui": [
+        {
+          "value": 2101,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.0.label",
+          "label": "MQTT pret [2101]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.0.label"
+        },
+        {
+          "value": 2103,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.1.label",
+          "label": "MQTT rx drop [2103]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.1.label"
+        },
+        {
+          "value": 2104,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.2.label",
+          "label": "MQTT parse fail [2104]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.2.label"
+        },
+        {
+          "value": 2105,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.3.label",
+          "label": "MQTT handler fail [2105]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.3.label"
+        },
+        {
+          "value": 2106,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.4.label",
+          "label": "MQTT oversize [2106]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.4.label"
+        },
+        {
+          "value": 2201,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.5.label",
+          "label": "Temperature eau [2201]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.5.label"
+        },
+        {
+          "value": 2202,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.6.label",
+          "label": "Temperature air [2202]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.6.label"
+        },
+        {
+          "value": 2203,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.7.label",
+          "label": "pH [2203]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.7.label"
+        },
+        {
+          "value": 2204,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.8.label",
+          "label": "ORP [2204]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.8.label"
+        },
+        {
+          "value": 2205,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.9.label",
+          "label": "Volume eau [2205]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.9.label"
+        },
+        {
+          "value": 2206,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.10.label",
+          "label": "Pression pompe [2206]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.10.label"
+        },
+        {
+          "value": 2207,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.11.label",
+          "label": "Temperature BMP280 [2207]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.11.label"
+        },
+        {
+          "value": 2208,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.12.label",
+          "label": "Temperature BME680 [2208]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.12.label"
+        },
+        {
+          "value": 2209,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.13.label",
+          "label": "Pression BMP280 [2209]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.13.label"
+        },
+        {
+          "value": 2210,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.14.label",
+          "label": "Temperature SHT40 [2210]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.14.label"
+        },
+        {
+          "value": 2211,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.15.label",
+          "label": "Humidite SHT40 [2211]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.15.label"
+        },
+        {
+          "value": 2212,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.16.label",
+          "label": "Humidite BME680 [2212]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.16.label"
+        },
+        {
+          "value": 2213,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.17.label",
+          "label": "Pression BME680 [2213]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.17.label"
+        },
+        {
+          "value": 2214,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.18.label",
+          "label": "Gaz BME680 [2214]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.18.label"
+        },
+        {
+          "value": 2301,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.19.label",
+          "label": "Filtration [2301]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.19.label"
+        },
+        {
+          "value": 2302,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.20.label",
+          "label": "Pompe pH [2302]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.20.label"
+        },
+        {
+          "value": 2303,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.21.label",
+          "label": "Pompe chlore [2303]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.21.label"
+        },
+        {
+          "value": 2304,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.22.label",
+          "label": "Robot [2304]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.22.label"
+        },
+        {
+          "value": 1801,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.23.label",
+          "label": "Firmware [1801]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.23.label"
+        },
+        {
+          "value": 1802,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.24.label",
+          "label": "Uptime [1802]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.24.label"
+        },
+        {
+          "value": 1803,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.25.label",
+          "label": "Heap libre [1803]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.25.label"
+        },
+        {
+          "value": 1804,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.26.label",
+          "label": "Heap min [1804]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.26.label"
+        },
+        {
+          "value": 1001,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.27.label",
+          "label": "Réseau pret [1001]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.27.label"
+        },
+        {
+          "value": 1002,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.28.label",
+          "label": "IP réseau [1002]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.28.label"
+        },
+        {
+          "value": 1003,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.29.label",
+          "label": "RSSI réseau [1003]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_dashboard_runtime_ui.29.label"
+        }
+      ],
+      "tft_s3_alarm_id": [
+        {
+          "value": 1000,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.0.label",
+          "label": "PSI bas [1000]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.0.label"
+        },
+        {
+          "value": 1001,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.1.label",
+          "label": "PSI haut [1001]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.1.label"
+        },
+        {
+          "value": 1002,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.2.label",
+          "label": "Bidon pH bas [1002]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.2.label"
+        },
+        {
+          "value": 1003,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.3.label",
+          "label": "Bidon chlore bas [1003]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.3.label"
+        },
+        {
+          "value": 1004,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.4.label",
+          "label": "Pompe pH duree max [1004]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.4.label"
+        },
+        {
+          "value": 1005,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.5.label",
+          "label": "Pompe ORP duree max [1005]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.5.label"
+        },
+        {
+          "value": 1006,
+          "label_t": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.6.label",
+          "label": "Niveau d'eau bas [1006]",
+          "label_i18n": "cfgmods_meta.tftmodules3.enum_sets.tft_s3_alarm_id.6.label"
+        }
+      ]
+    },
+    "cfg_tree_hidden_paths": [
+      "io/drivers/ds18b20/transport",
+      "io/drivers/ds18b20/water_transport",
+      "io/drivers/ds18b20/air_transport",
+      "io/drivers/ads1115_int/address",
+      "io/drivers/ads1115_ext/address",
+      "io/input/a00/binding_port",
+      "io/input/a01/binding_port",
+      "io/input/a02/binding_port",
+      "io/input/a03/binding_port",
+      "io/input/a04/binding_port",
+      "io/input/a05/binding_port",
+      "io/input/a06/binding_port",
+      "io/input/a07/binding_port",
+      "io/input/a08/binding_port",
+      "io/input/a09/binding_port",
+      "io/input/a10/binding_port",
+      "io/input/a11/binding_port",
+      "io/input/a12/binding_port",
+      "io/input/a13/binding_port",
+      "io/input/a14/binding_port",
+      "io/input/a15/binding_port",
+      "ethernet",
+      "mqtt",
+      "wifi"
+    ]
+  },
+  "docs": {
+    "ai/openai": {
+      "label_t": "cfgmods.ai.openai.label",
+      "label": "OpenAI",
+      "label_i18n": "cfgmods.ai.openai.label"
+    },
+    "hmi": {
+      "label_t": "cfgmods.hmi.label",
+      "label": "hmi",
+      "label_i18n": "cfgmods.hmi.label"
+    },
+    "hmi/buzzer": {},
+    "hmi/leds": {},
+    "hmi/nextion": {},
+    "hmi/nextion_udp": {},
+    "hmi/tft": {},
+    "hmi/tft/alarms": {
+      "label_t": "cfgmods.hmi.tft.alarms.label",
+      "label": "Alarmes",
+      "label_i18n": "cfgmods.hmi.tft.alarms.label"
+    },
+    "hmi/tft/sensors": {
+      "label_t": "cfgmods.hmi.tft.sensors.label",
+      "label": "Sondes",
+      "label_i18n": "cfgmods.hmi.tft.sensors.label"
+    },
+    "hmi/venice": {},
+    "io/drivers/ads1115_ext/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/ads1115_int/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/bme680/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/bmp280/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/ds18b20/air_transport": {
+      "enum_set": "ds18b20_transport"
+    },
+    "io/drivers/ds18b20/transport": {
+      "enum_set": "ds18b20_transport"
+    },
+    "io/drivers/ds18b20/water_transport": {
+      "enum_set": "ds18b20_transport"
+    },
+    "io/drivers/expander00/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/expander01/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/expander02/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/expander03/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/ina226/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/mcp23017/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/pcf857x/address": {
+      "display_format": "hex"
+    },
+    "io/drivers/sht40/address": {
+      "display_format": "hex"
+    },
+    "io/input": {
+      "label_t": "cfgmods.io.input.label",
+      "label": "Entrées",
+      "label_i18n": "cfgmods.io.input.label"
+    },
+    "io/input/a00/a00_source": {
+      "enum_set": "io_analog_source"
+    },
+    "io/input/a01/a01_source": {
+      "enum_set": "io_analog_source"
+    },
+    "io/input/a02/a02_source": {
+      "enum_set": "io_analog_source"
+    },
+    "io/input/a03/a03_source": {
+      "enum_set": "io_analog_source"
+    },
+    "io/input/a04/a04_source": {
+      "enum_set": "io_analog_source"
+    },
+    "io/input/a05/a05_source": {
+      "enum_set": "io_analog_source"
+    },
+    "io/input/analog": {
+      "label_t": "cfgmods.io.input.analog.label",
+      "label": "Entrées analogiques",
+      "label_i18n": "cfgmods.io.input.analog.label"
+    },
+    "io/input/digital": {
+      "label_t": "cfgmods.io.input.digital.label",
+      "label": "Entrées digitales",
+      "label_i18n": "cfgmods.io.input.digital.label"
+    },
+    "io/input/i00/i00_pull_mode": {
+      "enum_set": "io_digital_pull_mode"
+    },
+    "io/input/i00/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i00.mode.label",
+      "help_t": "cfgmods.io.input.i00.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I00",
+      "label_i18n": "cfgmods.io.input.i00.mode.label",
+      "help": "Choisit le type de fonctionnement de I00 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i00.mode.help"
+    },
+    "io/input/i01/i01_pull_mode": {
+      "enum_set": "io_digital_pull_mode"
+    },
+    "io/input/i01/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i01.mode.label",
+      "help_t": "cfgmods.io.input.i01.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I01",
+      "label_i18n": "cfgmods.io.input.i01.mode.label",
+      "help": "Choisit le type de fonctionnement de I01 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i01.mode.help"
+    },
+    "io/input/i02/i02_pull_mode": {
+      "enum_set": "io_digital_pull_mode"
+    },
+    "io/input/i02/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i02.mode.label",
+      "help_t": "cfgmods.io.input.i02.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I02",
+      "label_i18n": "cfgmods.io.input.i02.mode.label",
+      "help": "Choisit le type de fonctionnement de I02 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i02.mode.help"
+    },
+    "io/input/i03/i03_pull_mode": {
+      "enum_set": "io_digital_pull_mode"
+    },
+    "io/input/i03/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i03.mode.label",
+      "help_t": "cfgmods.io.input.i03.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I03",
+      "label_i18n": "cfgmods.io.input.i03.mode.label",
+      "help": "Choisit le type de fonctionnement de I03 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i03.mode.help"
+    },
+    "io/input/i04/i04_pull_mode": {
+      "enum_set": "io_digital_pull_mode"
+    },
+    "io/input/i04/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i04.mode.label",
+      "help_t": "cfgmods.io.input.i04.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I04",
+      "label_i18n": "cfgmods.io.input.i04.mode.label",
+      "help": "Choisit le type de fonctionnement de I04 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i04.mode.help"
+    },
+    "io/input/i05/i05_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i05.i05_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i05.i05_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I05",
+      "label_i18n": "cfgdocs.io.input.i05.i05_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I05.",
+      "help_i18n": "cfgdocs.io.input.i05.i05_pull_mode.help"
+    },
+    "io/input/i05/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i05.mode.label",
+      "help_t": "cfgmods.io.input.i05.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I05",
+      "label_i18n": "cfgmods.io.input.i05.mode.label",
+      "help": "Choisit le type de fonctionnement de I05 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i05.mode.help"
+    },
+    "io/input/i06/i06_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i06.i06_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i06.i06_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I06",
+      "label_i18n": "cfgdocs.io.input.i06.i06_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I06.",
+      "help_i18n": "cfgdocs.io.input.i06.i06_pull_mode.help"
+    },
+    "io/input/i06/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i06.mode.label",
+      "help_t": "cfgmods.io.input.i06.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I06",
+      "label_i18n": "cfgmods.io.input.i06.mode.label",
+      "help": "Choisit le type de fonctionnement de I06 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i06.mode.help"
+    },
+    "io/input/i07/i07_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i07.i07_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i07.i07_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I07",
+      "label_i18n": "cfgdocs.io.input.i07.i07_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I07.",
+      "help_i18n": "cfgdocs.io.input.i07.i07_pull_mode.help"
+    },
+    "io/input/i07/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i07.mode.label",
+      "help_t": "cfgmods.io.input.i07.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I07",
+      "label_i18n": "cfgmods.io.input.i07.mode.label",
+      "help": "Choisit le type de fonctionnement de I07 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i07.mode.help"
+    },
+    "io/input/i08/i08_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i08.i08_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i08.i08_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I08",
+      "label_i18n": "cfgdocs.io.input.i08.i08_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I08.",
+      "help_i18n": "cfgdocs.io.input.i08.i08_pull_mode.help"
+    },
+    "io/input/i08/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i08.mode.label",
+      "help_t": "cfgmods.io.input.i08.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I08",
+      "label_i18n": "cfgmods.io.input.i08.mode.label",
+      "help": "Choisit le type de fonctionnement de I08 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i08.mode.help"
+    },
+    "io/input/i09/i09_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i09.i09_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i09.i09_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I09",
+      "label_i18n": "cfgdocs.io.input.i09.i09_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I09.",
+      "help_i18n": "cfgdocs.io.input.i09.i09_pull_mode.help"
+    },
+    "io/input/i09/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i09.mode.label",
+      "help_t": "cfgmods.io.input.i09.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I09",
+      "label_i18n": "cfgmods.io.input.i09.mode.label",
+      "help": "Choisit le type de fonctionnement de I09 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i09.mode.help"
+    },
+    "io/input/i10/i10_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i10.i10_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i10.i10_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I10",
+      "label_i18n": "cfgdocs.io.input.i10.i10_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I10.",
+      "help_i18n": "cfgdocs.io.input.i10.i10_pull_mode.help"
+    },
+    "io/input/i10/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i10.mode.label",
+      "help_t": "cfgmods.io.input.i10.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I10",
+      "label_i18n": "cfgmods.io.input.i10.mode.label",
+      "help": "Choisit le type de fonctionnement de I10 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i10.mode.help"
+    },
+    "io/input/i11/i11_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i11.i11_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i11.i11_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I11",
+      "label_i18n": "cfgdocs.io.input.i11.i11_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I11.",
+      "help_i18n": "cfgdocs.io.input.i11.i11_pull_mode.help"
+    },
+    "io/input/i11/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i11.mode.label",
+      "help_t": "cfgmods.io.input.i11.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I11",
+      "label_i18n": "cfgmods.io.input.i11.mode.label",
+      "help": "Choisit le type de fonctionnement de I11 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i11.mode.help"
+    },
+    "io/input/i12/i12_pull_mode": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.input.i12.i12_pull_mode.label",
+      "help_t": "cfgdocs.io.input.i12.i12_pull_mode.help",
+      "enum_set": "io_digital_pull_mode",
+      "label": "Pull entrée I12",
+      "label_i18n": "cfgdocs.io.input.i12.i12_pull_mode.label",
+      "help": "Mode de resistance interne applique a l'entrée I12.",
+      "help_i18n": "cfgdocs.io.input.i12.i12_pull_mode.help"
+    },
+    "io/input/i12/mode": {
+      "type": "UInt8",
+      "label_t": "cfgmods.io.input.i12.mode.label",
+      "help_t": "cfgmods.io.input.i12.mode.help",
+      "enum_set": "flowio_digital_input_mode",
+      "label": "Mode entrée I12",
+      "label_i18n": "cfgmods.io.input.i12.mode.label",
+      "help": "Choisit le type de fonctionnement de I12 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
+      "help_i18n": "cfgmods.io.input.i12.mode.help"
+    },
+    "log/levels": {
+      "apply_per_field": true
+    },
+    "log/levels/m10_lvl": {
+      "label_t": "cfgmods.log.levels.m10_lvl.label",
+      "help_t": "cfgmods.log.levels.m10_lvl.help",
+      "enum_set": "log_levels",
+      "label": "alarms",
+      "label_i18n": "cfgmods.log.levels.m10_lvl.label",
+      "help": "Niveau minimal de logs pour le moteur d'alarmes.",
+      "help_i18n": "cfgmods.log.levels.m10_lvl.help"
+    },
+    "log/levels/m11_lvl": {
+      "label_t": "cfgmods.log.levels.m11_lvl.label",
+      "help_t": "cfgmods.log.levels.m11_lvl.help",
+      "enum_set": "log_levels",
+      "label": "wifi",
+      "label_i18n": "cfgmods.log.levels.m11_lvl.label",
+      "help": "Niveau minimal de logs pour la connexion réseau.",
+      "help_i18n": "cfgmods.log.levels.m11_lvl.help"
+    },
+    "log/levels/m12_lvl": {
+      "label_t": "cfgmods.log.levels.m12_lvl.label",
+      "help_t": "cfgmods.log.levels.m12_lvl.help",
+      "enum_set": "log_levels",
+      "label": "ethernet",
+      "label_i18n": "cfgmods.log.levels.m12_lvl.label",
+      "help": "Niveau minimal de logs pour Ethernet.",
+      "help_i18n": "cfgmods.log.levels.m12_lvl.help"
+    },
+    "log/levels/m13_lvl": {
+      "label_t": "cfgmods.log.levels.m13_lvl.label",
+      "help_t": "cfgmods.log.levels.m13_lvl.help",
+      "enum_set": "log_levels",
+      "label": "wifiprov",
+      "label_i18n": "cfgmods.log.levels.m13_lvl.label",
+      "help": "Niveau minimal de logs pour le portail d'autoconfiguration réseau.",
+      "help_i18n": "cfgmods.log.levels.m13_lvl.help"
+    },
+    "log/levels/m14_lvl": {
+      "label_t": "cfgmods.log.levels.m14_lvl.label",
+      "help_t": "cfgmods.log.levels.m14_lvl.help",
+      "enum_set": "log_levels",
+      "label": "time",
+      "label_i18n": "cfgmods.log.levels.m14_lvl.label",
+      "help": "Niveau minimal de logs pour la synchronisation horaire.",
+      "help_i18n": "cfgmods.log.levels.m14_lvl.help"
+    },
+    "log/levels/m15_lvl": {
+      "label_t": "cfgmods.log.levels.m15_lvl.label",
+      "help_t": "cfgmods.log.levels.m15_lvl.help",
+      "enum_set": "log_levels",
+      "label": "i2ccfg.client",
+      "label_i18n": "cfgmods.log.levels.m15_lvl.label",
+      "help": "Niveau minimal de logs pour le client I2C de configuration.",
+      "help_i18n": "cfgmods.log.levels.m15_lvl.help"
+    },
+    "log/levels/m16_lvl": {
+      "label_t": "cfgmods.log.levels.m16_lvl.label",
+      "help_t": "cfgmods.log.levels.m16_lvl.help",
+      "enum_set": "log_levels",
+      "label": "i2ccfg.server",
+      "label_i18n": "cfgmods.log.levels.m16_lvl.label",
+      "help": "Niveau minimal de logs pour le serveur I2C de configuration.",
+      "help_i18n": "cfgmods.log.levels.m16_lvl.help"
+    },
+    "log/levels/m17_lvl": {
+      "label_t": "cfgmods.log.levels.m17_lvl.label",
+      "help_t": "cfgmods.log.levels.m17_lvl.help",
+      "enum_set": "log_levels",
+      "label": "webinterface",
+      "label_i18n": "cfgmods.log.levels.m17_lvl.label",
+      "help": "Niveau minimal de logs pour l'interface web.",
+      "help_i18n": "cfgmods.log.levels.m17_lvl.help"
+    },
+    "log/levels/m18_lvl": {
+      "label_t": "cfgmods.log.levels.m18_lvl.label",
+      "help_t": "cfgmods.log.levels.m18_lvl.help",
+      "enum_set": "log_levels",
+      "label": "fwupdate",
+      "label_i18n": "cfgmods.log.levels.m18_lvl.label",
+      "help": "Niveau minimal de logs pour les mises a jour firmware.",
+      "help_i18n": "cfgmods.log.levels.m18_lvl.help"
+    },
+    "log/levels/m19_lvl": {
+      "label_t": "cfgmods.log.levels.m19_lvl.label",
+      "help_t": "cfgmods.log.levels.m19_lvl.help",
+      "enum_set": "log_levels",
+      "label": "system",
+      "label_i18n": "cfgmods.log.levels.m19_lvl.label",
+      "help": "Niveau minimal de logs pour le module systeme.",
+      "help_i18n": "cfgmods.log.levels.m19_lvl.help"
+    },
+    "log/levels/m20_lvl": {
+      "label_t": "cfgmods.log.levels.m20_lvl.label",
+      "help_t": "cfgmods.log.levels.m20_lvl.help",
+      "enum_set": "log_levels",
+      "label": "sysmon",
+      "label_i18n": "cfgmods.log.levels.m20_lvl.label",
+      "help": "Niveau minimal de logs pour la supervision systeme.",
+      "help_i18n": "cfgmods.log.levels.m20_lvl.help"
+    },
+    "log/levels/m21_lvl": {
+      "label_t": "cfgmods.log.levels.m21_lvl.label",
+      "help_t": "cfgmods.log.levels.m21_lvl.help",
+      "enum_set": "log_levels",
+      "label": "ha",
+      "label_i18n": "cfgmods.log.levels.m21_lvl.label",
+      "help": "Niveau minimal de logs pour Home Assistant.",
+      "help_i18n": "cfgmods.log.levels.m21_lvl.help"
+    },
+    "log/levels/m22_lvl": {
+      "label_t": "cfgmods.log.levels.m22_lvl.label",
+      "help_t": "cfgmods.log.levels.m22_lvl.help",
+      "enum_set": "log_levels",
+      "label": "mqtt",
+      "label_i18n": "cfgmods.log.levels.m22_lvl.label",
+      "help": "Niveau minimal de logs pour MQTT.",
+      "help_i18n": "cfgmods.log.levels.m22_lvl.help"
+    },
+    "log/levels/m23_lvl": {
+      "label_t": "cfgmods.log.levels.m23_lvl.label",
+      "help_t": "cfgmods.log.levels.m23_lvl.help",
+      "enum_set": "log_levels",
+      "label": "io",
+      "label_i18n": "cfgmods.log.levels.m23_lvl.label",
+      "help": "Niveau minimal de logs pour les E/S.",
+      "help_i18n": "cfgmods.log.levels.m23_lvl.help"
+    },
+    "log/levels/m24_lvl": {
+      "label_t": "cfgmods.log.levels.m24_lvl.label",
+      "help_t": "cfgmods.log.levels.m24_lvl.help",
+      "enum_set": "log_levels",
+      "label": "pooldev",
+      "label_i18n": "cfgmods.log.levels.m24_lvl.label",
+      "help": "Niveau minimal de logs pour les equipements du bassin.",
+      "help_i18n": "cfgmods.log.levels.m24_lvl.help"
+    },
+    "log/levels/m25_lvl": {
+      "label_t": "cfgmods.log.levels.m25_lvl.label",
+      "help_t": "cfgmods.log.levels.m25_lvl.help",
+      "enum_set": "log_levels",
+      "label": "poollogic",
+      "label_i18n": "cfgmods.log.levels.m25_lvl.label",
+      "help": "Niveau minimal de logs pour la logique piscine.",
+      "help_i18n": "cfgmods.log.levels.m25_lvl.help"
+    },
+    "log/levels/m26_lvl": {
+      "label_t": "cfgmods.log.levels.m26_lvl.label",
+      "help_t": "cfgmods.log.levels.m26_lvl.help",
+      "enum_set": "log_levels",
+      "label": "hmi",
+      "label_i18n": "cfgmods.log.levels.m26_lvl.label",
+      "help": "Niveau minimal de logs pour l'IHM.",
+      "help_i18n": "cfgmods.log.levels.m26_lvl.help"
+    },
+    "log/levels/m2_lvl": {
+      "label_t": "cfgmods.log.levels.m2_lvl.label",
+      "help_t": "cfgmods.log.levels.m2_lvl.help",
+      "enum_set": "log_levels",
+      "label": "loghub",
+      "label_i18n": "cfgmods.log.levels.m2_lvl.label",
+      "help": "Niveau minimal de logs pour le hub de logs.",
+      "help_i18n": "cfgmods.log.levels.m2_lvl.help"
+    },
+    "log/levels/m3_lvl": {
+      "label_t": "cfgmods.log.levels.m3_lvl.label",
+      "help_t": "cfgmods.log.levels.m3_lvl.help",
+      "enum_set": "log_levels",
+      "label": "log.dispatcher",
+      "label_i18n": "cfgmods.log.levels.m3_lvl.label",
+      "help": "Niveau minimal de logs pour le dispatcher asynchrone.",
+      "help_i18n": "cfgmods.log.levels.m3_lvl.help"
+    },
+    "log/levels/m40_lvl": {
+      "label_t": "cfgmods.log.levels.m40_lvl.label",
+      "help_t": "cfgmods.log.levels.m40_lvl.help",
+      "enum_set": "log_levels",
+      "label": "core.i2clink",
+      "label_i18n": "cfgmods.log.levels.m40_lvl.label",
+      "help": "Niveau minimal de logs pour le lien I2C coeur.",
+      "help_i18n": "cfgmods.log.levels.m40_lvl.help"
+    },
+    "log/levels/m41_lvl": {
+      "label_t": "cfgmods.log.levels.m41_lvl.label",
+      "help_t": "cfgmods.log.levels.m41_lvl.help",
+      "enum_set": "log_levels",
+      "label": "core.modulemanager",
+      "label_i18n": "cfgmods.log.levels.m41_lvl.label",
+      "help": "Niveau minimal de logs pour le gestionnaire de modules.",
+      "help_i18n": "cfgmods.log.levels.m41_lvl.help"
+    },
+    "log/levels/m42_lvl": {
+      "label_t": "cfgmods.log.levels.m42_lvl.label",
+      "help_t": "cfgmods.log.levels.m42_lvl.help",
+      "enum_set": "log_levels",
+      "label": "core.configstore",
+      "label_i18n": "cfgmods.log.levels.m42_lvl.label",
+      "help": "Niveau minimal de logs pour le stockage de configuration.",
+      "help_i18n": "cfgmods.log.levels.m42_lvl.help"
+    },
+    "log/levels/m43_lvl": {
+      "label_t": "cfgmods.log.levels.m43_lvl.label",
+      "help_t": "cfgmods.log.levels.m43_lvl.help",
+      "enum_set": "log_levels",
+      "label": "core.eventbus",
+      "label_i18n": "cfgmods.log.levels.m43_lvl.label",
+      "help": "Niveau minimal de logs pour l'EventBus coeur.",
+      "help_i18n": "cfgmods.log.levels.m43_lvl.help"
+    },
+    "log/levels/m4_lvl": {
+      "label_t": "cfgmods.log.levels.m4_lvl.label",
+      "help_t": "cfgmods.log.levels.m4_lvl.help",
+      "enum_set": "log_levels",
+      "label": "log.sink.serial",
+      "label_i18n": "cfgmods.log.levels.m4_lvl.label",
+      "help": "Niveau minimal de logs pour la sortie serie.",
+      "help_i18n": "cfgmods.log.levels.m4_lvl.help"
+    },
+    "log/levels/m5_lvl": {
+      "label_t": "cfgmods.log.levels.m5_lvl.label",
+      "help_t": "cfgmods.log.levels.m5_lvl.help",
+      "enum_set": "log_levels",
+      "label": "log.sink.alarm",
+      "label_i18n": "cfgmods.log.levels.m5_lvl.label",
+      "help": "Niveau minimal de logs pour le sink d'alarmes.",
+      "help_i18n": "cfgmods.log.levels.m5_lvl.help"
+    },
+    "log/levels/m6_lvl": {
+      "label_t": "cfgmods.log.levels.m6_lvl.label",
+      "help_t": "cfgmods.log.levels.m6_lvl.help",
+      "enum_set": "log_levels",
+      "label": "eventbus",
+      "label_i18n": "cfgmods.log.levels.m6_lvl.label",
+      "help": "Niveau minimal de logs pour le module EventBus.",
+      "help_i18n": "cfgmods.log.levels.m6_lvl.help"
+    },
+    "log/levels/m7_lvl": {
+      "label_t": "cfgmods.log.levels.m7_lvl.label",
+      "help_t": "cfgmods.log.levels.m7_lvl.help",
+      "enum_set": "log_levels",
+      "label": "config",
+      "label_i18n": "cfgmods.log.levels.m7_lvl.label",
+      "help": "Niveau minimal de logs pour le module de configuration.",
+      "help_i18n": "cfgmods.log.levels.m7_lvl.help"
+    },
+    "log/levels/m9_lvl": {
+      "label_t": "cfgmods.log.levels.m9_lvl.label",
+      "help_t": "cfgmods.log.levels.m9_lvl.help",
+      "enum_set": "log_levels",
+      "label": "cmd",
+      "label_i18n": "cfgmods.log.levels.m9_lvl.label",
+      "help": "Niveau minimal de logs pour le module de commandes.",
+      "help_i18n": "cfgmods.log.levels.m9_lvl.help"
+    },
+    "network": {
+      "label_t": "cfgmods.network.label",
+      "label": "network",
+      "label_i18n": "cfgmods.network.label"
+    },
+    "network/ethernet": {
+      "label_t": "cfgmods.network.ethernet.label",
+      "label": "ethernet",
+      "label_i18n": "cfgmods.network.ethernet.label"
+    },
+    "network/mqtt": {
+      "label_t": "cfgmods.network.mqtt.label",
+      "label": "mqtt",
+      "label_i18n": "cfgmods.network.mqtt.label"
+    },
+    "network/time": {
+      "label_t": "cfgmods.network.time.label",
+      "label": "time",
+      "label_i18n": "cfgmods.network.time.label"
+    },
+    "network/wifi": {
+      "label_t": "cfgmods.network.wifi.label",
+      "label": "réseau",
+      "label_i18n": "cfgmods.network.wifi.label"
+    },
+    "pdm": {
+      "hidden": true
+    },
+    "poolhistory/periods": {
+      "label_t": "cfgmods.poolhistory.periods.label",
+      "label": "Périodes jour et nuit",
+      "label_i18n": "cfgmods.poolhistory.periods.label"
+    },
+    "poollogic/filtr_start_clc": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtr_start_min": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtr_stop_clc": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtr_stop_max": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtration/filtr_start_clc": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtration/filtr_start_min": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtration/filtr_stop_clc": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/filtration/filtr_stop_max": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/modes/disinfection_type": {
+      "enum_set": "poollogic_disinfection_type"
+    },
+    "poollogic/o2/main_hour": {
+      "enum_set": "hours_of_day"
+    },
+    "poollogic/pool": {
+      "label_t": "cfgmods.poollogic.pool.label",
+      "label": "Caractéristiques du bassin",
+      "label_i18n": "cfgmods.poollogic.pool.label"
+    },
+    "poollogic/swg/swg_control_mode": {
+      "enum_set": "poollogic_swg_control_mode"
+    },
+    "system": {
+      "label_t": "cfgmods.system.label",
+      "label": "system",
+      "label_i18n": "cfgmods.system.label"
+    },
+    "system/lang": {
+      "enum_set": "i18n_languages"
+    },
+    "system/location": {
+      "label_t": "cfgmods.system.location.label",
+      "label": "Localisation",
+      "label_i18n": "cfgmods.system.location.label"
+    },
+    "time": {
+      "label_t": "cfgmods.network.time.label",
+      "label": "time",
+      "label_i18n": "cfgmods.network.time.label"
+    },
+    "time/scheduler": {
+      "hidden": true
+    },
+    "time/tz": {
+      "enum_set": "timezones_world"
+    },
+    "webinterface": {
+      "label_t": "cfgmods.webinterface.label",
+      "label": "Interface Web",
+      "label_i18n": "cfgmods.webinterface.label"
+    }
+  }
+}

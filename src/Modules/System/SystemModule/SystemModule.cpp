@@ -73,11 +73,10 @@ bool SystemModule::cmdPing(void*, const CommandRequest&, char* reply, size_t rep
 
 bool SystemModule::cmdReboot(void* userCtx, const CommandRequest&, char* reply, size_t replyLen) {
     SystemModule* self = static_cast<SystemModule*>(userCtx);
-    if (self && !saveCounterCheckpoint(self->services_)) {
-        LOGE("System reboot cancelled: counter checkpoint failed");
-        (void)writeOkReply_(reply, replyLen,
-                            "{\"ok\":false,\"err\":{\"code\":\"CounterCheckpointFailed\"}}",
-                            "system.reboot");
+    const IoStatus checkpoint = self ? saveCounterCheckpointStatus(self->services_) : IO_ERR_NOT_READY;
+    if (checkpoint != IO_OK) {
+        LOGE("System reboot cancelled: counter checkpoint status=%u", unsigned(checkpoint));
+        snprintf(reply, replyLen, "{\"ok\":false,\"err\":{\"code\":\"CounterCheckpointFailed\",\"status\":%u,\"msg\":\"Compteurs non sauvegardés : redémarrage annulé.\"}}", unsigned(checkpoint));
         return false;
     }
     if (!self || !self->scheduleRestart_(500U, "system.reboot")) {

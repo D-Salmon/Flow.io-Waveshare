@@ -16,8 +16,14 @@
           "id": "set",
           "command": "poollogic.auto_mode.set",
           "presentation": "switch",
-          "input": { "name": "value", "type": "bool" },
-          "refreshDomains": ["mode", "equipements"]
+          "input": {
+            "name": "value",
+            "type": "bool"
+          },
+          "refreshDomains": [
+            "mode",
+            "equipements"
+          ]
         }
       ],
       "order": 50,
@@ -39,8 +45,14 @@
           "id": "set",
           "command": "poollogic.winter_mode.set",
           "presentation": "switch",
-          "input": { "name": "value", "type": "bool" },
-          "refreshDomains": ["mode", "equipements"]
+          "input": {
+            "name": "value",
+            "type": "bool"
+          },
+          "refreshDomains": [
+            "mode",
+            "equipements"
+          ]
         }
       ],
       "order": 60,
@@ -62,8 +74,14 @@
           "id": "set",
           "command": "poollogic.ph_auto_mode.set",
           "presentation": "switch",
-          "input": { "name": "value", "type": "bool" },
-          "refreshDomains": ["mode", "equipements"]
+          "input": {
+            "name": "value",
+            "type": "bool"
+          },
+          "refreshDomains": [
+            "mode",
+            "equipements"
+          ]
         }
       ],
       "order": 70,
@@ -85,8 +103,14 @@
           "id": "set",
           "command": "poollogic.dis_auto_mode.set",
           "presentation": "switch",
-          "input": { "name": "value", "type": "bool" },
-          "refreshDomains": ["mode", "equipements"]
+          "input": {
+            "name": "value",
+            "type": "bool"
+          },
+          "refreshDomains": [
+            "mode",
+            "equipements"
+          ]
         }
       ],
       "order": 80,

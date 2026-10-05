@@ -1,5 +1,6 @@
 """Exercise production configuration event/gate/tick methods with fake transport."""
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 import unittest
@@ -25,7 +26,7 @@ class DeferredConfigTests(unittest.TestCase):
             cpp.write_text(code)
             binary = Path(tmp) / 'test'
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                '-fsanitize=address,undefined', '-pthread', '-Itest/host/value_stubs',
+                *(['-fsanitize=address,undefined'] if os.name != 'nt' else []), '-pthread', '-Itest/host/value_stubs',
                 '-Isrc', '-Iinclude', str(cpp), '-o', str(binary)], cwd=ROOT, check=True)
             subprocess.run([str(binary)], check=True)
 

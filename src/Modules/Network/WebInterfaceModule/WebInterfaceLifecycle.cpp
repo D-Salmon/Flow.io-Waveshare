@@ -14,6 +14,49 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 
+bool WebInterfaceModule::physicalRecoveryActive_() const
+{
+    return physicalRecoveryDeadlineMs_ != 0U &&
+           (int32_t)(physicalRecoveryDeadlineMs_ - millis()) > 0;
+}
+
+uint32_t WebInterfaceModule::physicalRecoveryRemainingMs_() const
+{
+    if (!physicalRecoveryActive_()) return 0U;
+    return (uint32_t)(physicalRecoveryDeadlineMs_ - millis());
+}
+
+void WebInterfaceModule::pollBootRecoveryButton_()
+{
+    const uint32_t now = millis();
+    if (physicalRecoveryDeadlineMs_ != 0U &&
+        (int32_t)(physicalRecoveryDeadlineMs_ - now) <= 0) {
+        physicalRecoveryDeadlineMs_ = 0U;
+        physicalRecoveryClientIp_ = 0U;
+        LOGW("Web physical recovery window closed");
+    }
+
+    if (digitalRead(kBootRecoveryPin) != LOW) {
+        bootButtonPressedAtMs_ = 0U;
+        bootRecoveryLatched_ = false;
+        return;
+    }
+
+    if (bootButtonPressedAtMs_ == 0U) {
+        bootButtonPressedAtMs_ = now != 0U ? now : 1U;
+        return;
+    }
+
+    if (!bootRecoveryLatched_ &&
+        (uint32_t)(now - bootButtonPressedAtMs_) >= kBootRecoveryHoldMs) {
+        physicalRecoveryDeadlineMs_ = now + kPhysicalRecoveryWindowMs;
+        physicalRecoveryClientIp_ = 0U;
+        bootRecoveryLatched_ = true;
+        LOGW("Web physical recovery enabled by BOOT long press for %lu seconds",
+             (unsigned long)(kPhysicalRecoveryWindowMs / 1000U));
+    }
+}
+
 bool WebInterfaceModule::setPaused_(bool paused)
 {
     uartPaused_ = paused;
@@ -178,6 +221,7 @@ void WebInterfaceModule::onEvent_(const Event& e)
 
 void WebInterfaceModule::loop()
 {
+    pollBootRecoveryButton_();
     if (webStartLedPulseActive_ && (int32_t)(millis() - webStartLedPulseUntilMs_) >= 0) {
         if (hmiSvc_ && hmiSvc_->setStatusLedAutoWifiMode && webStartLedPrevAutoModeValid_) {
             hmiSvc_->setStatusLedAutoWifiMode(hmiSvc_->ctx, webStartLedPrevAutoMode_);
@@ -210,6 +254,47 @@ void WebInterfaceModule::loop()
         if (mode == NetworkAccessMode::AccessPoint) {
             provisioningOnly_ = true;
             LOGI("Web startup in flow.io AP provisioning mode");
+        }
+
+        if (!mqttSvc_ && services_) mqttSvc_ = services_->get<MqttService>(ServiceId::Mqtt);
+        // The full ESPAsyncWebServer route table consumes a large amount of
+        // scarce internal RAM. On WiFi, starting it before MQTT makes the RSA
+        // certificate verification fail with a nested MPI allocation error.
+        // Ethernet succeeds because MQTT wins this startup race. Reproduce that
+        // proven order on every interface: establish TLS first, then release
+        // the full station-mode web server.
+        if (mode == NetworkAccessMode::Station &&
+            mqttSvc_ && mqttSvc_->isEnabled && mqttSvc_->isEnabled(mqttSvc_->ctx)) {
+            const bool mqttWasValidPreviousBoot =
+                mqttSvc_->wasValidPreviousBoot &&
+                mqttSvc_->wasValidPreviousBoot(mqttSvc_->ctx);
+            const bool mqttConnected =
+                mqttSvc_->isConnected && mqttSvc_->isConnected(mqttSvc_->ctx);
+            if (!mqttConnected && mqttWasValidPreviousBoot) {
+                const uint32_t nowMs = millis();
+                if (stationMqttWaitStartedMs_ == 0U) {
+                    stationMqttWaitStartedMs_ = nowMs;
+                }
+                const uint32_t waitElapsedMs = nowMs - stationMqttWaitStartedMs_;
+                if (!stationWebDeferredLogged_) {
+                    stationWebDeferredLogged_ = true;
+                    LOGI("Web station server deferred up to %lus for MQTT TLS",
+                         (unsigned long)(kStationMqttWebGraceMs / 1000U));
+                }
+                if (waitElapsedMs < kStationMqttWebGraceMs) {
+                    vTaskDelay(pdMS_TO_TICKS(250));
+                    return;
+                }
+                LOGW("Web station recovery release after MQTT TLS timeout; "
+                     "save corrected MQTT settings and reboot");
+            }
+            if (mqttConnected && stationWebDeferredLogged_) {
+                stationWebDeferredLogged_ = false;
+                LOGI("Web station server released after MQTT TLS connected");
+            }
+            if (!mqttConnected && !mqttWasValidPreviousBoot) {
+                LOGI("Web station server released immediately: MQTT was not valid on previous boot");
+            }
         }
 
         const bool bootNetworkReady = (mode == NetworkAccessMode::AccessPoint) ? true : netReady_;

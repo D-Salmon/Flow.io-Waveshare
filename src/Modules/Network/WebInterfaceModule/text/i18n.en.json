@@ -1,4 +1,8 @@
 {
   "locale": "en",
-  "translations": {}
+  "translations": {
+    "cfgdocs.webinterface.authentication_required.help": "When enabled, the Web interface requires an account as soon as it opens. When disabled, it opens as Local operator and the administrator signs in only for sensitive settings.",
+    "cfgdocs.webinterface.authentication_required.label": "Require Web authentication",
+    "cfgmods.webinterface.label": "Web interface"
+  }
 }

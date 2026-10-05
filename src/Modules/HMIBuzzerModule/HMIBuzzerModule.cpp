@@ -130,6 +130,14 @@ void HmiBuzzer::tick(uint32_t nowMs)
     }
 }
 
+void HmiBuzzer::stopAlarm()
+{
+    if (currentPattern_ == BuzzerPattern::AlarmActive ||
+        currentPattern_ == BuzzerPattern::AlarmCritical) {
+        stop();
+    }
+}
+
 void HmiBuzzer::stop()
 {
     if (attached_) {
@@ -299,6 +307,7 @@ void HMIBuzzerModule::loop()
     }
 
     const uint32_t nowMs = millis();
+    if (!alarmNotificationsEnabled_()) buzzer_.stopAlarm();
     tickAlarmReminder_(nowMs);
     playPending_(nowMs);
     buzzer_.tick(nowMs);
@@ -357,7 +366,11 @@ void HMIBuzzerModule::requestPattern_(BuzzerPattern pattern)
 void HMIBuzzerModule::playPending_(uint32_t nowMs)
 {
     (void)nowMs;
-    const uint32_t mask = pendingPatterns_.exchange(0U, std::memory_order_relaxed);
+    uint32_t mask = pendingPatterns_.exchange(0U, std::memory_order_relaxed);
+    if (!alarmNotificationsEnabled_()) {
+        mask &= ~((1UL << (uint8_t)BuzzerPattern::AlarmActive) |
+                  (1UL << (uint8_t)BuzzerPattern::AlarmCritical));
+    }
     if (mask == 0U) return;
 
     if (mask & (1UL << (uint8_t)BuzzerPattern::AlarmCritical)) {
@@ -398,8 +411,15 @@ void HMIBuzzerModule::handlePoolDeviceStateChanged_(const DataChangedPayload& pa
     requestPattern_(state.actualOn ? BuzzerPattern::DeviceOn : BuzzerPattern::DeviceOff);
 }
 
+bool HMIBuzzerModule::alarmNotificationsEnabled_() const
+{
+    return alarmSvc_ &&
+           (!alarmSvc_->isEnabled || alarmSvc_->isEnabled(alarmSvc_->ctx));
+}
+
 void HMIBuzzerModule::handleAlarmRaised_()
 {
+    if (!alarmNotificationsEnabled_()) return;
     const AlarmSeverity highest = (alarmSvc_ && alarmSvc_->highestSeverity)
         ? alarmSvc_->highestSeverity(alarmSvc_->ctx)
         : AlarmSeverity::Alarm;
@@ -409,7 +429,11 @@ void HMIBuzzerModule::handleAlarmRaised_()
 
 void HMIBuzzerModule::tickAlarmReminder_(uint32_t nowMs)
 {
-    if (!alarmSvc_ || !alarmSvc_->activeCount || !alarmSvc_->highestSeverity) return;
+    if (!alarmNotificationsEnabled_()) {
+        lastAlarmPatternMs_ = 0U;
+        return;
+    }
+    if (!alarmSvc_->activeCount || !alarmSvc_->highestSeverity) return;
     if (alarmSvc_->activeCount(alarmSvc_->ctx) == 0U) {
         lastAlarmPatternMs_ = 0U;
         return;

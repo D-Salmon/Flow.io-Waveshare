@@ -58,6 +58,9 @@ public:
     bool hasEthernetIP() const { return gotIp_; }
 
 private:
+    enum class ActiveNetIf : uint8_t { None, Eth, Wifi };
+    ActiveNetIf lastActiveIf_ = ActiveNetIf::None;
+    void syncDefaultNetif_(bool ethUp, bool wifiUp);
     static constexpr uint32_t kErrorRetryMs = 3000U;
 
     EthernetConfig cfgData_{};

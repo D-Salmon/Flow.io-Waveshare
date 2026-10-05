@@ -11,6 +11,8 @@
 #include <stdio.h>
 
 #include <mbedtls/sha256.h>
+#include <mbedtls/md.h>
+#include <mbedtls/pkcs5.h>
 #include <esp_random.h>
 
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::UserModule)
@@ -27,10 +29,10 @@ constexpr uint8_t kSessionVersion = 1U;
 
 const char kHexDigits[] = "0123456789abcdef";
 
-// Well-known first-boot administrator credential. The owner is expected to
-// change this password from the web "Comptes" page after initial setup.
-constexpr char kDefaultAdminUsername[] = "admin";
-constexpr char kDefaultAdminPassword[] = "flowio1234";
+struct LegacyWebSecurityConfig {
+    char user[33];
+    char pass[33];
+};
 
 uint8_t hexNibble_(char c)
 {
@@ -90,6 +92,13 @@ bool isValidUsername_(const char* username, size_t maxLen)
     return true;
 }
 
+bool isValidNewPassword_(const char* password)
+{
+    if (!password) return false;
+    const size_t len = strnlen(password, 96U);
+    return len >= 12U && len < 96U;
+}
+
 }  // namespace
 
 void UserModule::init(ConfigStore& cfg, ServiceRegistry& services)
@@ -122,8 +131,8 @@ void UserModule::ensureProvisioned_()
         }
     }
 
-    if (accountCount_() == 0U) {
-        generateInitialAdmin_();
+    if (accountCount_() == 0U && !migrateLegacyAdmin_()) {
+        LOGW("No user account yet; configure administrator credentials through Rescue");
     }
 }
 
@@ -217,30 +226,44 @@ bool UserModule::persistSecret_()
     return cfgStore_->writeRuntimeBlob(NvsKeys::Users::SessionSecret, secret_, kSecretLen);
 }
 
-void UserModule::generateInitialAdmin_()
+bool UserModule::migrateLegacyAdmin_()
 {
+    if (!cfgStore_) return false;
+    LegacyWebSecurityConfig legacy{};
+    size_t actualLen = 0U;
+    if (!cfgStore_->readRuntimeBlob(NvsKeys::WebSecurity::Credentials,
+                                    &legacy,
+                                    sizeof(legacy),
+                                    &actualLen) ||
+        actualLen != sizeof(legacy)) {
+        return false;
+    }
+    legacy.user[sizeof(legacy.user) - 1U] = '\0';
+    legacy.pass[sizeof(legacy.pass) - 1U] = '\0';
+    if (!isValidUsername_(legacy.user, sizeof(legacy.user)) ||
+        isBlankText_(legacy.pass, sizeof(legacy.pass))) {
+        return false;
+    }
+
     AccountRecord admin{};
-    snprintf(admin.username, sizeof(admin.username), "%s", kDefaultAdminUsername);
+    snprintf(admin.username, sizeof(admin.username), "%s", legacy.user);
     admin.role = UserRole::Admin;
     admin.tokenEpoch = 1U;
     esp_fill_random(admin.salt, kSaltLen);
-    hashPassword_(admin.salt, kDefaultAdminPassword, admin.hash);
+    hashPassword_(admin.salt, legacy.pass, admin.hash);
 
     const int8_t slot = findFreeSlot_();
     if (slot < 0) {
         LOGE("No free account slot for initial admin");
-        return;
+        return false;
     }
     if (!writeAccount_((uint8_t)slot, admin)) {
         LOGE("Failed to persist initial admin account");
-        return;
+        return false;
     }
-
-    snprintf(initialAdminPassword_, sizeof(initialAdminPassword_), "%s", kDefaultAdminPassword);
-    initialAdminPasswordAvailable_ = true;
-
-    LOGW("Default admin account provisioned: username=%s password=%s (change it after first login)",
-         kDefaultAdminUsername, kDefaultAdminPassword);
+    LOGI("Existing Rescue administrator migrated to session authentication username='%s'",
+         legacy.user);
+    return true;
 }
 
 void UserModule::sha256_(const uint8_t* data, size_t len, uint8_t out[kHashLen])
@@ -303,13 +326,17 @@ void UserModule::hashPassword_(const uint8_t salt[kSaltLen],
                                const char* password,
                                uint8_t out[kHashLen])
 {
-    uint8_t buffer[kSaltLen + 96] = {0};
     const size_t pwLen = password ? strnlen(password, 95U) : 0U;
-    memcpy(buffer, salt, kSaltLen);
-    if (pwLen > 0U) {
-        memcpy(buffer + kSaltLen, password, pwLen);
+    if (mbedtls_pkcs5_pbkdf2_hmac_ext(MBEDTLS_MD_SHA256,
+                                      reinterpret_cast<const unsigned char*>(password),
+                                      pwLen,
+                                      salt,
+                                      kSaltLen,
+                                      kPasswordIterations,
+                                      kHashLen,
+                                      out) != 0) {
+        memset(out, 0, kHashLen);
     }
-    sha256_(buffer, kSaltLen + pwLen, out);
 }
 
 bool UserModule::verifyPassword_(const AccountRecord& record, const char* password)
@@ -486,6 +513,9 @@ bool UserModule::validateToken_(const char* token, UserRole* outRole,
     AccountRecord record{};
     if (!loadAccount_((uint8_t)slot, &record)) return false;
     if (record.tokenEpoch != payload.tokenEpoch) return false;
+    if ((payload.role != (uint8_t)UserRole::Operator &&
+         payload.role != (uint8_t)UserRole::Admin) ||
+        (UserRole)payload.role != record.role) return false;
 
     if (outRole) *outRole = record.role;
     if (usernameOut && usernameOutLen > 0U) {
@@ -553,11 +583,17 @@ bool UserModule::saveUser_(const char* adminToken,
         snprintf(errOut, errOutLen, "invalid_username");
         return false;
     }
-    if (role != UserRole::Operator && role != UserRole::Admin) {
-        snprintf(errOut, errOutLen, "invalid_role");
+    // Named accounts are reserved for administrators. Anonymous local access
+    // provides the standard user/operator role when authentication is optional.
+    if (role != UserRole::Admin) {
+        snprintf(errOut, errOutLen, "admin_required");
         return false;
     }
     const bool hasPassword = !isBlankText_(password, 96U);
+    if (hasPassword && !isValidNewPassword_(password)) {
+        snprintf(errOut, errOutLen, "invalid_password");
+        return false;
+    }
     if (!hasPassword && findAccountSlot_(username) < 0) {
         snprintf(errOut, errOutLen, "missing_password");
         return false;
@@ -580,6 +616,23 @@ bool UserModule::saveUser_(const char* adminToken,
         record.role = role;
         record.tokenEpoch = 0U;
     } else {
+        if (record.role == UserRole::Admin && role != UserRole::Admin) {
+            uint8_t adminCount = 0U;
+            for (uint8_t s = 0; s < kMaxAccounts; ++s) {
+                AccountRecord candidate{};
+                if (loadAccount_(s, &candidate) && candidate.role == UserRole::Admin) {
+                    ++adminCount;
+                }
+            }
+            if (adminCount <= 1U) {
+                snprintf(errOut, errOutLen, "last_admin");
+                return false;
+            }
+        }
+        if (record.role != role) {
+            // Revoke every existing token immediately when privileges change.
+            ++record.tokenEpoch;
+        }
         record.role = role;
     }
 
@@ -619,28 +672,43 @@ bool UserModule::deleteUser_(const char* adminToken,
         return false;
     }
 
-    const int8_t slot = findAccountSlot_(username);
-    if (slot < 0) {
+    bool found = false;
+    bool targetIsAdmin = false;
+    uint8_t remainingAdminCount = 0U;
+    for (uint8_t slot = 0; slot < kMaxAccounts; ++slot) {
+        AccountRecord record{};
+        if (!loadAccount_(slot, &record)) continue;
+        if (strncmp(record.username, username, kUsernameMax) == 0) {
+            found = true;
+            targetIsAdmin = targetIsAdmin || record.role == UserRole::Admin;
+        } else if (record.role == UserRole::Admin) {
+            ++remainingAdminCount;
+        }
+    }
+
+    if (!found) {
         snprintf(errOut, errOutLen, "not_found");
         return false;
     }
 
-    // Refuse to delete the last admin account.
-    AccountRecord target{};
-    loadAccount_((uint8_t)slot, &target);
-    if (target.role == UserRole::Admin) {
-        uint8_t adminCount = 0U;
-        for (uint8_t s = 0; s < kMaxAccounts; ++s) {
-            AccountRecord r{};
-            if (loadAccount_(s, &r) && r.role == UserRole::Admin) ++adminCount;
+    if (targetIsAdmin && remainingAdminCount == 0U) {
+        snprintf(errOut, errOutLen, "last_admin");
+        return false;
+    }
+
+    for (uint8_t slot = 0; slot < kMaxAccounts; ++slot) {
+        AccountRecord record{};
+        if (!loadAccount_(slot, &record) ||
+            strncmp(record.username, username, kUsernameMax) != 0) {
+            continue;
         }
-        if (adminCount <= 1U) {
-            snprintf(errOut, errOutLen, "last_admin");
+        if (!eraseAccount_(slot)) {
+            snprintf(errOut, errOutLen, "persist_failed");
             return false;
         }
     }
 
-    if (!eraseAccount_((uint8_t)slot)) {
+    if (findAccountSlot_(username) >= 0) {
         snprintf(errOut, errOutLen, "persist_failed");
         return false;
     }
@@ -655,7 +723,7 @@ bool UserModule::changeOwnPassword_(const char* token,
                                     size_t errOutLen)
 {
     if (errOut && errOutLen > 0U) errOut[0] = '\0';
-    if (isBlankText_(newPassword, 96U)) {
+    if (!isValidNewPassword_(newPassword)) {
         snprintf(errOut, errOutLen, "invalid_password");
         return false;
     }
@@ -712,11 +780,50 @@ bool UserModule::getInitialCredentials_(char* usernameOut,
     if (!initialAdminPasswordAvailable_ || initialAdminPassword_[0] == '\0') {
         return false;
     }
-    if (usernameOut && usernameOutLen > 0U) {
-        snprintf(usernameOut, usernameOutLen, "%s", kDefaultAdminUsername);
-    }
+    if (usernameOut && usernameOutLen > 0U) usernameOut[0] = '\0';
     if (passwordOut && passwordOutLen > 0U) {
         snprintf(passwordOut, passwordOutLen, "%s", initialAdminPassword_);
     }
+    return true;
+}
+
+bool UserModule::replaceAdministrator_(const char* username,
+                                       const char* password,
+                                       char* errOut,
+                                       size_t errOutLen)
+{
+    if (errOut && errOutLen) errOut[0] = '\0';
+    if (!isValidUsername_(username, kUsernameMax) || isBlankText_(password, 96U)) {
+        if (errOut && errOutLen) snprintf(errOut, errOutLen, "invalid_credentials");
+        return false;
+    }
+    int8_t slot = findAccountSlot_(username);
+    if (slot < 0) {
+        for (uint8_t i = 0; i < kMaxAccounts; ++i) {
+            AccountRecord record{};
+            if (loadAccount_(i, &record) && record.role == UserRole::Admin) {
+                slot = (int8_t)i;
+                break;
+            }
+        }
+    }
+    if (slot < 0) slot = findFreeSlot_();
+    if (slot < 0) {
+        if (errOut && errOutLen) snprintf(errOut, errOutLen, "account_limit");
+        return false;
+    }
+    AccountRecord record{};
+    (void)loadAccount_((uint8_t)slot, &record);
+    memset(&record, 0, sizeof(record));
+    snprintf(record.username, sizeof(record.username), "%s", username);
+    record.role = UserRole::Admin;
+    record.tokenEpoch = 1U;
+    esp_fill_random(record.salt, kSaltLen);
+    hashPassword_(record.salt, password, record.hash);
+    if (!writeAccount_((uint8_t)slot, record)) {
+        if (errOut && errOutLen) snprintf(errOut, errOutLen, "persist_failed");
+        return false;
+    }
+    LOGW("Administrator credentials replaced through physical Rescue username='%s'", username);
     return true;
 }

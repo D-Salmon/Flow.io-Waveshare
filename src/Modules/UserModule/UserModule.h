@@ -4,8 +4,8 @@
  * @brief User accounts, credential hashing and session tokens.
  *
  * Ownership of identity for the firmware. The module:
- *  - provisions a default `admin` account with a generated password on first boot;
- *  - stores salted SHA-256 password hashes as raw NVS blobs (never in ConfigStore
+ *  - migrates the administrator credentials already configured by Rescue;
+ *  - stores PBKDF2-HMAC-SHA256 password hashes as raw NVS blobs (never in ConfigStore
  *    JSON, so credentials never leak through config export);
  *  - issues stateless, HMAC-SHA256 signed, time-boxed session tokens;
  *  - exposes account management through the `UserService`.
@@ -42,7 +42,8 @@ private:
     static constexpr size_t kSaltLen = 16U;
     static constexpr size_t kHashLen = 32U;
     static constexpr size_t kSecretLen = 32U;
-    static constexpr uint32_t kTokenTtlSeconds = 86400U; // 24 hours
+    static constexpr uint32_t kTokenTtlSeconds = 7U * 86400U;
+    static constexpr uint32_t kPasswordIterations = 60000U;
 
     struct AccountRecord {
         char username[kUsernameMax];
@@ -84,6 +85,7 @@ private:
         ServiceBinding::bind<&UserModule::deleteUser_>,
         ServiceBinding::bind<&UserModule::changeOwnPassword_>,
         ServiceBinding::bind<&UserModule::getInitialCredentials_>,
+        ServiceBinding::bind<&UserModule::replaceAdministrator_>,
         this
     };
 
@@ -98,7 +100,7 @@ private:
     int8_t findFreeSlot_();
     bool loadSecret_();
     bool persistSecret_();
-    void generateInitialAdmin_();
+    bool migrateLegacyAdmin_();
 
     // Crypto
     static void sha256_(const uint8_t* data, size_t len, uint8_t out[kHashLen]);
@@ -134,4 +136,6 @@ private:
                             char* errOut, size_t errOutLen);
     bool getInitialCredentials_(char* usernameOut, size_t usernameOutLen,
                                 char* passwordOut, size_t passwordOutLen);
+    bool replaceAdministrator_(const char* username, const char* password,
+                               char* errOut, size_t errOutLen);
 };

@@ -23,4 +23,5 @@ struct WebInterfaceService {
     bool (*isPaused)(void* ctx);
     bool (*getHealth)(void* ctx, WebInterfaceHealth* out);
     void* ctx;
+    void (*noteInvalidOtaSignature)(void* ctx) = nullptr;
 };

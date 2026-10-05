@@ -112,50 +112,6 @@ Les `IoBackend` visibles dans le service sont:
 - `IO_BACKEND_BME680`
 - `IO_BACKEND_INA226`
 
-## Adresses I2C primaire et secondaire
-
-Chaque driver I2C configurable du module IO (`ads1115_int`, `ads1115_ext`,
-`sht40`, `bmp280`, `bme680`, `ina226`, `expander00..03`) expose deux champs
-persistants dans l'interface de configuration :
-
-- `address` : adresse primaire ; la clé NVS existante est conservée.
-- `secondary_address` : adresse de secours ; `0x00` désactive le secours.
-
-L'INA226 utilise par défaut `0x40` puis `0x44`. Les autres secondaires sont
-initialement désactivées. Les changements prennent effet au redémarrage.
-Les adresses non nulles doivent être comprises entre `0x08` et `0x77` et être
-compatibles avec le composant. Le driver SHT40 actuel accepte uniquement `0x44`.
-
-Avant toute initialisation des drivers, une résolution commune réserve les
-primaires de tous les drivers activés, même sans binding ou sans réponse du
-composant. Les ADS1115, sans interrupteur d'activation dédié, sont activés par
-leurs bindings. Les drivers désactivés ne réservent aucune adresse.
-
-La primaire est choisie si elle répond. Sinon, la secondaire peut être choisie
-si elle répond et n'est ni une primaire réservée ni demandée par un autre
-driver ayant besoin de son secours. Deux primaires identiques ou deux secours
-concurrents sont refusés pour tous les participants concernés, avec diagnostic
-dans les logs. L'ordre d'initialisation ne décide jamais du propriétaire.
-Une erreur de configuration d'adresse désactive l'attribution pour ce driver.
-
-Ainsi, avec INA226 `0x40/0x44` et SHT40 `0x44/0x00`, un SHT40 activé réserve
-`0x44` et empêche le secours INA226. S'il est désactivé, l'INA226 peut utiliser
-`0x44` lorsque `0x40` ne répond pas. Si les deux adresses répondent, l'INA226
-reste à `0x40` et le SHT40 activé utilise `0x44`.
-
-L'adresse retenue est uniquement un état runtime : elle ne remplace jamais la
-configuration persistante et tous les échanges suivants l'utilisent. Un échec
-d'initialisation du composant ne libère pas sa réservation et ne provoque pas
-une réattribution à un autre driver. L'INA226 vérifie son identité avant les
-écritures de configuration et borne l'attente de première conversion à 150 ms.
-Un acquittement du bus ne constitue pas une identification de composant.
-
-Cette résolution concerne les drivers du module IO. Les périphériques internes
-à adresse fixe des autres modules (RTC et panneau de LED HMI) conservent leur
-configuration matérielle ; leurs adresses ne doivent pas être attribuées à un
-driver IO. Deux composants physiques partageant une adresse sur le même bus
-nécessitent toujours une correction du câblage ou de l'adressage matériel.
-
 ## Modèle de binding actuel
 
 Le module ne déduit pas seul le câblage métier. Le binding est fourni par le profil Waveshare.
@@ -311,27 +267,12 @@ Elle peut toutefois surprendre si l'on s'attend à ce que `rising` et `falling` 
 
 ### Persistance NVS du cumul compteur
 
-Le compte courant est conservé en RAM dans `DigitalSlot::pulse.count` (entier 64 bits), puis publié dans le DataStore. Le total converti applique le coefficient `c0` à ce compte.
+Pour les entrées digitales en mode compteur, le cumul long terme `counter_total` est persisté en NVS selon deux conditions complémentaires:
 
-`IOPulsePersistence.cpp` sauvegarde les comptes, générations et jetons de remise à zéro dans le blob NVS `pulse_v1`, via les `Preferences` du `ConfigStore`. Malgré le nom `writeRuntimeBlob`, cette sauvegarde utilise la partition NVS, pas la partition distincte `runtime`.
+- immédiatement dès qu'au moins `32` nouvelles impulsions ont été accumulées depuis la dernière écriture réussie
+- au plus tard toutes les `3 minutes` si la valeur a changé depuis la dernière écriture réussie, même si le seuil des `32` impulsions n'a pas été atteint
 
-- Une sauvegarde asynchrone est demandée toutes les heures si les données ont changé (`PulseCheckpoint::PeriodMs = 3600000`). Après un échec, une nouvelle tentative est prévue après une minute.
-- Une demande de reboot (`system.reboot`, redémarrage après provisioning) attend la confirmation d'une sauvegarde immédiate. Les demandes d'OTA distante et de release locale font de même avant de commencer, puis une nouvelle sauvegarde est confirmée avant le redémarrage final pour inclure les impulsions reçues pendant la mise à jour.
-- La tâche IO relit les compteurs matériels et transmet le snapshot à la tâche de persistance. Les appelants attendent au maximum deux secondes. Une erreur de lecture, d'écriture, un délai dépassé ou une opération concurrente empêche le reboot/l'OTA demandé ; l'appelant reçoit une erreur. Sans compteur actif, aucune écriture n'est nécessaire.
-- Une écriture déjà en cours reste propriétaire de son reçu même si l'appelant cesse d'attendre. Une demande de remise à zéro qui n'a pas encore été commencée expire au bout du délai ; elle ne s'exécute pas tardivement.
-- Les mises à jour OTA habituelles conservent la NVS. Au démarrage, le dernier compte sauvegardé est restauré. Les impulsions reçues après le snapshot final ou pendant le redémarrage ne sont pas garanties.
-- Les coupures d'alimentation et redémarrages d'urgence restent soumis au dernier checkpoint réussi : jusqu'à environ une heure de perte en fonctionnement normal, davantage en cas d'échec de sauvegarde. Le watchdog conserve son redémarrage de secours si la commande de reboot contrôlé échoue.
-- Un effacement de la NVS ou de toute la flash supprime la sauvegarde. Si `pulse_v1` est absent, le cumul repart à zéro : aucune migration des anciens totaux flottants n'est effectuée. Un blob présent mais invalide est signalé comme une erreur, sans effacement silencieux.
-
-### Remise à zéro depuis la Configuration
-
-Le champ technique `counter_reset` est représenté par un bouton traduit « Remettre le compteur à zéro », visible uniquement en mode compteur. Les métadonnées de configuration déclarent un widget `action`, son endpoint, son identifiant numérique d'entrée et ses textes ; le frontend utilise un rendu générique.
-
-La confirmation identifie l'entrée concernée et avertit de l'effacement du cumul. L'action n'est pas incluse dans l'enregistrement ordinaire de configuration. Le bouton est désactivé pendant l'opération et le POST n'est jamais répété automatiquement. Le succès n'est affiché qu'après confirmation de l'écriture NVS ; en cas de réponse incertaine, l'interface invite à vérifier le compteur avant de réessayer.
-
-`POST /api/io/counter/reset` (`id` numérique, formulaire URL-encoded) appelle la commande `io.counter.reset` (`{"id":64}` pour I00). Le firmware valide l'identifiant et le mode effectif, puis exécute la remise à zéro dans la tâche IO. Le cumul nul et sa génération sont sauvegardés ensemble ; les autres entrées sont conservées. Les impulsions suivantes continuent à être comptées. Le jeton de configuration historique reste compatible mais n'est pas modifié par cette commande.
-
-Les tests `scripts/tests/test_pulse_persistence.py` et `scripts/tests/test_counter_reset_action.cjs` couvrent la persistance, les erreurs/délais/concurrences, la restauration, la confirmation UI et l'absence de répétition automatique.
+Cette politique limite l'usure NVS tout en réduisant la perte potentielle de cumul après redémarrage sur des compteurs à faible fréquence.
 
 ## DataStore
 
@@ -402,38 +343,3 @@ Cette synchronisation repose sur:
 Le module expose également la réservation des sorties, `writeAnalog`, les endpoints analogiques `o00..o03` déclarés par le profil et une tâche RS485 dédiée à un tick FreeRTOS. La boucle d'acquisition IO reste séparée. Le service de registres accepte un profil série par transaction et le format explicite Vendor Register RTU en plus du Modbus standard.
 
 Voir [Pilotage des équipements](PoolActuators.md) pour les descripteurs, les fonctions constructeur, la distinction commande/observation et les limites matérielles.
-
-### Valeurs dérivées et Home Assistant
-
-Les 16 emplacements `io/value/v00` à `io/value/v15` disposent d'un booléen
-persistant `enabled`. Il vaut `false` par défaut pour tous les emplacements.
-Une activation déjà enregistrée en NVS est conservée. Une source à `65535` (`VALUE_INVALID`) laisse l'emplacement inactif,
-quel que soit `enabled`. Les changements de définition prennent effet après
-redémarrage.
-
-Une valeur désactivée n'est pas enregistrée dans le registre et ne dispose plus
-de route MQTT ni de nouvelles données d'historique. Ses valeurs dépendantes
-doivent être désactivées ou recevoir une autre source : une dépendance absente
-est une erreur de configuration IO, comme un cycle ou une transformation invalide.
-
-Lorsque MQTT et Home Assistant sont activés, chaque valeur effectivement publiée
-crée un capteur Discovery `io_value_vNN`, nommé `Value VNN`, lié à
-`<prefix>/rt/value/<96 + NN>`. Le capteur lit `value` et devient indisponible si
-`quality` n'est pas `1` (valide), ou si Flow.io est hors ligne. Aucune unité n'est
-supposée pour ces transformations génériques. Au démarrage, les entrées Discovery
-des emplacements désactivés ou sans source sont retirées par un message retained
-vide, afin de supprimer les anciens capteurs dans Home Assistant.
-
-Les erreurs d'initialisation Discovery du profil Waveshare (allocation, préparation
-ou enregistrement d'entités) sont journalisées avec `HA discovery failed` et ne
-bloquent pas le démarrage. Les entités indépendantes continuent d'être enregistrées
-lorsque leurs ressources sont disponibles. Une préparation des rôles en échec
-empêche uniquement l'enregistrement des entités qui utilisent ces rôles. La
-Discovery étant réalisée une fois au démarrage, un nouvel essai d'enregistrement
-nécessite un redémarrage après correction de la cause. Ce comportement ne change
-pas la validation des dépendances des valeurs par le module IO.
-
-Le champ facultatif `io/value/vNN/name` définit le nom affiché dans Home Assistant
-(63 octets UTF-8 maximum). Vide par défaut, il conserve le libellé `Value VNN`.
-Le nom prend effet après redémarrage ; le topic Discovery et l’identifiant unique
-restent identiques lors du renommage, y compris pour les capteurs déjà créés.

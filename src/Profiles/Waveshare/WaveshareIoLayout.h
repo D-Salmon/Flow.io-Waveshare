@@ -23,8 +23,10 @@ enum : PhysicalPortId {
     PortAdsInternal1 = 101, // ADS1115 interne, entree single-ended A1.
     PortAdsInternal2 = 102, // ADS1115 interne, entree single-ended A2.
     PortAdsInternal3 = 103, // ADS1115 interne, entree single-ended A3.
-    PortAdsExternal0 = 110, // ADS1115 externe, paire differentielle 0.
-    PortAdsExternal1 = 111, // ADS1115 externe, paire differentielle 1.
+    PortAdsExternal0 = 110, // ADS1115 externe, entree single-ended A0.
+    PortAdsExternal2 = 112,
+    PortAdsExternal3 = 113,
+    PortAdsExternal1 = 111, // ADS1115 externe, entree single-ended A1.
     PortOneWireWater = 120, // DS18B20 eau sur GPIO20.
     PortOneWireAir = 121, // DS18B20 air sur GPIO19.
     PortSht40Temp = 130, // SHT40: temperature.
@@ -90,8 +92,10 @@ inline constexpr IOBindingPortSpec kBindingPorts[] = {
     {PortAdsInternal1, IO_PORT_KIND_ADS_INTERNAL_SINGLE, 1, 0, "ADS INT A1"},
     {PortAdsInternal2, IO_PORT_KIND_ADS_INTERNAL_SINGLE, 2, 0, "ADS INT A2"},
     {PortAdsInternal3, IO_PORT_KIND_ADS_INTERNAL_SINGLE, 3, 0, "ADS INT A3"},
-    {PortAdsExternal0, IO_PORT_KIND_ADS_EXTERNAL_DIFF, 0, 0, "ADS EXT A0-A1"},
-    {PortAdsExternal1, IO_PORT_KIND_ADS_EXTERNAL_DIFF, 1, 0, "ADS EXT A2-A3"},
+    {PortAdsExternal0, IO_PORT_KIND_ADS_EXTERNAL_DIFF, 0, 0, "ADS EXT A0"},
+    {PortAdsExternal1, IO_PORT_KIND_ADS_EXTERNAL_DIFF, 1, 0, "ADS EXT A1"},
+    {PortAdsExternal2, IO_PORT_KIND_ADS_EXTERNAL_DIFF, 2, 0, "ADS EXT A2"},
+    {PortAdsExternal3, IO_PORT_KIND_ADS_EXTERNAL_DIFF, 3, 0, "ADS EXT A3"},
     {PortOneWireWater, IO_PORT_KIND_DS18_WATER, 20, 0, "GPIO20 (OneWire)"},
     {PortOneWireAir, IO_PORT_KIND_DS18_AIR, 19, 0, "GPIO19 (OneWire)"},
     {PortSht40Temp, IO_PORT_KIND_SHT40, 0, 0, "SHT40 Temperature"},

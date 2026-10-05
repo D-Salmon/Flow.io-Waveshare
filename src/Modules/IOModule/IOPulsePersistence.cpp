@@ -1,6 +1,7 @@
 #include "IOModule.h"
 #include "Core/CommandRegistry.h"
 #include <ArduinoJson.h>
+#include "Core/PsramJsonAllocator.h"
 #include "Core/LogModuleIds.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
 #include "Core/ModuleLog.h"
@@ -94,6 +95,7 @@ IoStatus IOModule::requestPulseSave_(IoId resetId)
     const IoStatus result = pulseRequestState_.load() == PulseRequestState::Complete
                                 ? pulseRequestResult_ : IO_ERR_TIMEOUT;
     pulseRequestCaller_.clear();
+    if (result != IO_OK) LOGW("Counter save failed status=%u request_state=%u runtime=%u storage=%u receipt=%u", unsigned(result), unsigned(pulseRequestState_.load()), unsigned(runtimeReady_), unsigned(pulseStorageReady_), unsigned(pulseReceipt_.status.load()));
     return result;
 }
 
@@ -193,7 +195,7 @@ bool IOModule::servicePulseRequest_(uint32_t nowMs)
 
 bool IOModule::cmdResetCounter_(void* ctx, const CommandRequest& req, char* reply, size_t len)
 {
-    StaticJsonDocument<128> doc;
+    JsonDocument doc(psramOnlyJsonAllocator());
     if (!ctx || !req.json || deserializeJson(doc, req.json) || !doc["id"].is<uint16_t>()) {
         snprintf(reply, len, "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\"}}");
         return false;

@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file ReleaseStorage.cpp
  * @brief Runtime selection and validation of A/B release filesystems.
@@ -121,7 +122,7 @@ bool validateReleaseFilesystem(fs::FS& filesystem,
         if (!filesystem.exists(path)) return false;
     }
     File descriptor = filesystem.open("/release.json", FILE_READ);
-    StaticJsonDocument<256> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     const bool valid = descriptor &&
                        deserializeJson(doc, descriptor) == DeserializationError::Ok &&
                        (doc["format"] | 0U) == 1U &&

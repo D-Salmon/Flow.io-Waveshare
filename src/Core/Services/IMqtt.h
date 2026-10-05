@@ -66,4 +66,6 @@ struct MqttService {
     bool (*isConnected)(void* ctx);
     bool (*registerInboundHandler)(void* ctx, const MqttInboundHandler* handler);
     void* ctx;
+    bool (*isEnabled)(void* ctx) = nullptr;
+    bool (*wasValidPreviousBoot)(void* ctx) = nullptr;
 };

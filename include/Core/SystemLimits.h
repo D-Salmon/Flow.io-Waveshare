@@ -29,7 +29,7 @@ constexpr size_t JsonConfigApplyBuf = JsonCfgBuf;
 /** @brief Maximum number of registered config variables in `ConfigStore` metadata table.
  *  Sized for the Waveshare profile with additional headroom for local TFT
  *  sensor/alarm slots, dashboard/LCD and PoolLogic extensions while staying bounded. */
-constexpr size_t MaxConfigVars = 896;
+constexpr size_t MaxConfigVars = 768;
 /** @brief Maximum NVS key length (without null terminator) enforced by `ConfigTypes::NVS_KEY`. */
 constexpr size_t MaxNvsKeyLen = 15;
 /** @brief FreeRTOS log queue length used by `LogHub` (`LogHubModule::init`).
@@ -242,8 +242,9 @@ constexpr uint8_t MaxAnalogOutputs = 4;
 constexpr uint16_t MaxEndpoints = ioEndpointCapacity(BoardCapacityProfile::kIoCapacity) + MaxAnalogOutputs;
 constexpr uint8_t MaxDomainSlots = 20;
 constexpr uint8_t MaxDomainIoSlotBindings = 20;
-// Every digital output can be managed by a PoolDevice and assigned a PoolLogic role.
-constexpr uint8_t MaxPoolDevices = MaxDigitalOutputs;
+// pd07 remains the water-heater device; eight indices are therefore required
+// even though the Waveshare domain has seven typed pool-device presets.
+constexpr uint8_t MaxPoolDevices = 8;
 
 static_assert(MaxAnalogEndpoints > 0, "IO analogEndpoints must be at least 1");
 static_assert(MaxDigitalInputs > 0, "IO digitalInputs must be at least 1");
@@ -258,7 +259,6 @@ static_assert(DigitalOutputConfigSlots >= MaxDigitalOutputs, "digital output con
 static_assert(MaxDomainSlots > 0, "domain slot capacity must be non-zero");
 static_assert(MaxDomainIoSlotBindings >= MaxDomainSlots, "domain IO binding capacity must cover domain slots");
 static_assert(MaxPoolDevices > 0, "pool device capacity must be non-zero");
-static_assert(MaxPoolDevices <= 16, "pool device dependency masks support at most 16 slots");
 }  // namespace Io
 
 /** @brief Alarm engine compile-time capacities and defaults. */

@@ -60,9 +60,9 @@ int main() {
             assert(formatPoolDeviceHaWritePayload(payload, sizeof(payload), slot, on));
             char discovery[192]{};
             std::snprintf(discovery, sizeof(discovery), "{\"pl\":\"%s\"}", payload);
-            StaticJsonDocument<512> config;
+            JsonDocument config;
             assert(!deserializeJson(config, static_cast<const char*>(discovery)));
-            StaticJsonDocument<512> command;
+            JsonDocument command;
             assert(!deserializeJson(command, config["pl"].as<const char*>()));
             assert(std::strcmp(command["cmd"], action->command) == 0);
             assert(command["args"]["slot"].is<uint8_t>() && command["args"]["slot"].as<uint8_t>() == slot);
@@ -79,7 +79,7 @@ int main() {
             char args[96]{};
             std::snprintf(args, sizeof(args), "{\"%s\":%s}", action->inputName, on ? "true" : "false");
             assert(appendRuntimeActionTarget(args, sizeof(args), action->targetName, slot));
-            StaticJsonDocument<192> received;
+            JsonDocument received;
             assert(!deserializeJson(received, static_cast<const char*>(args)));
             JsonObjectConst view = received.as<JsonObjectConst>();
             assert(view.size() == 2);
@@ -101,7 +101,7 @@ int main() {
     // Preserve typed values for other targeted runtime actions as well.
     char number[96] = "{\"count\":4294967295}";
     assert(appendRuntimeActionTarget(number, sizeof(number), "target_id", UINT32_MAX));
-    StaticJsonDocument<192> received;
+    JsonDocument received;
     assert(!deserializeJson(received, static_cast<const char*>(number)));
     assert(received["count"].as<uint32_t>() == UINT32_MAX);
     assert(received["target_id"].as<uint32_t>() == UINT32_MAX);
@@ -121,7 +121,7 @@ class RuntimeActionArgumentsTest(unittest.TestCase):
             subprocess.run([
                 "c++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
                 "-I", str(ROOT / "src"), "-I", str(ARDUINO_JSON),
-                str(source), "-o", str(executable),
+                str(source), str(ROOT / "test/host/json_allocator.cpp"), "-o", str(executable),
             ], check=True)
             subprocess.run([str(executable)], check=True)
 

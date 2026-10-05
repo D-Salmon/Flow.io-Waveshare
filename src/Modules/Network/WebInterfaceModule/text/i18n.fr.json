@@ -1,3 +1,7 @@
 {
-  "translations": {}
+  "translations": {
+    "cfgdocs.webinterface.authentication_required.help": "Si activé, l’interface Web exige un compte dès son ouverture. Si désactivé, elle s’ouvre par défaut en Opérateur local et l’administrateur s’identifie seulement pour les réglages sensibles.",
+    "cfgdocs.webinterface.authentication_required.label": "Exiger l’authentification Web",
+    "cfgmods.webinterface.label": "Interface Web"
+  }
 }

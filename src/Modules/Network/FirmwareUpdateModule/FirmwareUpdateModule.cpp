@@ -1,3 +1,10 @@
+#include "Security/OtaPublicKey.h"
+#include "Core/Security/WebSecurityPolicy.h"
+#include "Modules/Network/WebInterfaceModule/OtaSignatureVerifier.h"
+#ifndef FLOW_ALLOW_UNSIGNED_UPDATES
+#define FLOW_ALLOW_UNSIGNED_UPDATES 0
+#endif
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file FirmwareUpdateModule.cpp
  * @brief Firmware updater implementation.
@@ -15,7 +22,6 @@
 #include <ctype.h>
 #include <string.h>
 #include <new>
-#include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
@@ -293,7 +299,7 @@ static bool writeSimpleError_(char* out, size_t outLen, const char* msg)
     return n > 0 && (size_t)n < outLen;
 }
 
-static bool parseReqJsonObject_(const char* json, StaticJsonDocument<256>& doc)
+static bool parseReqJsonObject_(const char* json, JsonDocument& doc)
 {
     if (!json || json[0] == '\0') return false;
     const auto err = deserializeJson(doc, json);
@@ -437,6 +443,66 @@ const char* FirmwareUpdateModule::targetStr_(FirmwareUpdateTarget t)
         case FirmwareUpdateTarget::Spiffs: return "spiffs";
         default: return "unknown";
     }
+}
+
+static bool fetchOtaSignature_(const char* artifactUrl,
+                               char* signatureOut,
+                               size_t signatureOutLen,
+                               char* errOut,
+                               size_t errOutLen)
+{
+    if (!artifactUrl || !signatureOut || signatureOutLen == 0U) {
+        return writeSimpleError_(errOut, errOutLen, "invalid OTA signature request");
+    }
+    signatureOut[0] = '\0';
+
+    const bool unsignedAllowed = FLOW_ALLOW_UNSIGNED_UPDATES != 0;
+    if (!unsignedAllowed && OtaTrust::PublicKeyPem[0] == '\0') {
+        return writeSimpleError_(errOut, errOutLen, "Cle publique OTA non provisionnee");
+    }
+
+    char signatureUrl[224] = {0};
+    const int urlLen = snprintf(signatureUrl, sizeof(signatureUrl), "%s.sig", artifactUrl);
+    if (urlLen <= 0 || (size_t)urlLen >= sizeof(signatureUrl)) {
+        return writeSimpleError_(errOut, errOutLen, "signature URL too long");
+    }
+
+    HTTPClient http;
+    configureDownloadHttp_(http);
+    bool signaturePresent = false;
+    if (http.begin(signatureUrl)) {
+        const int code = http.GET();
+        if (code == HTTP_CODE_OK) {
+            String payload = http.getString();
+            payload.trim();
+            if (payload.length() > 0U && payload.length() < signatureOutLen) {
+                snprintf(signatureOut, signatureOutLen, "%s", payload.c_str());
+                signaturePresent = true;
+            } else if (payload.length() >= signatureOutLen) {
+                http.end();
+                return writeSimpleError_(errOut, errOutLen, "Signature OTA trop longue");
+            }
+        } else if (!unsignedAllowed && code != 404) {
+            writeHttpCodeFailedError_("signature OTA", signatureUrl, http, code, errOut, errOutLen);
+            http.end();
+            return false;
+        }
+        http.end();
+    } else if (!unsignedAllowed) {
+        return writeHttpBeginFailedError_("signature OTA", signatureUrl, errOut, errOutLen);
+    }
+
+    const Security::OtaUploadPreflight preflight =
+        Security::evaluateOtaUploadPreflight(unsignedAllowed,
+                                             OtaTrust::PublicKeyPem[0] != '\0',
+                                             signaturePresent);
+    if (preflight == Security::OtaUploadPreflight::PublicKeyMissing) {
+        return writeSimpleError_(errOut, errOutLen, "Cle publique OTA non provisionnee");
+    }
+    if (preflight == Security::OtaUploadPreflight::SignatureMissing) {
+        return writeSimpleError_(errOut, errOutLen, "Signature OTA manquante");
+    }
+    return true;
 }
 
 void FirmwareUpdateModule::setStatus_(UpdateState state,
@@ -620,7 +686,7 @@ bool FirmwareUpdateModule::parseUrlArg_(const CommandRequest& req, char* out, si
     if (!out || outLen == 0) return false;
     out[0] = '\0';
 
-    StaticJsonDocument<256> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (parseReqJsonObject_(req.args, doc)) {
         const char* url = doc["url"].as<const char*>();
         if (url && url[0] != '\0') {
@@ -668,7 +734,7 @@ bool FirmwareUpdateModule::statusJson_(char* out, size_t outLen)
 
     sanitizeJsonString_(snap.msg);
 
-    StaticJsonDocument<512> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     doc["ok"] = true;
     doc["boot_id"] = bootId_;
     doc["operation_id"] = snap.operationId;
@@ -680,7 +746,7 @@ bool FirmwareUpdateModule::statusJson_(char* out, size_t outLen)
     doc["ts_ms"] = snap.updatedAtMs;
     doc["msg"] = snap.msg;
     if (hasLastReceipt) {
-        JsonObject receipt = doc.createNestedObject("last_operation");
+        JsonObject receipt = doc["last_operation"].to<JsonObject>();
         receipt["operation_id"] = lastReceipt.operationId;
         receipt["target"] = targetStr_(lastReceipt.target);
         receipt["result"] = firmwareUpdateReceiptStateName(lastReceipt.state);
@@ -1012,6 +1078,10 @@ bool FirmwareUpdateModule::queueNextionReboot_(char* errOut, size_t errOutLen)
 bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOut, size_t errOutLen)
 {
     const char* url = job.url;
+    char signatureBase64[128]{};
+    if (!fetchOtaSignature_(url, signatureBase64, sizeof(signatureBase64), errOut, errOutLen)) {
+        return false;
+    }
     setStatus_(UpdateState::Downloading,
                FirmwareUpdateTarget::Waveshare,
                0,
@@ -1074,10 +1144,17 @@ bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOu
     }
 
     char failMsg[128] = {0};
+    mbedtls_sha256_context sha256;
+    mbedtls_sha256_init(&sha256);
+    bool sha256Active = false;
     const size_t beginSize = (contentLength > 0) ? (size_t)contentLength : (size_t)UPDATE_SIZE_UNKNOWN;
     if (!Update.begin(beginSize, U_FLASH)) {
         snprintf(failMsg, sizeof(failMsg), "ota begin failed (%u)", (unsigned)Update.getError());
+    } else if (mbedtls_sha256_starts(&sha256, 0) != 0) {
+        snprintf(failMsg, sizeof(failMsg), "ota sha256 init failed");
+        Update.abort();
     } else {
+        sha256Active = true;
         auto* stream = http.getStreamPtr();
         int32_t remaining = contentLength;
         uint8_t buf[Limits::FirmwareUpdate::Http::StreamChunkBytes];
@@ -1105,6 +1182,10 @@ bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOu
             }
             lastReadMs = millis();
 
+            if (mbedtls_sha256_update(&sha256, buf, (size_t)rd) != 0) {
+                snprintf(failMsg, sizeof(failMsg), "ota sha256 update failed");
+                break;
+            }
             const size_t wr = Update.write(buf, (size_t)rd);
             if (wr != (size_t)rd) {
                 snprintf(failMsg, sizeof(failMsg), "ota write failed (%u)", (unsigned)Update.getError());
@@ -1124,6 +1205,24 @@ bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOu
         if (failMsg[0] == '\0' && contentLength > 0 && remaining > 0) {
             snprintf(failMsg, sizeof(failMsg), "incomplete download");
         }
+        uint8_t digest[32] = {0};
+        if (failMsg[0] == '\0' &&
+            (!sha256Active || mbedtls_sha256_finish(&sha256, digest) != 0)) {
+            snprintf(failMsg, sizeof(failMsg), "ota sha256 finish failed");
+        }
+        sha256Active = false;
+        if (failMsg[0] == '\0' &&
+            Security::otaSignatureRequired(FLOW_ALLOW_UNSIGNED_UPDATES != 0,
+                                           signatureBase64[0] != '\0') &&
+            !verifyOtaSignature(digest, signatureBase64)) {
+            snprintf(failMsg, sizeof(failMsg), "Signature OTA invalide");
+            if (webInterfaceSvc_ && webInterfaceSvc_->noteInvalidOtaSignature) {
+                webInterfaceSvc_->noteInvalidOtaSignature(webInterfaceSvc_->ctx);
+            }
+        }
+        if (failMsg[0] != '\0') {
+            Update.abort();
+        }
         if (failMsg[0] == '\0' && !Update.end()) {
             snprintf(failMsg, sizeof(failMsg), "ota end failed (%u)", (unsigned)Update.getError());
         }
@@ -1131,6 +1230,7 @@ bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOu
             snprintf(failMsg, sizeof(failMsg), "ota not finished");
         }
     }
+    mbedtls_sha256_free(&sha256);
 
     if (webInterfaceSvc_ && webInterfaceSvc_->setPaused) {
         webInterfaceSvc_->setPaused(webInterfaceSvc_->ctx, false);
@@ -1162,6 +1262,10 @@ bool FirmwareUpdateModule::runWaveshareUpdate_(const UpdateJob& job, char* errOu
 
 bool FirmwareUpdateModule::runNextionUpdate_(const UpdateJob& job, char* errOut, size_t errOutLen)
 {
+#if FLOW_ALLOW_UNSIGNED_UPDATES == 0
+    return writeSimpleError_(errOut, errOutLen, "Nextion distant desactive en mode OTA signee");
+#endif
+
     if (nextionRxPin_ < 0 || nextionTxPin_ < 0) {
         writeSimpleError_(errOut, errOutLen, "nextion board pins not configured");
         return false;
@@ -1361,6 +1465,10 @@ bool FirmwareUpdateModule::runNextionReboot_(char* errOut, size_t errOutLen)
 
 bool FirmwareUpdateModule::runSpiffsUpdate_(const UpdateJob& job, char* errOut, size_t errOutLen)
 {
+#if FLOW_ALLOW_UNSIGNED_UPDATES == 0
+    return writeSimpleError_(errOut, errOutLen, "SPIFFS distant desactive en mode OTA signee");
+#endif
+
     const char* url = job.url;
     setStatus_(UpdateState::Downloading,
                FirmwareUpdateTarget::Spiffs,
@@ -1536,7 +1644,7 @@ bool FirmwareUpdateModule::beginLocalRelease_(const char* manifestJson,
     if (!manifestJson || manifestLen == 0U || manifestLen > 1024U) {
         return writeSimpleError_(errOut, errOutLen, "invalid release manifest");
     }
-    StaticJsonDocument<1024> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     const auto jsonError = deserializeJson(doc, manifestJson, manifestLen);
     if (jsonError || !doc.is<JsonObjectConst>()) {
         return writeSimpleError_(errOut, errOutLen, "invalid release manifest json");
@@ -1864,9 +1972,6 @@ bool FirmwareUpdateModule::commitLocalRelease_(uint32_t transactionId,
     }
     if (!localTransactionMatches_(transactionId) ||
         localRelease_.stage != LocalReleaseStage::FirmwareVerified) {
-        LOGW("[UPGRADE] commit rejected stage=%u transaction_match=%u",
-             (unsigned)localRelease_.stage,
-             localTransactionMatches_(transactionId) ? 1U : 0U);
         return writeSimpleError_(errOut, errOutLen, "release is not ready to commit");
     }
     const esp_partition_subtype_t subtype = localRelease_.targetSlot == ReleaseSlot::A
@@ -1875,32 +1980,20 @@ bool FirmwareUpdateModule::commitLocalRelease_(uint32_t transactionId,
     const esp_partition_t* target = esp_partition_find_first(
         ESP_PARTITION_TYPE_APP, subtype, ReleaseStorage::applicationLabel(localRelease_.targetSlot));
     if (!target) {
-        LOGE("[UPGRADE] boot partition %s not found",
-             ReleaseStorage::applicationLabel(localRelease_.targetSlot));
         failLocalRelease_("failed to select release boot partition");
         return writeSimpleError_(errOut, errOutLen, "failed to select release boot partition");
     }
-    // Counter persistence is best-effort here: it must never abort an otherwise
-    // valid release. loop() retries the checkpoint right before the reboot.
-    char counterErr[96] = {0};
-    if (!saveCountersBeforeUpdate_(counterErr, sizeof(counterErr))) {
-        LOGW("[UPGRADE] counter checkpoint failed (%s); committing anyway",
-             counterErr[0] ? counterErr : "unknown");
-    }
+    if (!saveCountersBeforeUpdate_(errOut, errOutLen)) return false;
     if (!persistReceipt_(FirmwareUpdateTarget::Waveshare,
                          localRelease_.operationId,
                          FirmwareUpdateReceiptState::RebootPending)) {
         failLocalRelease_("failed to persist update completion");
         return writeSimpleError_(errOut, errOutLen, "failed to persist update completion");
     }
-    const esp_err_t bootError = esp_ota_set_boot_partition(target);
-    if (bootError != ESP_OK) {
+    if (esp_ota_set_boot_partition(target) != ESP_OK) {
         (void)persistReceipt_(FirmwareUpdateTarget::Waveshare,
                               localRelease_.operationId,
                               FirmwareUpdateReceiptState::Failed);
-        LOGE("[UPGRADE] esp_ota_set_boot_partition(%s) failed: %s",
-             ReleaseStorage::applicationLabel(localRelease_.targetSlot),
-             esp_err_to_name(bootError));
         failLocalRelease_("failed to select release boot partition");
         return writeSimpleError_(errOut, errOutLen, "failed to select release boot partition");
     }
@@ -2070,7 +2163,7 @@ bool FirmwareUpdateModule::runManifestCheck_(const ManifestCheckJob& job,
     if (jsonCapacity < Limits::FirmwareUpdate::Buffers::ManifestParseJson) {
         jsonCapacity = Limits::FirmwareUpdate::Buffers::ManifestParseJson;
     }
-    DynamicJsonDocument doc(jsonCapacity);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError jsonErr =
         deserializeJson(doc, static_cast<const char*>(manifestPayload_), payloadLen);
     if (jsonErr || !doc.is<JsonObjectConst>()) {
@@ -2398,12 +2491,11 @@ void FirmwareUpdateModule::loop()
         }
     }
     if (localReleaseRebootDue) {
-        // Best-effort: a counter persistence failure must not strand a device
-        // with an installed release that never reboots into it.
-        char counterErr[96] = {0};
-        if (!saveCountersBeforeUpdate_(counterErr, sizeof(counterErr))) {
-            LOGW("[UPGRADE] counter checkpoint failed (%s); rebooting anyway",
-                 counterErr[0] ? counterErr : "unknown");
+        if (!saveCounterCheckpoint(services_)) {
+            SemaphoreGuard transactionGuard(localReleaseMutex_);
+            localRelease_.rebootPending = false;
+            failLocalRelease_("counter checkpoint failed; reboot cancelled");
+            return;
         }
         LOGI("[UPGRADE] reboot");
         ESP.restart();

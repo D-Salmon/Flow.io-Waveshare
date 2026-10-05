@@ -16,7 +16,7 @@
     "help": "Nom utilisé pour l'affichage web et l'annonce mDNS."
   },
   "mqtt/host": {
-    "label": "Hôte MQTT",
+    "label": "Broker MQTT",
     "help": "Adresse du broker MQTT (DNS ou IP)."
   },
   "mqtt/port": {

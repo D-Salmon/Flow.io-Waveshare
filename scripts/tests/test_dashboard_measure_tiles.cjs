@@ -1,3 +1,4 @@
+const os = require('node:os');
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -23,6 +24,8 @@ const alarmCode = app.slice(
   app.indexOf('    function decorateDashboardAlarmTile('),
   app.indexOf('    function buildRuntimeAlarmGrid(')
 );
+const alarmSlotsCode = app.slice(app.indexOf('    function poolAlarmLabel('), app.indexOf('    function runtimeMeasureDisplayLabel('))
+  + app.slice(app.indexOf('    function buildPoolAlarmSlotsGrid('), app.indexOf('    function buildRuntimeMeasureFlagsTable('));
 
 async function main() {
   const browser = await chromium.launch({
@@ -34,11 +37,11 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
     await page.setContent('<html lang="fr"><body><main></main></body></html>');
     await page.addStyleTag({ content: fs.readFileSync(path.join(project, 'data/webinterface/app-core.css'), 'utf8') });
-    await page.evaluate(({ sinceCode, floatCode, sensorCode, alarmCode }) => {
+    await page.evaluate(({ sinceCode, floatCode, sensorCode, alarmCode, alarmSlotsCode }) => {
       window.runtimeMeasureDisplayConfig = entry => entry && entry.displayConfig ? entry.displayConfig : {};
       window.tr = (_key, fallback) => fallback;
       const script = document.createElement('script');
-      script.textContent = sinceCode + '\n' + floatCode + '\n' + sensorCode + '\n' + alarmCode + `
+      script.textContent = sinceCode + '\n' + floatCode + '\n' + sensorCode + '\n' + alarmCode + '\n' + alarmSlotsCode + `
         const entries = [
           {id:2201,displayConfig:{bands:{min:0,max:40}}},
           {id:2203,displayConfig:{bands:{min:6.4,max:8.4}}},
@@ -61,9 +64,9 @@ async function main() {
         alarmGrid.appendChild(buildDashboardAlarmTile({label:'Durée pompe',conditionValue:false,latchValue:true}));
         alarmCard.appendChild(alarmGrid); document.querySelector('main').appendChild(alarmCard);`;
       document.body.appendChild(script);
-    }, { sinceCode, floatCode, sensorCode, alarmCode });
+    }, { sinceCode, floatCode, sensorCode, alarmCode, alarmSlotsCode });
 
-    assert.equal(await page.locator('.status-sonde-slot').count(), 8);
+    assert.equal(await page.locator('.status-sonde-slot').count(), 4, 'Only enabled probes appear');
     assert.equal(await page.locator('.status-sonde-slot-range').count(), 3, 'Only configured credible ranges render bars');
     assert.equal(await page.locator('.status-sonde-slot-range[aria-label="pH"]').getAttribute('aria-valuemin'), '6.4');
     assert.deepEqual(await page.locator('.status-sonde-slot-range-label').allTextContents(),
@@ -71,13 +74,30 @@ async function main() {
     assert.deepEqual(await page.locator('.status-alarm-slot-value').allTextContents(), ['Normal', 'Alarme active', 'À acquitter']);
     assert.deepEqual(await page.locator('.status-alarm-slot-since').allTextContents(), ['depuis 3h 12mn']);
     const desktopColumns = await page.locator('.status-sonde-slot-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
-    assert.equal(desktopColumns, 3, 'Desktop measurement cards use three tiles per row');
-    await page.screenshot({ animations: 'disabled', path: '/tmp/flowio-dashboard-measure-tiles.png' });
+    assert.equal(desktopColumns, 2, 'Desktop measurement cards retain the larger requested display');
+    await page.screenshot({ animations: 'disabled', path: path.join(os.tmpdir(), 'flowio-dashboard-measure-tiles.png') });
 
     await page.setViewportSize({ width: 390, height: 844 });
     const mobileColumns = await page.locator('.status-sonde-slot-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
-    assert.equal(mobileColumns, 2, 'The tile grid remains readable on mobile');
+    assert.equal(mobileColumns, 1, 'The larger tiles remain readable on mobile');
     assert(await page.locator('body').evaluate(element => element.scrollWidth <= 390));
+    await page.evaluate(async () => {
+      window.fetchPoolDashboardSlots = async () => ({ alarm_slots: Array.from({length:9}, (_,slot) => ({
+        slot,alarm_id:slot===8?1010:slot===4?1004:slot===5?1005:1100+slot,
+        enabled:true,available:true,condition_known:true,condition_true:false,
+        label:slot===4?'pH uptime':slot===5?'ORP uptime':'Autre alarme'
+      })) });
+      const slots = await fetchPoolAlarmSlots();
+      document.querySelector('main').replaceChildren(buildPoolAlarmSlotsGrid(slots));
+    });
+    assert.equal(await page.locator('.status-alarm-slot').count(),9,'The flow alarm is retained after eight configured slots');
+    assert(await page.getByText('Durée maximale pompe pH',{exact:true}).isVisible());
+    assert(await page.getByText('Durée maximale pompe chlore',{exact:true}).isVisible());
+    assert(await page.getByText('Débit de filtration absent',{exact:true}).isVisible());
+    await page.evaluate(() => document.querySelector('main').replaceChildren(buildPoolAlarmSlotsGrid([
+      {slot:8,enabled:false,label:'Débit de filtration absent'}
+    ])));
+    assert.equal(await page.locator('.status-alarm-slot').count(),0,'Disabled flow monitoring has no alarm card');
     console.log('Dashboard measure tiles: ranges, alarm states and responsive grids passed');
   } finally {
     await browser.close();

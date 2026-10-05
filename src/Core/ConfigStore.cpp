@@ -9,7 +9,7 @@
 #include "Core/ModuleId.h"
 #include "Core/SnprintfCheck.h"
 #include <Arduino.h>
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <esp_heap_caps.h>
 #include <stdio.h>
 
@@ -390,7 +390,7 @@ static bool isMaskedKey(const char* key) {
 // after JSON escaping, including when a string contains a driver JSON object.
 static int writeJsonString(char* out, size_t outLen, const char* value)
 {
-    StaticJsonDocument<0> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     // A const char pointer is linked, not copied: no JSON pool allocation.
     doc.set(value ? value : "");
     const size_t required = measureJson(doc);
@@ -580,16 +580,16 @@ bool ConfigStore::applyJson(const char* json)
     if (!json || json[0] == '\0') return false;
 
     static constexpr size_t APPLY_JSON_DOC_CAPACITY = Limits::JsonConfigApplyBuf;
-    SpiRamJsonDocument doc(APPLY_JSON_DOC_CAPACITY);
+    JsonDocument doc(psramOnlyJsonAllocator());
     doc.clear();
     const DeserializationError err = deserializeJson(doc, json);
-    const size_t docUsedBytes = doc.memoryUsage();
-    const size_t docCapacityBytes = doc.capacity();
+    const size_t docUsedBytes = measureJson(doc);
+    const size_t docCapacityBytes = APPLY_JSON_DOC_CAPACITY;
     reportApplyJsonDocPeak_(docUsedBytes, docCapacityBytes);
     if (err || !doc.is<JsonObjectConst>()) {
         BufferUsageTracker::note(TrackedBufferId::ConfigApplyJsonDoc,
                                  docUsedBytes,
-                                 doc.capacity(),
+                                 APPLY_JSON_DOC_CAPACITY,
                                  "applyJson",
                                  nullptr);
         if (err == DeserializationError::NoMemory) {
@@ -612,7 +612,7 @@ bool ConfigStore::applyJson(const char* json)
     }
     BufferUsageTracker::note(TrackedBufferId::ConfigApplyJsonDoc,
                              docUsedBytes,
-                             doc.capacity(),
+                             APPLY_JSON_DOC_CAPACITY,
                              peakSource,
                              "<json>");
 

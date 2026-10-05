@@ -11,7 +11,7 @@
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::AiInsightModule)
 #include "Core/ModuleLog.h"
 
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
 #include <esp_heap_caps.h>
@@ -109,8 +109,8 @@ bool OpenAiResponsesClient::generate(const char* apiKey,
         return false;
     }
 
-    SpiRamJsonDocument requestDocument(kRequestJsonCapacity);
-    if (requestDocument.capacity() < kRequestJsonCapacity) {
+    JsonDocument requestDocument(psramOnlyJsonAllocator());
+    if (requestDocument.overflowed()) {
         writeError_(errOut, errOutLen, "OpenAI request JSON storage unavailable");
         return false;
     }
@@ -235,8 +235,8 @@ bool OpenAiResponsesClient::generate(const char* apiKey,
     }
     responseBuffer.data()[responseBytes] = '\0';
 
-    SpiRamJsonDocument responseDocument(kResponseJsonCapacity);
-    if (responseDocument.capacity() < kResponseJsonCapacity) {
+    JsonDocument responseDocument(psramOnlyJsonAllocator());
+    if (responseDocument.overflowed()) {
         writeError_(errOut, errOutLen, "OpenAI response JSON storage unavailable");
         return false;
     }

@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file ActivityLogModule.cpp
  * @brief User-facing activity journal backed by PSRAM and SPIFFS rotation.
@@ -20,8 +21,20 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <string.h>
+#include <initializer_list>
 
 namespace {
+class ActivityStorageLock {
+public:
+    explicit ActivityStorageLock(SemaphoreHandle_t mutex) : mutex_(mutex) { xSemaphoreTake(mutex_, portMAX_DELAY); }
+    ~ActivityStorageLock() { xSemaphoreGive(mutex_); }
+private:
+    SemaphoreHandle_t mutex_;
+};
+constexpr const char* kRewritePath = "/activity.new.log";
+constexpr const char* kRotatedRewritePath = "/activity.1.new.log";
+constexpr const char* kMainBackup = "/activity.old.log";
+constexpr const char* kRotatedBackup = "/activity.1.old.log";
 static void copyText_(char* out, size_t outLen, const char* in)
 {
     if (!out || outLen == 0U) return;
@@ -81,7 +94,10 @@ bool ActivityLogModule::serviceClear_(void* ctx)
 void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
 {
     services_ = &services;
+    storageMutex_ = xSemaphoreCreateMutexStatic(&storageMutexStatic_);
+    Serial.println("[BOOT] activity allocating journal");
 
+    const size_t bytes = (size_t)kCapacity * sizeof(ActivityEvent);
     entries_ = static_cast<ActivityEvent*>(
         heap_caps_calloc(kCapacity, sizeof(ActivityEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
     );
@@ -99,6 +115,7 @@ void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
     }
 
     const size_t persistQueueBytes = (size_t)kPersistQueueLen * sizeof(ActivityEvent);
+    Serial.println("[BOOT] activity allocating persistence queue");
     persistQueueStorage_ = static_cast<uint8_t*>(
         heap_caps_malloc(persistQueueBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
     );
@@ -115,11 +132,14 @@ void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
                                            persistQueueStorage_,
                                            &persistQueueStatic_);
     }
+
     service_.emit = &ActivityLogModule::serviceEmit_;
+    Serial.println("[BOOT] activity registering service");
     service_.getStats = &ActivityLogModule::serviceGetStats_;
     service_.readPage = &ActivityLogModule::serviceReadPage_;
     service_.clear = &ActivityLogModule::serviceClear_;
     service_.ctx = this;
+    service_.requestDelete = &ActivityLogModule::serviceRequestDelete_;
 
     if (!services.add(ServiceId::ActivityLog, &service_)) {
         LOGE("service registration failed: %s", toString(ServiceId::ActivityLog));
@@ -135,6 +155,8 @@ void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
     if (!spiffsReady_) {
         LOGW("Activity log SPIFFS persistence unavailable");
     } else {
+        Serial.println("[BOOT] activity recovering journal");
+        if (!recoverRewrite_()) LOGW("Activity journal rewrite recovery failed");
         replayFile_(kRotatedLogPath);
         replayFile_(kLogPath);
     }
@@ -152,13 +174,12 @@ void ActivityLogModule::init(ConfigStore&, ServiceRegistry& services)
 void ActivityLogModule::loop()
 {
     emitBootEventIfReady_();
-
+    processDelete_();
     ActivityEvent event{};
-    if (persistQueue_ && xQueueReceive(persistQueue_, &event, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        if (!persist_(event)) {
-            ++persistDropCount_;
-        }
+    if (persistQueue_ && xQueueReceive(persistQueue_, &event, 0) == pdTRUE) {
+        if (!persist_(event)) ++persistDropCount_;
     }
+    vTaskDelay(pdMS_TO_TICKS(20));
 }
 
 uint32_t ActivityLogModule::epochNow_()
@@ -177,11 +198,13 @@ void ActivityLogModule::normalizeEvent_(ActivityEvent& event)
 {
     if (event.ts_ms == 0U) event.ts_ms = millis();
     if (event.epoch_s == 0U) event.epoch_s = epochNow_();
+    portENTER_CRITICAL(&mux_);
     if (event.seq == 0U) {
         event.seq = nextSeq_++;
     } else if (event.seq >= nextSeq_) {
         nextSeq_ = event.seq + 1U;
     }
+    portEXIT_CRITICAL(&mux_);
     event.title[sizeof(event.title) - 1U] = '\0';
     event.detail[sizeof(event.detail) - 1U] = '\0';
     event.icon[sizeof(event.icon) - 1U] = '\0';
@@ -201,6 +224,7 @@ bool ActivityLogModule::emit_(const ActivityEvent& in)
 {
     if (!entries_ || capacity_ == 0U) return false;
 
+    ActivityStorageLock lock(storageMutex_);
     ActivityEvent event = in;
     normalizeEvent_(event);
     appendRing_(event);
@@ -215,27 +239,7 @@ bool ActivityLogModule::emit_(const ActivityEvent& in)
 
 bool ActivityLogModule::clear_()
 {
-    if (persistQueue_) {
-        xQueueReset(persistQueue_);
-    }
-
-    portENTER_CRITICAL(&mux_);
-    head_ = 0;
-    count_ = 0;
-    droppedCount_ = 0;
-    persistedCount_ = 0;
-    persistDropCount_ = 0;
-    nextSeq_ = 1;
-    portEXIT_CRITICAL(&mux_);
-
-    bool ok = true;
-    if (spiffsReady_) {
-        fs::FS& runtimeFs = ReleaseStorage::runtimeFilesystem();
-        if (runtimeFs.exists(kLogPath) && !runtimeFs.remove(kLogPath)) ok = false;
-        if (runtimeFs.exists(kRotatedLogPath) && !runtimeFs.remove(kRotatedLogPath)) ok = false;
-    }
-    LOGI("Activity log cleared ok=%u spiffs=%u", ok ? 1U : 0U, spiffsReady_ ? 1U : 0U);
-    return ok;
+    return requestDelete_(nullptr, 0, true) != 0U;
 }
 
 void ActivityLogModule::appendRing_(const ActivityEvent& event)
@@ -267,6 +271,9 @@ void ActivityLogModule::getStats_(ActivityLogStats& out) const
     out.seqNext = nextSeq_;
     out.psram = inPsram_;
     out.spiffs = spiffsReady_;
+    out.deleteId = deleteId_;
+    out.deleteState = deleteState_;
+    out.deleteRemoved = deleteRemoved_;
     portEXIT_CRITICAL(&mux_);
 }
 
@@ -305,8 +312,13 @@ uint16_t ActivityLogModule::readPage_(uint16_t offset,
 bool ActivityLogModule::formatLine_(const ActivityEvent& event, char* out, size_t outLen) const
 {
     if (!out || outLen == 0U) return false;
+    if (event.code == UINT16_MAX) {
+        const int n = snprintf(out, outLen, "{\"seq\":%lu,\"code\":65535,\"state\":%u}",
+                               (unsigned long)event.seq, (unsigned)event.state);
+        return n > 0 && static_cast<size_t>(n) < outLen;
+    }
     out[0] = '\0';
-    StaticJsonDocument<640> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     doc["seq"] = event.seq;
     doc["ts"] = event.ts_ms;
     doc["epoch"] = event.epoch_s;
@@ -331,7 +343,7 @@ bool ActivityLogModule::formatLine_(const ActivityEvent& event, char* out, size_
 bool ActivityLogModule::parseLine_(const char* line, ActivityEvent& out) const
 {
     if (!line || line[0] == '\0') return false;
-    StaticJsonDocument<640> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, line) != DeserializationError::Ok) return false;
 
     out = {};
@@ -352,34 +364,74 @@ bool ActivityLogModule::parseLine_(const char* line, ActivityEvent& out) const
     copyText_(out.title, sizeof(out.title), doc["title"] | "");
     copyText_(out.detail, sizeof(out.detail), doc["detail"] | "");
     copyText_(out.icon, sizeof(out.icon), doc["icon"] | "history");
+    if (out.code == UINT16_MAX) return out.state <= 1U;
     if (out.seq == 0U || out.title[0] == '\0') return false;
     return true;
 }
 
 void ActivityLogModule::replayFile_(const char* path)
 {
-    if (!path) return;
+    Serial.printf("[BOOT] activity replay %s\r\n", path ? path : "(none)");
     fs::FS& runtimeFs = ReleaseStorage::runtimeFilesystem();
-    if (!spiffsReady_ || !runtimeFs.exists(path)) return;
+    if (!spiffsReady_ || !path || !runtimeFs.exists(path)) return;
     File file = runtimeFs.open(path, FILE_READ);
     if (!file) return;
 
     char line[kLineMax] = {0};
-    while (file.available()) {
-        const size_t positionBeforeRead = file.position();
-        const size_t n = file.readBytesUntil('\n', line, sizeof(line) - 1U);
-        const size_t positionAfterRead = file.position();
-        if (positionAfterRead <= positionBeforeRead) break;
-        line[n] = '\0';
-        if (n > 0U) {
-            ActivityEvent event{};
-            if (parseLine_(line, event)) {
+    uint8_t buffer[512];
+    size_t lineLength = 0;
+    bool oversizedLine = false;
+    uint32_t replayed = 0;
+    uint32_t invalidLines = 0;
+    size_t bytesRead = 0;
+    const size_t expectedBytes = file.size();
+    auto consumeLine = [&]() {
+        if (lineLength == 0U && !oversizedLine) return;
+        line[lineLength] = '\0';
+        ActivityEvent event{};
+        const bool valid = !oversizedLine && parseLine_(line, event);
+        // A sequence watermark survives removal of the newest event.
+        if (event.seq >= nextSeq_) nextSeq_ = event.seq + 1U;
+        if (valid) {
+            if (event.code == UINT16_MAX) {
+                removeRing_(event.seq, event.state == 1U);
+            } else {
                 normalizeEvent_(event);
                 appendRing_(event);
             }
+        } else {
+            ++invalidLines;
+        }
+        if ((++replayed % 64U) == 0U) Serial.printf("[BOOT] activity replayed %lu lines\r\n", (unsigned long)replayed);
+        lineLength = 0;
+        oversizedLine = false;
+    };
+    // Read until the filesystem returns EOF. available() can remain positive
+    // for a damaged SPIFFS tail even though no more bytes can be read; using
+    // Stream::readBytesUntil() followed by continue then blocks startup forever.
+    while (bytesRead < expectedBytes) {
+        const size_t remaining = expectedBytes - bytesRead;
+        const size_t requested = remaining < sizeof(buffer) ? remaining : sizeof(buffer);
+        const size_t n = file.read(buffer, requested);
+        if (n == 0U || n > requested) break;
+        bytesRead += n;
+        for (size_t i = 0; i < n; ++i) {
+            if (buffer[i] == '\n') {
+                consumeLine();
+            } else if (lineLength < sizeof(line) - 1U) {
+                line[lineLength++] = static_cast<char>(buffer[i]);
+            } else {
+                oversizedLine = true;
+            }
         }
     }
+    consumeLine();
     file.close();
+    Serial.printf("[BOOT] activity replay complete %lu lines, %lu/%lu bytes, invalid=%lu\r\n",
+                  (unsigned long)replayed, (unsigned long)bytesRead,
+                  (unsigned long)expectedBytes, (unsigned long)invalidLines);
+    if (bytesRead != expectedBytes) LOGW("Activity journal short read: %s (%lu/%lu bytes)", path, (unsigned long)bytesRead, (unsigned long)expectedBytes);
+    if (invalidLines != 0U) LOGW("Activity journal invalid records: %s (%lu)", path, (unsigned long)invalidLines);
 }
 
 void ActivityLogModule::rotateIfNeeded_(size_t incomingLen)
@@ -445,4 +497,121 @@ void ActivityLogModule::emitBootEventIfReady_()
 
     emitBootEvent_();
     bootEventPending_ = false;
+}
+
+uint32_t ActivityLogModule::serviceRequestDelete_(void* ctx, const uint32_t* sequences, uint16_t count, bool all) {
+    return ctx ? static_cast<ActivityLogModule*>(ctx)->requestDelete_(sequences, count, all) : 0U;
+}
+
+bool ActivityLogModule::recoverRewrite_() {
+    auto& fs = ReleaseStorage::runtimeFilesystem();
+    bool ok = true;
+    if (fs.exists(kMainBackup)) {
+        if (fs.exists(kLogPath)) {
+            ok = fs.remove(kMainBackup);
+            if (fs.exists(kRotatedBackup)) ok = fs.remove(kRotatedBackup) && ok;
+        } else {
+            ok = fs.rename(kMainBackup, kLogPath);
+            if (fs.exists(kRotatedBackup)) {
+                if (fs.exists(kRotatedLogPath)) ok = fs.remove(kRotatedLogPath) && ok;
+                ok = fs.rename(kRotatedBackup, kRotatedLogPath) && ok;
+            }
+        }
+    } else if (fs.exists(kRotatedBackup)) {
+        ok = fs.rename(kRotatedBackup, kRotatedLogPath);
+    }
+    if (fs.exists(kRewritePath)) ok = fs.remove(kRewritePath) && ok;
+    if (fs.exists(kRotatedRewritePath)) ok = fs.remove(kRotatedRewritePath) && ok;
+    return ok;
+}
+
+uint32_t ActivityLogModule::requestDelete_(const uint32_t* sequences, uint16_t count, bool all)
+{
+    if (!spiffsReady_ || !persistQueue_ || !storageMutex_ || !entries_) return 0;
+    if (!all && (!sequences || count == 0U || count > kCapacity)) return 0;
+    auto* job = static_cast<DeleteRequest*>(heap_caps_calloc(1, sizeof(DeleteRequest), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!job) return 0;
+    job->all = all;
+    job->count = all ? 1U : count;
+    if (!all) memcpy(job->sequences, sequences, count * sizeof(uint32_t));
+
+    // This mutex serializes event numbering/queue insertion, never flash writes.
+    ActivityStorageLock lock(storageMutex_);
+    bool busy = false;
+    portENTER_CRITICAL(&mux_);
+    busy = deleteState_ == 1U;
+    const uint32_t boundary = nextSeq_ - 1U;
+    portEXIT_CRITICAL(&mux_);
+    if (!all) {
+        for (uint16_t i = 0; i < count; ++i) {
+            if (job->sequences[i] == 0U || job->sequences[i] > boundary) busy = true;
+        }
+    } else {
+        job->sequences[0] = boundary;
+    }
+    if (busy) { heap_caps_free(job); return 0; }
+    portENTER_CRITICAL(&mux_);
+    uint32_t id = ++deleteId_;
+    if (id == 0U) id = ++deleteId_;
+    deleteRemoved_ = 0;
+    deleteState_ = 1U;
+    pendingDelete_ = job;
+    portEXIT_CRITICAL(&mux_);
+    return id;
+}
+
+uint16_t ActivityLogModule::removeRing_(uint32_t sequence, bool all)
+{
+    portENTER_CRITICAL(&mux_);
+    const uint16_t previous = count_;
+    uint16_t kept = 0;
+    for (uint16_t i = 0; i < previous; ++i) {
+        const uint16_t from = (head_ + i) % capacity_;
+        const bool erase = all ? entries_[from].seq <= sequence : entries_[from].seq == sequence;
+        if (!erase) {
+            const uint16_t to = (head_ + kept++) % capacity_;
+            if (to != from) entries_[to] = entries_[from];
+        }
+    }
+    count_ = kept;
+    portEXIT_CRITICAL(&mux_);
+    return previous - kept;
+}
+
+void ActivityLogModule::processDelete_()
+{
+    portENTER_CRITICAL(&mux_);
+    DeleteRequest* job = pendingDelete_;
+    pendingDelete_ = nullptr;
+    portEXIT_CRITICAL(&mux_);
+    if (!job) return;
+
+    // This task is the only runtime writer. Persist queued events before their
+    // deletion markers so replay cannot resurrect a deleted pending event.
+    const UBaseType_t queued = uxQueueMessagesWaiting(persistQueue_);
+    ActivityEvent event{};
+    bool ok = true;
+    for (UBaseType_t i = 0; i < queued; ++i) {
+        if (xQueueReceive(persistQueue_, &event, 0) == pdTRUE && !persist_(event)) {
+            ++persistDropCount_;
+            ok = false;
+            break;
+        }
+        vTaskDelay(1);
+    }
+    uint16_t removed = 0;
+    for (uint16_t i = 0; ok && i < job->count; ++i) {
+        event = {};
+        event.seq = job->sequences[i];
+        event.code = UINT16_MAX; // Same durable tombstone format as 3.4.3.
+        event.state = job->all ? 1U : 0U;
+        if (!persist_(event)) { ok = false; break; }
+        removed += removeRing_(event.seq, job->all);
+        vTaskDelay(1);
+    }
+    heap_caps_free(job);
+    portENTER_CRITICAL(&mux_);
+    deleteRemoved_ = removed;
+    deleteState_ = ok ? 2U : 3U;
+    portEXIT_CRITICAL(&mux_);
 }

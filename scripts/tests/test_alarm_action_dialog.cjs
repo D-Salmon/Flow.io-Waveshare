@@ -16,11 +16,11 @@ async function main() {
     await page.addStyleTag({ content: fs.readFileSync(path.join(project, 'data/webinterface/app-core.css'), 'utf8') });
     await page.evaluate(() => {
       window.testState = { options: [
-        { value: 107, label: 'Pompe pH', triggeredAt: 1789375338, condition: 0, latchState: 1, resettable: true, automatic: false },
+        { value: 1004, label: 'pH uptime', triggeredAt: 1789375338, condition: 0, latchState: 1, resettable: true, automatic: false },
         { value: 103, label: 'Débit filtration', triggeredAt: 1789375338, condition: 1, latchState: 1, resettable: false, automatic: false },
         { value: 211, label: 'Sonde indisponible', triggeredAt: null, condition: 2, latchState: 1, resettable: false, automatic: false },
         { value: 101, label: 'Cuve pH', triggeredAt: null, condition: 0, latchState: 2, resettable: false, automatic: true },
-        { value: 201, label: 'Pompe chlore', triggeredAt: 1789375338, condition: 0, latchState: 1, resettable: true, automatic: false }
+        { value: 1005, label: 'ORP uptime', triggeredAt: 1789375338, condition: 0, latchState: 1, resettable: true, automatic: false }
       ], requests: [], invalidations: 0, refreshes: [], failList: false, failCommand: false, delay: 0 };
       window.fetchOkJson = async url => {
         if (url !== '/api/runtime/alarm_options') throw new Error('Wrong source');
@@ -51,10 +51,10 @@ async function main() {
     assert.equal(await page.locator('tbody tr').count(), 5);
     assert.equal(await page.locator('thead th').count(), 5);
     assert.match(await page.locator('.runtime-counter-count').textContent(), /5 alarmes · 2 à acquitter/);
-    assert.match(await row('Pompe pH').textContent(), /Inactive.*Mémorisé/);
-    assert.equal(await row('Pompe pH').locator('td').first().locator('div').count(), 2, 'Date and time are shown separately');
+    assert.match(await row('Durée maximale pompe pH').textContent(), /Inactive.*Mémorisé/);
+    assert.equal(await row('Durée maximale pompe pH').locator('td').first().locator('div').count(), 2, 'Date and time are shown separately');
     assert.equal(await row('Sonde indisponible').locator('td').first().textContent(), '—', 'Invalid clock dates stay unavailable');
-    assert(await ack('Pompe pH').isEnabled());
+    assert(await ack('Durée maximale pompe pH').isEnabled());
     assert(await ack('Débit filtration').isDisabled());
     assert(await ack('Sonde indisponible').isDisabled());
     assert.match(await row('Cuve pH').textContent(), /Non utilisé.*Automatique/);
@@ -66,19 +66,19 @@ async function main() {
     assert(box.x >= 0 && box.x + box.width <= 390);
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    await ack('Pompe pH').click();
+    await ack('Durée maximale pompe pH').click();
     await page.getByRole('button', { name: 'Annuler', exact: true }).click();
     assert.equal(await page.evaluate(() => testState.requests.length), 0);
-    await ack('Pompe pH').click();
+    await ack('Durée maximale pompe pH').click();
     await confirm.click();
-    assert.deepEqual(await page.evaluate(() => testState.requests[0]), { runtime_id: '902', action_id: 'acknowledge', input: '107' }, 'Use AlarmId, never card position');
-    assert.match(await row('Pompe pH').textContent(), /Inactive.*Libre/);
-    assert(await ack('Pompe pH').isDisabled());
+    assert.deepEqual(await page.evaluate(() => testState.requests[0]), { runtime_id: '902', action_id: 'acknowledge', input: '1004' }, 'Use AlarmId, never card position');
+    assert.match(await row('Durée maximale pompe pH').textContent(), /Inactive.*Libre/);
+    assert(await ack('Durée maximale pompe pH').isDisabled());
     assert.equal(await page.evaluate(() => testState.options[0].triggeredAt), 1789375338, 'Acknowledgement retains last trigger date');
     assert.deepEqual(await page.evaluate(() => testState.refreshes), ['alarm', 'overview']);
 
     await page.evaluate(() => { testState.failCommand = true; });
-    await ack('Pompe chlore').click();
+    await ack('Durée maximale pompe chlore').click();
     await confirm.click();
     assert.match(await page.locator('[role="status"]').textContent(), /Condition encore active/);
     assert(await confirm.isEnabled(), 'Firmware rejection remains visible and retryable');
@@ -86,7 +86,7 @@ async function main() {
     await page.evaluate(() => { testState.failCommand = false; testState.delay = 1000; });
     await all.click();
     await confirm.click();
-    assert(await ack('Pompe chlore').isDisabled());
+    assert(await ack('Durée maximale pompe chlore').isDisabled());
     await page.keyboard.press('Escape');
     assert(await page.locator('dialog').isVisible());
     await page.waitForFunction(() => window.testState.options.every(alarm => !alarm.resettable));

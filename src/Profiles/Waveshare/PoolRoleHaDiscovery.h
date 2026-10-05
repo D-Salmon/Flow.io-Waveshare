@@ -54,8 +54,10 @@ inline bool prepare(Storage& storage, const PoolDeviceAssignments& assignments, 
 {
     for (uint8_t role = 0; role < PoolIds::DeviceCount; ++role) {
         const uint8_t slot = assignedSlot(role, assignments);
-        if (slot >= deviceCapacity) return false;
         auto& out = storage.roles[role];
+        out = RoleBuffers{};
+        if (slot == POOL_DEVICE_INVALID) continue;
+        if (slot >= deviceCapacity) return false;
         out.slot = slot;
         if (!format(out.state, "rt/pdm/state/pd%u", unsigned(slot)) ||
             !format(out.metrics, "rt/pdm/metrics/pd%u", unsigned(slot)) ||
@@ -253,14 +255,26 @@ inline constexpr ButtonsSpec kButtons[] = {
 
 inline bool registerEntries(const HAService& ha, const Storage& storage)
 {
-    if (!ha.addSensor || !ha.addNumber || !ha.addButton) return false;
+    if (!ha.addSensor || !ha.addNumber || !ha.addButton || !ha.addDiscoveryRemoval) return false;
     bool ok = true;
+    const auto remove = [&ha](const char* component, const char* suffix) {
+        const HADiscoveryRemovalEntry entry{component, suffix};
+        return ha.addDiscoveryRemoval(ha.ctx, &entry);
+    };
     for (const auto& spec : kSensors) {
+        if (storage.roles[spec.role].slot == POOL_DEVICE_INVALID) {
+            ok = remove("sensor", spec.entry.objectSuffix) && ok;
+            continue;
+        }
         auto entry = spec.entry;
         entry.stateTopicSuffix = storage.roles[spec.role].metrics;
         if (!ha.addSensor(ha.ctx, &entry)) ok = false;
     }
     for (const auto& spec : kNumbers) {
+        if (storage.roles[spec.role].slot == POOL_DEVICE_INVALID) {
+            ok = remove("number", spec.entry.objectSuffix) && ok;
+            continue;
+        }
         auto entry = spec.entry;
         const auto& role = storage.roles[spec.role];
         entry.stateTopicSuffix = role.config;
@@ -268,6 +282,11 @@ inline bool registerEntries(const HAService& ha, const Storage& storage)
         if (!ha.addNumber(ha.ctx, &entry)) ok = false;
     }
     for (const auto& spec : kButtons) {
+        if (spec.payload != ButtonsSpec::Payload::None &&
+            storage.roles[spec.role].slot == POOL_DEVICE_INVALID) {
+            ok = remove("button", spec.entry.objectSuffix) && ok;
+            continue;
+        }
         auto entry = spec.entry;
         const auto& role = storage.roles[spec.role];
         switch (spec.payload) {

@@ -1,3 +1,6 @@
+#include "Core/Security/WebSecurityPolicy.h"
+#include "WebSecurityHeaders.h"
+#include <esp_random.h>
 /**
  * @file WebInterfaceServer.cpp
  * @brief HTTP server wiring and network-facing endpoints for WebInterfaceModule.
@@ -16,12 +19,11 @@
 #include "Core/Services/IAlarm.h"
 #include "Core/SystemLimits.h"
 #include "Core/SystemStats.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include "HistoryJson.h"
 #include "Domain/Pool/PoolIds.h"
 #include "Domain/Pool/PoolDomain.h"
 #include "Core/Services/IPoolDevice.h"
-#include "Modules/PoolDeviceModule/Drivers/PoolTelemetryJson.h"
 #include "Core/Services/IPoolConfiguration.h"
 #include "Modules/IOModule/IORuntime.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
@@ -140,73 +142,42 @@ static bool parseBoolParam_(const char* in, bool fallback)
 // ---------------------------------------------------------------------------
 
 static constexpr char kSessionCookieName[] = "flowio_session";
-static constexpr size_t kSessionTokenMax = 256;
-// Browser cookie lifetime for the session token (12 hours). Must not exceed
-// UserModule::kTokenTtlSeconds, which caps the absolute session duration.
-static constexpr uint32_t kSessionCookieMaxAgeSeconds = 12U * 60U * 60U;
+static constexpr size_t kSessionTokenMax = 256U;
+static constexpr uint32_t kSessionCookieMaxAgeSeconds = 7U * 24U * 60U * 60U;
 
 static bool pathStartsWith_(const char* path, const char* prefix)
 {
-    if (!path || !prefix) return false;
-    return strncmp(path, prefix, strlen(prefix)) == 0;
+    return path && prefix && strncmp(path, prefix, strlen(prefix)) == 0;
 }
 
 static bool pathEquals_(const char* path, const char* expected)
 {
-    if (!path || !expected) return false;
-    return strcmp(path, expected) == 0;
+    return path && expected && strcmp(path, expected) == 0;
 }
 
-static bool isPublicAuthPath_(AsyncWebServerRequest* request, const char* url)
+static bool isPublicSessionPath_(AsyncWebServerRequest* request, const char* url)
 {
-    if (!url || url[0] == '\0') return false;
-    const bool isGet = request && request->method() == HTTP_GET;
-
-    // Session endpoints self-authorize; always reachable.
-    if (pathStartsWith_(url, "/api/auth/")) return true;
-    // Login page and static web assets.
-    if (pathStartsWith_(url, "/login")) return true;
-    if (pathStartsWith_(url, "/webinterface/")) return true;
-    if (pathEquals_(url, "/favicon.ico")) return true;
-    if (pathEquals_(url, "/")) return true;
-    // Captive portal detectors must stay unauthenticated.
-    if (pathEquals_(url, "/generate_204") ||
-        pathEquals_(url, "/gen_204") ||
-        pathEquals_(url, "/hotspot-detect.html") ||
-        pathEquals_(url, "/connecttest.txt") ||
-        pathEquals_(url, "/ncsi.txt")) {
-        return true;
-    }
-    // Health probes.
-    if (pathEquals_(url, "/webinterface/health") || pathEquals_(url, "/webserial/health")) {
-        return true;
-    }
-    // Rescue console (left as-is by design decision) and the read-only endpoints
-    // it relies on.
-    if (pathEquals_(url, "/rescue") || pathEquals_(url, "/webinterface/rescue")) {
-        return true;
-    }
-    if (isGet &&
-        (pathEquals_(url, "/api/web/meta") ||
-         pathEquals_(url, "/api/network/mode") ||
-         pathEquals_(url, "/api/wifi/scan") ||
-         pathEquals_(url, "/api/wifi/config") ||
-         pathEquals_(url, "/api/fwupdate/config") ||
-         pathEquals_(url, "/api/fwupdate/status"))) {
-        return true;
-    }
+    if (!url) return false;
+    if (pathEquals_(url, "/login") || pathEquals_(url, "/login.html") ||
+        pathEquals_(url, "/api/auth/login") || pathEquals_(url, "/favicon.ico")) return true;
+    if (pathStartsWith_(url, "/webinterface/") &&
+        (strstr(url, ".css") || strstr(url, ".js") || strstr(url, ".png") ||
+         strstr(url, ".svg") || strstr(url, ".woff") || strstr(url, ".json"))) return true;
+    if (pathEquals_(url, "/generate_204") || pathEquals_(url, "/gen_204") ||
+        pathEquals_(url, "/hotspot-detect.html") || pathEquals_(url, "/connecttest.txt") ||
+        pathEquals_(url, "/ncsi.txt") || pathEquals_(url, "/webinterface/health") ||
+        pathEquals_(url, "/webserial/health")) return true;
+    (void)request;
     return false;
 }
 
-static bool requiresAdmin_(AsyncWebServerRequest* request, const char* url)
+static bool sessionRequiresAdmin_(AsyncWebServerRequest* request, const char* url)
 {
-    if (!request || request->method() != HTTP_POST || !url) return false;
-    // System update and destructive system actions are reserved to admins.
-    return pathStartsWith_(url, "/api/fwupdate/") ||
-           pathStartsWith_(url, "/api/upgrade/") ||
-           pathStartsWith_(url, "/api/system/") ||
-           pathStartsWith_(url, "/api/flow/system/") ||
-           pathStartsWith_(url, "/fwupdate/");
+    if (!request || !url) return true;
+    Security::WebRouteMethod method = Security::WebRouteMethod::Other;
+    if (request->method() == HTTP_GET) method = Security::WebRouteMethod::Get;
+    else if (request->method() == HTTP_POST) method = Security::WebRouteMethod::Post;
+    return Security::webRouteRequiresAdmin(method, url);
 }
 
 static bool extractSessionCookie_(AsyncWebServerRequest* request, char* out, size_t outLen)
@@ -246,146 +217,13 @@ static bool extractSessionCookie_(AsyncWebServerRequest* request, char* out, siz
     return false;
 }
 
-static const char kLoginPageHtml[] PROGMEM = R"HTML(
-<!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#eef8fc" />
-  <link rel="icon" type="image/png" href="/webinterface/favicon.png" />
-  <title>flow.io - Connexion</title>
-  <script>
-    (function () {
-      var theme = 'light';
-      try {
-        theme = localStorage.getItem('flow_web_theme') === 'dark' ? 'dark' : 'light';
-      } catch (err) {}
-      document.documentElement.setAttribute('data-theme', theme);
-      document.documentElement.style.colorScheme = theme;
-    })();
-  </script>
-  <style>
-  :root { color-scheme:light; --bg:#eef8fc; --panel:rgba(255,255,255,.96); --line:#cfdeea; --text:#071a35; --muted:#64748b; --accent:#09afc6; --accent-dark:#087fb2; --accent-soft:#dff6fa; --bad:#b4233a; --field:#fff; --shadow:0 28px 80px rgba(28,91,125,.16); }
-  html[data-theme="dark"] { color-scheme:dark; --bg:#07111f; --panel:rgba(17,28,43,.96); --line:#2c405a; --text:#edf5ff; --muted:#a9b9cf; --accent:#32c8d6; --accent-dark:#1687d8; --accent-soft:#12384a; --bad:#ff7b8a; --field:#0b1726; --shadow:0 28px 80px rgba(0,0,0,.42); }
-  * { box-sizing: border-box; }
-  html, body { min-height:100%; }
-  body { margin:0; min-height:100vh; color:var(--text); font-family:"Inter","Segoe UI",Roboto,Arial,sans-serif; background:
-    radial-gradient(circle at 12% 18%,rgba(41,185,211,.2),transparent 28%),
-    radial-gradient(circle at 88% 84%,rgba(71,157,220,.16),transparent 28%),
-    linear-gradient(135deg,var(--bg) 0%,#f9fcfe 52%,#e9f6fb 100%); overflow-x:hidden; }
-  html[data-theme="dark"] body { background:radial-gradient(circle at 12% 18%,rgba(41,185,211,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(71,157,220,.12),transparent 28%),var(--bg); }
-  body::before, body::after { content:""; position:fixed; z-index:0; width:58vw; height:25vw; min-height:180px; border-radius:50%; border:1px solid rgba(87,190,219,.2); transform:rotate(-9deg); pointer-events:none; }
-  body::before { left:-18vw; bottom:-12vw; box-shadow:0 -26px 0 rgba(153,222,236,.1),0 -52px 0 rgba(153,222,236,.07); }
-  body::after { right:-25vw; top:3vw; box-shadow:0 26px 0 rgba(153,222,236,.1),0 52px 0 rgba(153,222,236,.07); }
-  .shell { position:relative; z-index:1; width:min(1120px,calc(100% - 48px)); min-height:100vh; margin:auto; display:grid; grid-template-columns:minmax(0,1.08fr) minmax(390px,.92fr); align-items:center; gap:clamp(48px,8vw,112px); padding:48px 0; }
-  .intro { padding:12px 0 12px clamp(0px,2vw,24px); }
-  .intro-brand img { display:block; width:242px; height:auto; }
-  html[data-theme="dark"] .intro-brand img, html[data-theme="dark"] .brand img { filter:brightness(0) invert(1); }
-  .tagline { max-width:540px; margin:24px 0 0; color:var(--muted); font-size:clamp(18px,1.7vw,22px); font-weight:650; line-height:1.35; letter-spacing:-.015em; }
-  .card { width:100%; max-width:480px; justify-self:end; background:var(--panel); border:1px solid rgba(255,255,255,.78); border-radius:24px; padding:clamp(32px,4vw,52px); box-shadow:var(--shadow); backdrop-filter:blur(12px); }
-  html[data-theme="dark"] .card { border-color:var(--line); }
-  .brand { display:none; justify-content:center; margin-bottom:28px; }
-  .brand img { width:184px; max-width:100%; height:auto; }
-  h1 { font-size:clamp(27px,3vw,34px); margin:0 0 8px; text-align:center; letter-spacing:-.035em; }
-  .sub { color:var(--muted); font-size:14px; margin:0 0 32px; text-align:center; line-height:1.5; }
-  label { display:block; margin:18px 0 8px; font-size:13px; font-weight:750; color:var(--text); }
-  .field { position:relative; }
-  .field-icon { position:absolute; left:15px; top:50%; width:19px; height:19px; transform:translateY(-50%); color:#70839b; pointer-events:none; }
-  input { width:100%; min-height:52px; border:1px solid var(--line); border-radius:11px; background:var(--field); color:var(--text); padding:10px 46px; font:inherit; font-size:14px; transition:border-color .16s ease,box-shadow .16s ease,background .16s ease; }
-  input::placeholder { color:#91a1b4; }
-  input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 4px rgba(43,183,198,.14); }
-  .password-toggle { position:absolute; right:5px; top:50%; width:42px; height:42px; transform:translateY(-50%); border:0; border-radius:8px; padding:0; background:transparent; color:#70839b; cursor:pointer; display:grid; place-items:center; }
-  .password-toggle:hover { color:var(--accent-dark); background:var(--accent-soft); }
-  .password-toggle svg { width:20px; height:20px; }
-  .submit { width:100%; min-height:54px; margin-top:28px; border:0; border-radius:12px; padding:0 20px; background:linear-gradient(100deg,var(--accent-dark),var(--accent)); color:#fff; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 12px 26px rgba(9,175,198,.22); transition:transform .16s ease,filter .16s ease,box-shadow .16s ease; }
-  .submit:hover { filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 15px 30px rgba(9,175,198,.28); }
-  .submit:active { transform:translateY(0); }
-  .submit:disabled { opacity:.58; cursor:wait; transform:none; }
-  .status { min-height:20px; margin-top:12px; font-size:13px; color:var(--bad); text-align:center; }
-  .secure { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
-  .secure svg { width:16px; height:16px; color:var(--accent-dark); }
-  @media (max-width:820px) {
-    .shell { width:min(100% - 32px,500px); grid-template-columns:1fr; gap:28px; padding:32px 0; }
-    .intro { padding:0; text-align:center; }
-    .intro-brand, .tagline { display:none; }
-    .card { justify-self:center; }
-    .brand { display:flex; }
-  }
-  @media (max-width:480px) {
-    .shell { width:100%; min-height:100vh; padding:0; align-items:stretch; }
-    .intro { display:none; }
-    .card { max-width:none; min-height:100vh; border:0; border-radius:0; padding:42px 24px 28px; display:flex; flex-direction:column; justify-content:center; box-shadow:none; }
-    .brand { margin-bottom:24px; }
-  }
-  @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto!important; transition:none!important; } }
-</style>
-</head>
-<body>
-  <main class="shell">
-    <section class="intro" aria-label="Présentation flow.io">
-      <div class="intro-brand"><img src="/webinterface/logo-flowio.png" alt="flow.io" /></div>
-      <p class="tagline">The Open Platform for the Connected Pool</p>
-    </section>
-    <form class="card" id="loginForm">
-      <div class="brand"><img src="/webinterface/logo-flowio.png" alt="flow.io" /></div>
-      <h1>Connexion</h1>
-      <p class="sub">Accédez à votre contrôleur de piscine connecté.</p>
-      <label for="user">Identifiant</label>
-      <div class="field">
-        <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-4 3-6 7-6s6.4 2 7 6"/></svg>
-        <input id="user" name="username" autocomplete="username" placeholder="Votre identifiant" autofocus required />
-      </div>
-      <label for="pass">Mot de passe</label>
-      <div class="field">
-        <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"/></svg>
-        <input id="pass" name="password" type="password" autocomplete="current-password" placeholder="Votre mot de passe" required />
-        <button class="password-toggle" id="togglePass" type="button" aria-label="Afficher le mot de passe" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
-      </div>
-      <button class="submit" id="submit" type="submit">Se connecter&nbsp;&nbsp;→</button>
-      <div class="status" id="status" role="status" aria-live="polite"></div>
-      <div class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 3 7 3v5c0 4.5-2.7 7.8-7 10-4.3-2.2-7-5.5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Accès local sécurisé</span></div>
-    </form>
-  </main>
-  <script>
-  (() => {
-    const form = document.getElementById("loginForm");
-    const status = document.getElementById("status");
-    const submit = document.getElementById("submit");
-    const password = document.getElementById("pass");
-    const togglePass = document.getElementById("togglePass");
-    togglePass.addEventListener("click", () => {
-      const reveal = password.type === "password";
-      password.type = reveal ? "text" : "password";
-      togglePass.setAttribute("aria-pressed", String(reveal));
-      togglePass.setAttribute("aria-label", reveal ? "Masquer le mot de passe" : "Afficher le mot de passe");
-    });
-    form.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      status.textContent = "";
-      submit.disabled = true;
-      try {
-        const body = new URLSearchParams();
-        body.set("username", document.getElementById("user").value);
-        body.set("password", document.getElementById("pass").value);
-        const res = await fetch("/api/auth/login", { method:"POST", body });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || data.ok !== true) {
-          status.textContent = (data && data.err && data.err.msg) ? data.err.msg : "Connexion refusée";
-          submit.disabled = false;
-          return;
-        }
-        window.location.href = "/webinterface";
-      } catch (_) {
-        status.textContent = "Erreur de connexion";
-        submit.disabled = false;
-      }
-    });
-  })();
-  </script>
-</body>
-</html>
-)HTML";
+static const char kLoginPageHtml[] PROGMEM = R"HTML(<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>flow.io — Connexion</title><style>
+:root{color-scheme:light dark;font-family:Inter,Segoe UI,Arial,sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#eef8fc;color:#071a35}.card{width:min(92vw,430px);padding:36px;border:1px solid #cbddeb;border-radius:22px;background:#fff;box-shadow:0 24px 70px #19628b26}h1{margin:0 0 8px;text-align:center}.brand{font-size:30px;font-weight:800;color:#079ec0;text-align:center;margin-bottom:25px}.sub{color:#61758d;text-align:center;margin:0 0 28px}label{display:block;font-weight:700;margin:16px 0 7px}input{width:100%;padding:14px;border:1px solid #b9cede;border-radius:10px;font:inherit}button{width:100%;padding:14px;margin-top:24px;border:0;border-radius:10px;background:#078fc4;color:#fff;font:inherit;font-weight:800;cursor:pointer}.local{display:block;margin-top:12px;padding:13px;text-align:center;border:1px solid #078fc4;border-radius:10px;color:#0782b3;text-decoration:none;font-weight:800}.status{min-height:22px;text-align:center;color:#b4233a;margin-top:12px}@media(prefers-color-scheme:dark){body{background:#07111f;color:#edf5ff}.card{background:#111c2b;border-color:#2c405a}.sub{color:#a9b9cf}input{background:#0b1726;color:#edf5ff;border-color:#3a526e}.local{color:#66c9ef}}
+</style></head><body><form class="card" id="f" method="post" action="/api/auth/login"><div class="brand">〰 flow.io</div><h1>Connexion administrateur</h1><p class="sub">Identifiez-vous pour accéder aux réglages sensibles.</p><label for="u">Identifiant</label><input id="u" name="username" autocomplete="username" required autofocus><label for="p">Mot de passe</label><input id="p" name="password" type="password" autocomplete="current-password" required><button>Se connecter</button><a id="local" class="local" href="/webinterface">Se connecter sans s'identifier</a><div class="status" id="s"></div></form><script>
+const f=document.getElementById('f'),s=document.getElementById('s'),l=document.getElementById('local');fetch('/api/auth/session',{cache:'no-store'}).then(r=>r.json()).then(x=>{l.hidden=x.local_operator!==true;}).catch(()=>{l.hidden=true;});f.addEventListener('submit',async e=>{e.preventDefault();s.textContent='Connexion…';const b=new URLSearchParams(new FormData(f));try{const r=await fetch('/api/auth/login',{method:'POST',body:b});if(!r.ok)throw 0;location.replace('/webinterface');}catch(_){s.textContent='Identifiant ou mot de passe incorrect.';}});
+</script></body></html>)HTML";
 
 static bool parseStrictBoolParam_(const char* in, bool& out)
 {
@@ -413,6 +251,14 @@ static bool parseStrictUInt32Param_(const char* in, uint32_t& out)
     }
     out = parsed;
     return true;
+}
+
+static bool validIpv4Param_(const char* text, bool required)
+{
+    if (!text || text[0] == '\0') return !required;
+    IPAddress parsed;
+    if (!parsed.fromString(text)) return false;
+    return !required || (uint32_t)parsed != 0U;
 }
 
 static bool copyRequestParamValue_(AsyncWebServerRequest* request,
@@ -982,7 +828,7 @@ static uint16_t summarizeConfigPatch_(const char* patchJson, char* modulesOut, s
     if (modulesOut && modulesOutLen > 0U) modulesOut[0] = '\0';
     if (!patchJson || patchJson[0] == '\0') return 0;
 
-    DynamicJsonDocument doc(Limits::JsonConfigApplyBuf);
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, patchJson);
     if (err || !doc.is<JsonObjectConst>()) return 0;
 
@@ -1322,7 +1168,7 @@ void loadConfiguredDeviceName_(ConfigStore* cfgStore, char* out, size_t outLen)
     char systemJson[128] = {0};
     if (!cfgStore->toJsonModule("system", systemJson, sizeof(systemJson), nullptr, false)) return;
 
-    StaticJsonDocument<128> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, systemJson) != DeserializationError::Ok || !doc.is<JsonObjectConst>()) return;
 
     const char* configured = doc.as<JsonObjectConst>()["devicename"] | "";
@@ -1340,7 +1186,7 @@ bool isModuleFlagAndStringConfigured_(ConfigStore* cfgStore,
     char moduleJson[512] = {0};
     if (!cfgStore->toJsonModule(moduleName, moduleJson, sizeof(moduleJson), nullptr, false)) return false;
 
-    StaticJsonDocument<512> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     const DeserializationError err = deserializeJson(doc, moduleJson);
     if (err || !doc.is<JsonObjectConst>()) return false;
 
@@ -1383,7 +1229,7 @@ bool sendFlowStatusCompactResponse_(AsyncWebServerRequest* request, const FlowCf
     response->print("{\"ok\":true");
 
     char domainBuf[640] = {0};
-    StaticJsonDocument<768> domainDoc;
+    JsonDocument domainDoc(psramPreferredJsonAllocator());
     bool anyDomainOk = false;
     char debugSummary[512] = {0};
     size_t debugPos = 0;
@@ -1482,6 +1328,10 @@ bool sendFlowStatusCompactResponse_(AsyncWebServerRequest* request, const FlowCf
             printJsonEscaped_(*response, wifiIn["ip"] | "");
             appendJsonFieldName_(*response, "mac");
             printJsonEscaped_(*response, wifiIn["mac"] | "");
+            appendJsonFieldValue_(*response, "typ", wifiIn["typ"]);
+            appendJsonFieldValue_(*response, "ethernet_ip", wifiIn["ethernet_ip"]);
+            appendJsonFieldValue_(*response, "wifi_ip", wifiIn["wifi_ip"]);
+            appendJsonFieldValue_(*response, "ap_ip", wifiIn["ap_ip"]);
             appendJsonFieldValue_(*response, "hrss", wifiIn["hrss"]);
             appendJsonFieldValue_(*response, "rssi", wifiIn["rssi"]);
             response->print('}');
@@ -1655,6 +1505,8 @@ const char* webAssetVersion_()
     hash = webAssetFingerprintFile_(hash, "/webinterface/app-core.css.gz");
     hash = webAssetFingerprintFile_(hash, "/webinterface/sh.html.gz");
     hash = webAssetFingerprintFile_(hash, "/webinterface/app.js.gz");
+    hash = webAssetFingerprintFile_(hash, "/webinterface/network.css.gz");
+    hash = webAssetFingerprintFile_(hash, "/webinterface/network.js.gz");
     hash = webAssetFingerprintFile_(hash, "/wc/i.j.gz");
     snprintf(version, sizeof(version), "%s-%08lx", FirmwareVersion::BuildRef, (unsigned long)hash);
     return version;
@@ -1799,7 +1651,7 @@ bool appendRuntimeUiJsonValues_(JsonArray values, const uint8_t* payload, size_t
         const RuntimeUiWireType wireType = (RuntimeUiWireType)payload[offset++];
         const RuntimeUiManifestItem* manifestItem = findRuntimeUiManifestItem(runtimeId);
 
-        JsonObject value = values.createNestedObject();
+        JsonObject value = values.add<JsonObject>();
         value["id"] = runtimeId;
         if (manifestItem) {
             value["key"] = manifestItem->key;
@@ -2066,7 +1918,7 @@ void printRuntimeBoolWithSince_(Print& out,
     }
     if (control) {
         out.print(",\"control\":");
-        StaticJsonDocument<512> doc;
+        JsonDocument doc(psramPreferredJsonAllocator());
         writeActuatorControlJson(doc, *control);
         serializeJson(doc, out);
     }
@@ -2110,13 +1962,14 @@ bool waveshareLoadPoolModeFlags_(ConfigStore* cfgStore,
                                 bool& autoMode,
                                 bool& winterMode,
                                 bool& phAutoMode,
-                                bool& orpAutoMode)
+                                bool& disinfectionAutoMode)
 {
     hasMode = false;
     autoMode = false;
     winterMode = false;
     phAutoMode = false;
-    orpAutoMode = false;
+    disinfectionAutoMode = false;
+    bool orpAutoMode = false;
     if (!cfgStore) return false;
 
     char moduleJson[320] = {0};
@@ -2125,7 +1978,7 @@ bool waveshareLoadPoolModeFlags_(ConfigStore* cfgStore,
         return false;
     }
 
-    StaticJsonDocument<384> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, moduleJson)) return false;
     JsonObjectConst root = doc.as<JsonObjectConst>();
     if (root.isNull()) return false;
@@ -2133,11 +1986,13 @@ bool waveshareLoadPoolModeFlags_(ConfigStore* cfgStore,
     hasMode = true;
     autoMode = root["auto_mode"] | false;
     winterMode = root["winter_mode"] | false;
+    const auto method = static_cast<PoolDisinfectionMethod>(root["disinfection_type"] | uint8_t{0});
+    const bool treatmentAutoMode = root["treatment_auto_mode"] | false;
 
     memset(moduleJson, 0, sizeof(moduleJson));
     truncated = false;
     if (cfgStore->toJsonModule("poollogic/ph", moduleJson, sizeof(moduleJson), &truncated, true)) {
-        StaticJsonDocument<128> phDoc;
+        JsonDocument phDoc(psramPreferredJsonAllocator());
         if (!deserializeJson(phDoc, moduleJson)) {
             JsonObjectConst phRoot = phDoc.as<JsonObjectConst>();
             if (!phRoot.isNull()) phAutoMode = phRoot["ph_auto_mode"] | false;
@@ -2147,12 +2002,13 @@ bool waveshareLoadPoolModeFlags_(ConfigStore* cfgStore,
     memset(moduleJson, 0, sizeof(moduleJson));
     truncated = false;
     if (cfgStore->toJsonModule("poollogic/chlorine", moduleJson, sizeof(moduleJson), &truncated, true)) {
-        StaticJsonDocument<128> disDoc;
+        JsonDocument disDoc(psramPreferredJsonAllocator());
         if (!deserializeJson(disDoc, moduleJson)) {
             JsonObjectConst disRoot = disDoc.as<JsonObjectConst>();
             if (!disRoot.isNull()) orpAutoMode = disRoot["dis_auto_mode"] | false;
         }
     }
+    disinfectionAutoMode = poolDisinfectionAutoMode(method, orpAutoMode, treatmentAutoMode);
     return true;
 }
 
@@ -2166,7 +2022,7 @@ void waveshareLoadMqttServer_(ConfigStore* cfgStore, char* out, size_t outLen)
     bool truncated = false;
     if (!cfgStore->toJsonModule("mqtt", moduleJson, sizeof(moduleJson), &truncated, true)) return;
 
-    StaticJsonDocument<384> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, moduleJson)) return;
     JsonObjectConst root = doc.as<JsonObjectConst>();
     if (root.isNull()) return;
@@ -2197,7 +2053,7 @@ void waveshareLoadAlarmMasks_(const AlarmService* alarmSvc,
         char stateJson[144] = {0};
         if (!alarmSvc->buildAlarmState(alarmSvc->ctx, ids[i], stateJson, sizeof(stateJson))) continue;
 
-        StaticJsonDocument<192> doc;
+        JsonDocument doc(psramPreferredJsonAllocator());
         if (deserializeJson(doc, stateJson)) continue;
         const uint8_t slot = doc["slot"] | 255U;
         if (slot >= 32U) continue;
@@ -2218,7 +2074,7 @@ struct WaveshareRuntimeContext {
     bool poolAutoMode = false;
     bool poolWinterMode = false;
     bool poolPhAutoMode = false;
-    bool poolOrpAutoMode = false;
+    bool poolDisinfectionAutoMode = false;
     bool mqttServerLoaded = false;
     char mqttServer[96] = {0};
     bool alarmMasksLoaded = false;
@@ -2238,7 +2094,7 @@ void waveshareEnsurePoolMode_(WaveshareRuntimeContext& ctx, ConfigStore* cfgStor
                                                        ctx.poolAutoMode,
                                                        ctx.poolWinterMode,
                                                        ctx.poolPhAutoMode,
-                                                       ctx.poolOrpAutoMode);
+                                                       ctx.poolDisinfectionAutoMode);
 }
 
 void waveshareEnsureMqttServer_(WaveshareRuntimeContext& ctx, ConfigStore* cfgStore)
@@ -2335,7 +2191,7 @@ bool appendWaveshareLocalRuntimeValue_(Print& out,
             } else {
                 uint32_t sinceMs = 0U;
                 const bool hasSince = waveshareReadPoolModeSince_(poolCfgSvc, id, sinceMs);
-                printRuntimeBoolWithSince_(out, firstValue, id, "pool.dis_auto_mode", ctx.poolOrpAutoMode, hasSince, sinceMs);
+                printRuntimeBoolWithSince_(out, firstValue, id, "pool.dis_auto_mode", ctx.poolDisinfectionAutoMode, hasSince, sinceMs);
             }
             return true;
         }
@@ -2491,7 +2347,7 @@ bool appendWaveshareLocalRuntimeValue_(Print& out,
             }
             return true;
         case 1004:
-            printRuntimeString_(out, firstValue, id, "network.type", (networkReady(*dataStore) && !WiFi.isConnected()) ? "ethernet" : "wifi");
+            printRuntimeString_(out, firstValue, id, "network.type", ETH.hasIP() ? "ethernet" : (WiFi.isConnected() ? "wifi" : "ap"));
             return true;
         default:
             wavesharePrintUnavailableByManifestType_(out, firstValue, id);
@@ -2539,7 +2395,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
     out[0] = '\0';
 
     WaveshareRuntimeContext ctx{};
-    StaticJsonDocument<768> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     doc["ok"] = true;
 
     if (domain == FlowStatusDomain::System) {
@@ -2549,7 +2405,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
         doc["devicename"] = deviceName;
         doc["fw"] = FirmwareVersion::Full;
         doc["upms"] = (uint64_t)ctx.systemStats.uptimeMs64;
-        JsonObject time = doc.createNestedObject("time");
+        JsonObject time = doc["time"].to<JsonObject>();
         time["rdy"] = dataStore ? (timeReady(*dataStore) || timeSource(*dataStore) != TimeSource::None) : false;
         time["src"] = dataStore ? timeSourceText(*dataStore) : "none";
         time["src_id"] = dataStore ? (uint8_t)timeSource(*dataStore) : 0U;
@@ -2557,7 +2413,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
         time["qlt_id"] = dataStore ? (uint8_t)timeQuality(*dataStore) : 0U;
         time["last_ntp"] = dataStore ? (uint32_t)timeLastNtpSyncUtc(*dataStore) : 0U;
         time["last_rtc"] = dataStore ? (uint32_t)timeLastRtcSyncUtc(*dataStore) : 0U;
-        JsonObject heap = doc.createNestedObject("heap");
+        JsonObject heap = doc["heap"].to<JsonObject>();
         heap["free"] = ctx.systemStats.heap.freeBytes;
         heap["min_free"] = ctx.systemStats.heap.minFreeBytes;
         heap["larg"] = ctx.systemStats.heap.largestFreeBlock;
@@ -2570,16 +2426,19 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
     }
 
     if (domain == FlowStatusDomain::Wifi) {
-        JsonObject wifi = doc.createNestedObject("wifi");
+        JsonObject wifi = doc["wifi"].to<JsonObject>();
         const bool wifiUp = dataStore ? networkReady(*dataStore) : false;
         const bool wifiConnected = WiFi.isConnected();
-        const bool ethernetActive = wifiUp && !wifiConnected;
+        const bool ethernetActive = ETH.hasIP();
         wifi["rdy"] = wifiUp;
-        wifi["typ"] = ethernetActive ? "ethernet" : "wifi";
+        wifi["typ"] = ethernetActive ? "ethernet" : (wifiConnected ? "wifi" : "ap");
+        wifi["ethernet_ip"] = ethernetActive ? ETH.localIP().toString() : String("0.0.0.0");
+        wifi["wifi_ip"] = wifiConnected ? WiFi.localIP().toString() : String("0.0.0.0");
+        wifi["ap_ip"] = WiFi.softAPIP().toString();
         IpV4 ip = dataStore ? networkIp(*dataStore) : IpV4{{0, 0, 0, 0}};
         char ipText[20] = {0};
         snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", (unsigned)ip.b[0], (unsigned)ip.b[1], (unsigned)ip.b[2], (unsigned)ip.b[3]);
-        wifi["ip"] = ipText;
+        wifi["ip"] = ethernetActive ? ETH.localIP().toString() : (wifiConnected ? WiFi.localIP().toString() : WiFi.softAPIP().toString());
         uint8_t mac[6] = {0};
         if (ethernetActive) {
             ETH.macAddress(mac);
@@ -2591,7 +2450,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
                  (unsigned)mac[0], (unsigned)mac[1], (unsigned)mac[2],
                  (unsigned)mac[3], (unsigned)mac[4], (unsigned)mac[5]);
         wifi["mac"] = macText;
-        if (wifiUp && wifiConnected) {
+        if (wifiUp && wifiConnected && !ethernetActive) {
             wifi["rssi"] = (int32_t)WiFi.RSSI();
             wifi["hrss"] = true;
         } else {
@@ -2602,7 +2461,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
     }
 
     if (domain == FlowStatusDomain::Mqtt) {
-        JsonObject mqtt = doc.createNestedObject("mqtt");
+        JsonObject mqtt = doc["mqtt"].to<JsonObject>();
         mqtt["rdy"] = dataStore ? mqttReady(*dataStore) : false;
         waveshareEnsureMqttServer_(ctx, cfgStore);
         mqtt["srv"] = ctx.mqttServer;
@@ -2614,7 +2473,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
     }
 
     if (domain == FlowStatusDomain::Pool) {
-        JsonObject pool = doc.createNestedObject("pool");
+        JsonObject pool = doc["pool"].to<JsonObject>();
         bool hasMode = false;
         bool autoMode = false;
         bool winterMode = false;
@@ -2658,7 +2517,7 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
     }
 
     if (domain == FlowStatusDomain::I2c) {
-        JsonObject i2c = doc.createNestedObject("i2c");
+        JsonObject i2c = doc["i2c"].to<JsonObject>();
         i2c["ena"] = false;
         i2c["sta"] = false;
         i2c["adr"] = 0;
@@ -2675,14 +2534,14 @@ bool waveshareBuildStatusDomainJson_(FlowStatusDomain domain,
 
     if (domain == FlowStatusDomain::Alarm) {
         waveshareEnsureAlarmMasks_(ctx, alarmSvc);
-        JsonObject alm = doc.createNestedObject("alm");
+        JsonObject alm = doc["alm"].to<JsonObject>();
         const uint32_t activeMask = ctx.alarmActiveMask;
         uint8_t count = 0U;
         for (uint8_t bit = 0U; bit < 32U; ++bit) {
             if ((activeMask & (1UL << bit)) != 0U) ++count;
         }
         alm["cnt"] = count;
-        JsonArray codes = alm.createNestedArray("codes");
+        JsonArray codes = alm["codes"].to<JsonArray>();
         for (uint8_t bit = 0U; bit < 32U; ++bit) {
             if ((activeMask & (1UL << bit)) == 0U) continue;
             char code[20] = {0};
@@ -2712,11 +2571,11 @@ bool sendWaveshareStatusCompactResponse_(AsyncWebServerRequest* request,
     if (!waveshareBuildStatusDomainJson_(FlowStatusDomain::Pool, dataStore, cfgStore, alarmSvc, poolJson, sizeof(poolJson))) return false;
     if (!waveshareBuildStatusDomainJson_(FlowStatusDomain::I2c, dataStore, cfgStore, alarmSvc, i2cJson, sizeof(i2cJson))) return false;
 
-    StaticJsonDocument<768> systemDoc;
-    StaticJsonDocument<512> wifiDoc;
-    StaticJsonDocument<512> mqttDoc;
-    StaticJsonDocument<640> poolDoc;
-    StaticJsonDocument<320> i2cDoc;
+    JsonDocument systemDoc(psramPreferredJsonAllocator());
+    JsonDocument wifiDoc(psramPreferredJsonAllocator());
+    JsonDocument mqttDoc(psramPreferredJsonAllocator());
+    JsonDocument poolDoc(psramPreferredJsonAllocator());
+    JsonDocument i2cDoc(psramPreferredJsonAllocator());
     if (deserializeJson(systemDoc, systemJson)) return false;
     if (deserializeJson(wifiDoc, wifiJson)) return false;
     if (deserializeJson(mqttDoc, mqttJson)) return false;
@@ -2774,7 +2633,7 @@ struct WaveshareDashboardSlotConfig {
 struct WaveshareAlarmDashboardSlotConfig {
     bool enabled = true;
     uint16_t alarmId = 0U;
-    char label[24] = {0};
+    char label[64] = {0};
     uint8_t colorId = 0U;
 };
 
@@ -2817,7 +2676,7 @@ constexpr const char* kWaveshareDashboardDefaultLabels[kWaveshareDashboardSlotCo
     "Compteur",
     "BME680",
     "BMP280",
-    "PSI",
+    "Pression",
 };
 constexpr uint8_t kWaveshareDashboardDefaultColorIds[kWaveshareDashboardSlotCount] = {
     0U,
@@ -2850,12 +2709,12 @@ constexpr bool kWaveshareAlarmDashboardDefaultEnabled[kWaveshareDashboardSlotCou
     false,
 };
 constexpr const char* kWaveshareAlarmDashboardDefaultLabels[kWaveshareDashboardSlotCount] = {
-    "PSI bas",
-    "PSI haut",
+    "Pression basse",
+    "Pression haute",
     "pH vide",
     "Chlore vide",
-    "pH uptime",
-    "ORP uptime",
+    "Durée maximale pompe pH",
+    "Durée maximale pompe chlore",
     "Eau basse",
     "",
 };
@@ -2889,12 +2748,13 @@ const char* waveshareDashboardColorHex_(uint8_t colorId, uint8_t slot)
 const char* waveshareAlarmDashboardLabel_(uint16_t alarmId)
 {
     switch ((AlarmId)alarmId) {
-        case AlarmId::PoolPsiLow: return "PSI bas";
-        case AlarmId::PoolPsiHigh: return "PSI haut";
+        case AlarmId::PoolPsiLow: return "Pression basse";
+        case AlarmId::PoolPsiHigh: return "Pression haute";
         case AlarmId::PoolPhTankLow: return "pH vide";
         case AlarmId::PoolChlorineTankLow: return "Chlore vide";
-        case AlarmId::PoolPhPumpMaxUptime: return "pH uptime";
-        case AlarmId::PoolChlorinePumpMaxUptime: return "ORP uptime";
+        case AlarmId::PoolPhPumpMaxUptime: return "Durée maximale pompe pH";
+        case AlarmId::PoolChlorinePumpMaxUptime: return "Durée maximale pompe chlore";
+        case AlarmId::PoolNoFlow: return "Débit de filtration absent";
         case AlarmId::PoolWaterLevelLow: return "Eau basse";
         case AlarmId::None:
         default: return "Alarme";
@@ -2947,12 +2807,12 @@ void waveshareLoadDashboardSlotConfig_(ConfigStore* cfgStore, uint8_t slot, Wave
     bool truncated = false;
     if (!cfgStore->toJsonModule(moduleName, moduleJson, sizeof(moduleJson), &truncated, true) || truncated) return;
 
-    StaticJsonDocument<448> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, moduleJson)) return;
-    if (doc.containsKey("enabled")) out.enabled = doc["enabled"].as<bool>();
-    if (doc.containsKey("runtime_ui_id")) out.runtimeUiId = (RuntimeUiId)(doc["runtime_ui_id"].as<uint32_t>() & 0xFFFFU);
-    if (doc.containsKey("color_id")) out.colorId = (uint8_t)(doc["color_id"].as<uint32_t>() & 0xFFU);
-    if (doc.containsKey("label")) {
+    if (!doc["enabled"].isUnbound()) out.enabled = doc["enabled"].as<bool>();
+    if (!doc["runtime_ui_id"].isUnbound()) out.runtimeUiId = (RuntimeUiId)(doc["runtime_ui_id"].as<uint32_t>() & 0xFFFFU);
+    if (!doc["color_id"].isUnbound()) out.colorId = (uint8_t)(doc["color_id"].as<uint32_t>() & 0xFFU);
+    if (!doc["label"].isUnbound()) {
         const char* label = doc["label"].as<const char*>();
         snprintf(out.label, sizeof(out.label), "%s", label ? label : "");
     }
@@ -2975,12 +2835,12 @@ void waveshareLoadAlarmDashboardSlotConfig_(ConfigStore* cfgStore, uint8_t slot,
     bool truncated = false;
     if (!cfgStore->toJsonModule(moduleName, moduleJson, sizeof(moduleJson), &truncated, true) || truncated) return;
 
-    StaticJsonDocument<448> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, moduleJson)) return;
-    if (doc.containsKey("enabled")) out.enabled = doc["enabled"].as<bool>();
-    if (doc.containsKey("alarm_id")) out.alarmId = (uint16_t)(doc["alarm_id"].as<uint32_t>() & 0xFFFFU);
-    if (doc.containsKey("color_id")) out.colorId = (uint8_t)(doc["color_id"].as<uint32_t>() & 0xFFU);
-    if (doc.containsKey("label")) {
+    if (!doc["enabled"].isUnbound()) out.enabled = doc["enabled"].as<bool>();
+    if (!doc["alarm_id"].isUnbound()) out.alarmId = (uint16_t)(doc["alarm_id"].as<uint32_t>() & 0xFFFFU);
+    if (!doc["color_id"].isUnbound()) out.colorId = (uint8_t)(doc["color_id"].as<uint32_t>() & 0xFFU);
+    if (!doc["label"].isUnbound()) {
         const char* label = doc["label"].as<const char*>();
         snprintf(out.label, sizeof(out.label), "%s", label ? label : "");
     }
@@ -3103,7 +2963,7 @@ bool waveshareReadDashboardRuntimeValue_(DataStore* dataStore,
             if (valueId == 1U) out.boolValue = ctx.poolAutoMode;
             else if (valueId == 2U) out.boolValue = ctx.poolWinterMode;
             else if (valueId == 3U) out.boolValue = ctx.poolPhAutoMode;
-            else if (valueId == 4U) out.boolValue = ctx.poolOrpAutoMode;
+            else if (valueId == 4U) out.boolValue = ctx.poolDisinfectionAutoMode;
             else return false;
             return true;
 
@@ -3640,7 +3500,7 @@ void wavesharePrintPoolDeviceJson_(Print& response, const WaveshareIoSummaryStat
     response.print(",\"block_reason\":");
     printJsonEscaped_(response, wavesharePoolDeviceBlockReasonLabel_(state.poolMeta.blockReason));
     response.print(",\"control\":");
-    StaticJsonDocument<512> control;
+    JsonDocument control(psramPreferredJsonAllocator());
     writeActuatorControlJson(control, state.poolMeta.control);
     serializeJson(control, response);
     response.print("}");
@@ -3765,6 +3625,8 @@ void wavesharePrintIoSlotRuntimeJson_(Print& response,
     printJsonEscaped_(response, waveshareIoSlotKindLabel_(ioSlotKind(binding.ioSlot)));
     response.print(",\"io_slot_index\":");
     response.print((unsigned)ioSlotIndex(binding.ioSlot));
+    response.print(",\"binding_port\":");
+    response.print(state.hasMeta ? (unsigned)state.meta.bindingPort : 0U);
     response.print(",\"io_id\":");
     response.print((unsigned)ioIdFromSlot(binding.ioSlot));
     response.print(",\"state\":");
@@ -3773,6 +3635,8 @@ void wavesharePrintIoSlotRuntimeJson_(Print& response,
     printJsonEscaped_(response, valueText[0] != '\0' ? valueText : "-");
     response.print(",\"ts_ms\":");
     response.print(state.hasValue ? (unsigned long)state.value.tsMs : 0UL);
+    response.print(",\"held\":");
+    response.print(state.hasValue && state.value.held ? "true" : "false");
     response.print(",\"error\":");
     printJsonEscaped_(response, state.error);
     response.print(",\"pool_device\":");
@@ -3998,7 +3862,7 @@ bool waveshareReadAlarmDashboardSlotState_(const AlarmService* alarmSvc,
     char stateJson[144] = {0};
     if (!alarmSvc->buildAlarmState(alarmSvc->ctx, (AlarmId)alarmId, stateJson, sizeof(stateJson))) return false;
 
-    StaticJsonDocument<192> doc;
+    JsonDocument doc(psramPreferredJsonAllocator());
     if (deserializeJson(doc, stateJson)) return false;
     out.available = true;
     out.latched = (doc["a"] | 0U) != 0U;
@@ -4007,11 +3871,79 @@ bool waveshareReadAlarmDashboardSlotState_(const AlarmService* alarmSvc,
     const uint8_t condition = doc["c"] | 2U;
     out.conditionKnown = condition != (uint8_t)AlarmCondState::Unknown;
     out.conditionTrue = condition == (uint8_t)AlarmCondState::True;
-    if (doc.containsKey("lc")) {
+    if (!doc["lc"].isUnbound()) {
         out.lastChangeValid = true;
         out.lastChangeMs = doc["lc"] | 0U;
     }
     return true;
+}
+
+bool waveshareSensorConfigured_(ConfigStore* cfg, const char* module, const char* key, bool flag = false) {
+    if (!cfg || !key) return true;
+    char json[2048];
+    if (!cfg->toJsonModule(module, json, sizeof(json), nullptr, false)) return true;
+    JsonDocument doc(psramPreferredJsonAllocator());
+    if (deserializeJson(doc, json) || doc[key].isUnbound()) return true;
+    return flag ? doc[key].as<bool>() : doc[key].as<uint16_t>() != IO_ID_INVALID;
+}
+
+bool waveshareDashboardSensorConfigured_(ConfigStore* cfg, RuntimeUiId id) {
+    if ((ModuleId)runtimeUiModuleId(id) != ModuleId::Io) return true;
+    const uint8_t value = runtimeUiValueId(id);
+    const char* key = nullptr;
+    switch (value) {
+        case 1: key = "wat_temp_io_id"; break;
+        case 2: key = "air_temp_io_id"; break;
+        case 3: key = "ph_io_id"; break;
+        case 4: key = "dis_io_id"; break;
+        case 5: {
+            if (!cfg) return true;
+            char module[32];
+            snprintf(module, sizeof(module), "io/input/i%02u", (unsigned)PoolInputSlots::WaterMeter);
+            char json[1024];
+            if (!cfg->toJsonModule(module, json, sizeof(json), nullptr, false)) return true;
+            JsonDocument doc(psramPreferredJsonAllocator());
+            if (deserializeJson(doc, json) || doc["binding_port"].isUnbound()) return true;
+            return doc["binding_port"].as<uint16_t>() != IO_PORT_INVALID;
+        }
+        case 6: key = "psi_io_id"; break;
+        case 7: case 9: return waveshareSensorConfigured_(cfg, "io/drivers/bmp280", "enabled", true);
+        case 8: case 12: case 13: case 14: return waveshareSensorConfigured_(cfg, "io/drivers/bme680", "enabled", true);
+        case 10: case 11: return waveshareSensorConfigured_(cfg, "io/drivers/sht40", "enabled", true);
+        default: return true;
+    }
+    return waveshareSensorConfigured_(cfg, "poollogic/sensors", key);
+}
+
+bool waveshareDashboardDisinfectionMethod_(ConfigStore* cfg, PoolDisinfectionMethod expected) {
+    if (!cfg) return true;
+    char json[512];
+    if (!cfg->toJsonModule("poollogic/modes", json, sizeof(json), nullptr, false)) return true;
+    JsonDocument doc(psramPreferredJsonAllocator());
+    if (deserializeJson(doc, json) || !doc["disinfection_type"].is<uint8_t>()) return true;
+    return static_cast<PoolDisinfectionMethod>(doc["disinfection_type"].as<uint8_t>()) == expected;
+}
+
+bool waveshareAlarmSensorConfigured_(ConfigStore* cfg, uint16_t id) {
+    const char* key = nullptr;
+    switch ((AlarmId)id) {
+        case AlarmId::PoolPsiLow: case AlarmId::PoolPsiHigh:
+            return waveshareSensorConfigured_(cfg, "poollogic/sensors", "psi_io_id") &&
+                   waveshareSensorConfigured_(cfg, "poollogic/sensors", "psi_monitoring", true);
+        case AlarmId::PoolChlorinePumpMaxUptime:
+            return waveshareDashboardDisinfectionMethod_(cfg, PoolDisinfectionMethod::ChlorineBromine);
+        case AlarmId::PoolPhTankLow: key = "ph_lvl_io_id"; break;
+        case AlarmId::PoolChlorineTankLow: key = "chl_lvl_io_id"; break;
+        case AlarmId::PoolWaterLevelLow: key = "pool_lvl_io_id"; break;
+        case AlarmId::PoolWaterTemperatureUnavailable: key = "wat_temp_io_id"; break;
+        case AlarmId::PoolFiltrationContactorMismatch: key = "filtr_fb_io_id"; break;
+        case AlarmId::PoolChlorineGeneratorContactorMismatch: key = "swg_fb_io_id"; break;
+        case AlarmId::PoolNoFlow:
+            return waveshareSensorConfigured_(cfg, "poollogic/sensors", "flow_switch_io_id") &&
+                   waveshareSensorConfigured_(cfg, "poollogic/sensors", "flow_switch_enabled", true);
+        default: return true;
+    }
+    return waveshareSensorConfigured_(cfg, "poollogic/sensors", key);
 }
 
 void sendWaveshareDashboardSlotsResponse_(AsyncResponseStream& response,
@@ -4025,6 +3957,7 @@ void sendWaveshareDashboardSlotsResponse_(AsyncResponseStream& response,
     for (uint8_t i = 0U; i < kWaveshareDashboardSlotCount; ++i) {
         WaveshareDashboardSlotConfig slot{};
         waveshareLoadDashboardSlotConfig_(cfgStore, i, slot);
+        slot.enabled = slot.enabled && waveshareDashboardSensorConfigured_(cfgStore, slot.runtimeUiId);
 
         char label[32] = {0};
         snprintf(label, sizeof(label), "%s", slot.label);
@@ -4077,13 +4010,12 @@ void sendWaveshareAlarmDashboardSlotsResponse_(AsyncResponseStream& response,
                                               ConfigStore* cfgStore,
                                               const AlarmService* alarmSvc)
 {
-    for (uint8_t i = 0U; i < kWaveshareDashboardSlotCount; ++i) {
-        WaveshareAlarmDashboardSlotConfig slot{};
-        waveshareLoadAlarmDashboardSlotConfig_(cfgStore, i, slot);
-
-        char label[32] = {0};
+    auto emitSlot = [&](uint8_t i, const WaveshareAlarmDashboardSlotConfig& slot) {
+        char label[64] = {0};
         if (slot.enabled) {
-            snprintf(label, sizeof(label), "%s", slot.label);
+            const AlarmId id = (AlarmId)slot.alarmId;
+            const bool durationLimit = id == AlarmId::PoolPhPumpMaxUptime || id == AlarmId::PoolChlorinePumpMaxUptime;
+            snprintf(label, sizeof(label), "%s", durationLimit ? waveshareAlarmDashboardLabel_(slot.alarmId) : slot.label);
             if (label[0] == '\0') {
                 snprintf(label, sizeof(label), "%s", waveshareAlarmDashboardLabel_(slot.alarmId));
             }
@@ -4123,6 +4055,20 @@ void sendWaveshareAlarmDashboardSlotsResponse_(AsyncResponseStream& response,
         }
         response.print("}");
         firstSlot = false;
+    };
+    bool flowRepresented = false;
+    for (uint8_t i = 0U; i < kWaveshareDashboardSlotCount; ++i) {
+        WaveshareAlarmDashboardSlotConfig slot{};
+        waveshareLoadAlarmDashboardSlotConfig_(cfgStore, i, slot);
+        slot.enabled = slot.enabled && waveshareAlarmSensorConfigured_(cfgStore, slot.alarmId);
+        if (slot.enabled && slot.alarmId == (uint16_t)AlarmId::PoolNoFlow) flowRepresented = true;
+        emitSlot(i, slot);
+    }
+    if (!flowRepresented && waveshareAlarmSensorConfigured_(cfgStore, (uint16_t)AlarmId::PoolNoFlow)) {
+        WaveshareAlarmDashboardSlotConfig slot{};
+        slot.alarmId = (uint16_t)AlarmId::PoolNoFlow;
+        slot.colorId = 17U;
+        emitSlot(kWaveshareDashboardSlotCount, slot);
     }
 }
 
@@ -4329,6 +4275,8 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; }
   label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 13px; }
   input, select { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 5px; background: #071422; color: var(--text); padding: 8px 10px; font-size: 15px; }
+  input.invalid { border-color: var(--bad); outline: 1px solid var(--bad); }
+  .field-error { min-height: 18px; margin-top: 5px; color: var(--bad); font-size: 13px; font-weight: 700; }
   input[type="checkbox"] { width: auto; min-height: 0; margin-right: 8px; }
   button { min-height: 38px; border: 1px solid #55d5c8; border-radius: 5px; background: #0c5e58; color: white; padding: 8px 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
   button.secondary { border-color: var(--line); background: var(--panel2); color: var(--text); }
@@ -4360,9 +4308,25 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
     <div class="status" id="status">Chargement...</div>
   </section>
 
-  <div class="grid">
-    <section>
-      <h2>Réseau Waveshare</h2>
+  <section class="wide">
+    <h2>Securite Web</h2>
+    <p>
+      Pour creer ou remplacer les acces, demarrez normalement le Waveshare puis
+      maintenez le bouton BOOT pendant 5 secondes. La recuperation reste active 5 minutes.
+    </p>
+    <label for="adminUser">Utilisateur administrateur</label>
+    <input id="adminUser" value="admin" maxlength="32" autocomplete="username" />
+    <label for="adminPass">Nouveau mot de passe (12 a 32 caracteres)</label>
+    <input id="adminPass" type="password" minlength="12" maxlength="32" autocomplete="new-password" />
+    <label for="adminConfirm">Confirmation</label>
+    <input id="adminConfirm" type="password" minlength="12" maxlength="32" autocomplete="new-password" aria-describedby="adminConfirmError" />
+    <div class="field-error" id="adminConfirmError" role="alert" aria-live="polite"></div>
+    <div class="status note" id="securityMsg">Verification de la recuperation BOOT...</div>
+  </section>
+
+  <div class="grid" id="serviceGrid">
+    <section id="networkSection" hidden>
+      <h2>Wi-Fi</h2>
       <label><input id="wifiEnabled" type="checkbox" checked />Activer le réseau station</label>
       <label for="wifiList">Reseaux detectes</label>
       <select id="wifiList"><option value="">Saisie manuelle</option></select>
@@ -4370,13 +4334,47 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
       <input id="ssid" autocomplete="off" />
       <label for="pass">Mot de passe</label>
       <input id="pass" type="password" autocomplete="off" />
-      <div class="row">
-        <button id="saveWifi" type="button">Enregistrer réseau</button>
-      </div>
-      <div class="status" id="wifiMsg">-</div>
+      <div class="status" id="wifiMsg" role="status">État Wi-Fi : aucun scan lancé. Le mot de passe se saisit dans le champ au-dessus.</div>
     </section>
 
-    <section>
+    <section id="ethernetSection" hidden>
+      <h2>Ethernet</h2>
+      <label><input id="ethEnabled" type="checkbox" checked />Activer Ethernet</label>
+      <label><input id="ethDhcp" type="checkbox" checked />Obtenir automatiquement l'adresse réseau (DHCP)</label>
+      <div id="ethStatic" hidden>
+        <label for="ethIp">Adresse IP</label>
+        <input id="ethIp" inputmode="decimal" placeholder="192.168.1.50" autocomplete="off" />
+        <label for="ethSubnet">Masque de sous-réseau</label>
+        <input id="ethSubnet" inputmode="decimal" value="255.255.255.0" autocomplete="off" />
+        <label for="ethGateway">Passerelle</label>
+        <input id="ethGateway" inputmode="decimal" placeholder="192.168.1.1" autocomplete="off" />
+        <label for="ethDns1">DNS principal</label>
+        <input id="ethDns1" inputmode="decimal" autocomplete="off" />
+        <label for="ethDns2">DNS secondaire</label>
+        <input id="ethDns2" inputmode="decimal" autocomplete="off" />
+      </div>
+      <div class="status" id="ethernetMsg">Le mode DHCP est recommandé.</div>
+    </section>
+
+    <section id="mqttSection" hidden>
+      <h2>Broker MQTT</h2>
+      <label><input id="mqttEnabled" type="checkbox" />Activer MQTT</label>
+      <label for="mqttHost">Broker MQTT</label>
+      <input id="mqttHost" autocomplete="off" />
+      <label for="mqttPort">Port MQTT</label>
+      <input id="mqttPort" inputmode="numeric" value="8883" />
+      <label for="mqttUser">Utilisateur MQTT</label>
+      <input id="mqttUser" autocomplete="username" />
+      <label for="mqttPass">Mot de passe MQTT</label>
+      <input id="mqttPass" type="password" maxlength="63" autocomplete="off" />
+      <label for="mqttBaseTopic">Topic de base</label>
+      <input id="mqttBaseTopic" value="flowio" autocomplete="off" />
+      <label for="mqttDeviceName">Nom d'appareil MQTT</label>
+      <input id="mqttDeviceName" autocomplete="off" />
+      <div class="status" id="mqttMsg">-</div>
+    </section>
+
+    <section id="adminFwConfigSection" hidden>
       <h2>Serveur d'upgrade</h2>
       <label for="host">Hote HTTP</label>
       <input id="host" placeholder="192.168.1.10:8000" autocomplete="off" />
@@ -4389,7 +4387,7 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
       <div class="status" id="fwCfgMsg">-</div>
     </section>
 
-    <section class="wide">
+    <section class="wide" id="adminUpdateSection" hidden>
       <h2>Upgrade de secours</h2>
       <p>Renseigner une URL explicite vers l'image a installer.</p>
       <label for="waveshareUrl">URL explicite firmware Waveshare</label>
@@ -4403,17 +4401,54 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
       <div class="status" id="updateMsg">-</div>
     </section>
   </div>
+  <section class="wide" id="rescueActions" hidden>
+    <h2>Validation</h2>
+    <p>Les modifications seront appliquees ensemble. Le Waveshare redemarrera seulement apres validation.</p>
+    <div class="row">
+      <button class="secondary" id="cancelRescue" type="button">Annuler</button>
+      <button id="saveRescue" type="button">Enregistrer et redemarrer</button>
+    </div>
+    <div class="status" id="saveMsg">-</div>
+  </section>
 </main>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const status = $("status");
   const wifiMsg = $("wifiMsg");
+  const mqttMsg = $("mqttMsg");
+  const securityMsg = $("securityMsg");
+  const adminConfirmError = $("adminConfirmError");
+  const saveMsg = $("saveMsg");
   const fwCfgMsg = $("fwCfgMsg");
   const updateMsg = $("updateMsg");
   const buttons = Array.from(document.querySelectorAll("button"));
+  let csrfToken = "";
+  let recoveryAllowed = false;
+  let adminAuthenticated = false;
+  let sensitiveAllowed = false;
+  let recoveryPollBusy = false;
 
-  const setBusy = (busy) => buttons.forEach((b) => { b.disabled = busy; });
+  function validateAdminConfirmation() {
+    const pass = $("adminPass").value;
+    const confirmation = $("adminConfirm").value;
+    const mismatch = confirmation.length > 0 && pass !== confirmation;
+    $("adminConfirm").setCustomValidity(
+      mismatch ? "La confirmation ne correspond pas au mot de passe." : ""
+    );
+    $("adminConfirm").classList.toggle("invalid", mismatch);
+    adminConfirmError.textContent = mismatch
+      ? "Les deux mots de passe ne correspondent pas."
+      : "";
+    return !mismatch;
+  }
+
+  const setBusy = (busy) => {
+    buttons.forEach((b) => { b.disabled = busy; });
+    $("scan").disabled = busy || !sensitiveAllowed;
+    $("saveRescue").disabled = busy || !sensitiveAllowed;
+    $("cancelRescue").disabled = busy || !sensitiveAllowed;
+  };
   const formBody = (data) => {
     const body = new URLSearchParams();
     Object.keys(data).forEach((k) => {
@@ -4422,7 +4457,14 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
     return body;
   };
   const api = async (url, options = {}) => {
-    const res = await fetch(url, Object.assign({ cache: "no-store" }, options));
+    const secured = Object.assign({ cache: "no-store" }, options);
+    const method = String(secured.method || "GET").toUpperCase();
+    if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
+      const headers = new Headers(secured.headers || {});
+      if (csrfToken) headers.set("X-Flow-CSRF", csrfToken);
+      secured.headers = headers;
+    }
+    const res = await fetch(url, secured);
     const text = await res.text();
     let json = null;
     try { json = text ? JSON.parse(text) : null; } catch (_) {}
@@ -4430,6 +4472,8 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
       const msg = json && json.err ? (json.err.msg || json.err.code || "failed") : (text || res.statusText);
       throw new Error(msg);
     }
+    const token = json && typeof json.csrf_token === "string" ? json.csrf_token.trim() : "";
+    if (/^[0-9a-f]{32}$/i.test(token)) csrfToken = token;
     return json || { ok: true, text };
   };
   const put = (node, obj, cls) => {
@@ -4440,17 +4484,95 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
   async function refreshAll() {
     setBusy(true);
     try {
-      const [meta, net, wifi, fw, fwst] = await Promise.all([
-        api("/api/web/meta").catch((e) => ({ ok:false, err:e.message })),
-        api("/api/network/mode").catch((e) => ({ ok:false, err:e.message })),
-        api("/api/wifi/config").catch((e) => ({ ok:false, err:e.message })),
-        api("/api/fwupdate/config").catch((e) => ({ ok:false, err:e.message })),
-        api("/api/fwupdate/status").catch((e) => ({ ok:false, err:e.message }))
-      ]);
+      const meta = await api("/api/web/meta").catch((e) => ({ ok:false, err:e.message }));
+      let net = { ok:false, skipped:true };
+      let wifi = { ok:false, skipped:true };
+      let mqtt = { ok:false, skipped:true };
+      let fw = { ok:false, skipped:true };
+      let fwst = { ok:false, skipped:true };
+
+      if (meta.ok === false) {
+        put(securityMsg, "Lecture de l'etat de recuperation impossible : " + meta.err + ". Reessayez avec Rafraichir.", "bad");
+      }
+      if (meta.ok !== false) {
+        recoveryAllowed = meta.physical_recovery_active === true;
+        adminAuthenticated = meta.admin_authenticated === true;
+        sensitiveAllowed = recoveryAllowed || adminAuthenticated;
+        $("serviceGrid").hidden = false;
+        $("networkSection").hidden = !sensitiveAllowed;
+        $("ethernetSection").hidden = !sensitiveAllowed;
+        $("mqttSection").hidden = !sensitiveAllowed;
+        $("rescueActions").hidden = !sensitiveAllowed;
+        $("adminFwConfigSection").hidden = !adminAuthenticated;
+        $("adminUpdateSection").hidden = !adminAuthenticated;
+        $("adminUser").disabled = !recoveryAllowed;
+        $("adminPass").disabled = !recoveryAllowed;
+        $("adminConfirm").disabled = !recoveryAllowed;
+        if (recoveryAllowed) {
+          put(
+            securityMsg,
+            `Recuperation BOOT active encore ${meta.physical_recovery_remaining_s || 0} s. ` +
+            "Vous pouvez definir de nouveaux acces.",
+            "note"
+          );
+        } else if (adminAuthenticated) {
+          put(
+            securityMsg,
+            "Administrateur connecte. Les reglages Wi-Fi, Ethernet et MQTT sont modifiables.",
+            "ok"
+          );
+        } else if (meta.auth_enabled === true) {
+          put(securityMsg, "Acces non authentifie. Connectez-vous comme administrateur.", "note");
+        } else {
+          put(
+            securityMsg,
+            "Aucun administrateur. Maintenez BOOT 5 secondes pour lancer la configuration initiale.",
+            "note"
+          );
+        }
+
+        if (sensitiveAllowed) {
+          [net, wifi, mqtt] = await Promise.all([
+            api("/api/network/mode").catch((e) => ({ ok:false, err:e.message })),
+            api("/api/wifi/config").catch((e) => ({ ok:false, err:e.message })),
+            api("/api/mqtt/config").catch((e) => ({ ok:false, err:e.message }))
+          ]);
+        }
+        if (adminAuthenticated) {
+          [fw, fwst] = await Promise.all([
+            api("/api/fwupdate/config").catch((e) => ({ ok:false, err:e.message })),
+            api("/api/fwupdate/status").catch((e) => ({ ok:false, err:e.message }))
+          ]);
+        }
+      }
       if (wifi.ok !== false) {
         $("wifiEnabled").checked = wifi.enabled !== false;
         $("ssid").value = wifi.ssid || "";
-        $("pass").value = wifi.pass || "";
+        $("pass").value = "";
+        $("pass").placeholder = wifi.password_configured
+          ? "Laisser vide pour conserver"
+          : "Mot de passe reseau";
+        const ethernet = wifi.ethernet || {};
+        $("ethEnabled").checked = ethernet.enabled !== false;
+        $("ethDhcp").checked = ethernet.dhcp !== false;
+        $("ethIp").value = ethernet.ip || "";
+        $("ethSubnet").value = ethernet.subnet || "255.255.255.0";
+        $("ethGateway").value = ethernet.gateway || "";
+        $("ethDns1").value = ethernet.dns1 || "";
+        $("ethDns2").value = ethernet.dns2 || "";
+        toggleEthernetStatic();
+      }
+      if (mqtt.ok !== false) {
+        $("mqttEnabled").checked = mqtt.enabled === true;
+        $("mqttHost").value = mqtt.host || "";
+        $("mqttPort").value = mqtt.port || 8883;
+        $("mqttUser").value = mqtt.user || "";
+        $("mqttPass").value = "";
+        $("mqttPass").placeholder = mqtt.password_configured
+          ? "Laisser vide pour conserver"
+          : "Mot de passe MQTT";
+        $("mqttBaseTopic").value = mqtt.baseTopic || "flowio";
+        $("mqttDeviceName").value = mqtt.deviceName || "";
       }
       if (fw.ok !== false) {
         $("host").value = fw.update_host || "";
@@ -4462,6 +4584,97 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
     } finally {
       setBusy(false);
     }
+  }
+
+  async function saveRescue() {
+    const user = $("adminUser").value.trim();
+    const pass = $("adminPass").value;
+    const confirmPass = $("adminConfirm").value;
+    if (!sensitiveAllowed) {
+      put(saveMsg, "Maintenez d'abord BOOT pendant 5 secondes, puis rafraichissez.", "bad");
+      return;
+    }
+    if (recoveryAllowed) {
+      if (!user) {
+        put(saveMsg, "Indiquez l'utilisateur administrateur.", "bad");
+        return;
+      }
+      if (pass.length < 12 || pass.length > 32) {
+        put(saveMsg, "Le mot de passe administrateur doit contenir de 12 à 32 caractères.", "bad");
+        return;
+      }
+      if (!validateAdminConfirmation() || pass !== confirmPass) {
+        put(saveMsg, "Les deux mots de passe administrateur ne correspondent pas.", "bad");
+        $("adminConfirm").focus();
+        return;
+      }
+    }
+    if ($("wifiEnabled").checked && !$("ssid").value.trim()) {
+      put(saveMsg, "Choisissez un réseau Wi-Fi ou désactivez le réseau station.", "bad");
+      return;
+    }
+    if (!$("wifiEnabled").checked && !$("ethEnabled").checked) {
+      put(saveMsg, "Le Wi-Fi et Ethernet ne peuvent pas être désactivés simultanément.", "bad");
+      return;
+    }
+    if ($("ethEnabled").checked && !$("ethDhcp").checked &&
+        (!$("ethIp").value.trim() || !$("ethSubnet").value.trim() || !$("ethGateway").value.trim())) {
+      put(saveMsg, "Adresse IP, masque et passerelle Ethernet sont requis en mode statique.", "bad");
+      return;
+    }
+    if ($("mqttEnabled").checked && !$("mqttHost").value.trim()) {
+      put(saveMsg, "Indiquez le broker MQTT ou désactivez MQTT.", "bad");
+      return;
+    }
+    if (!confirm("Enregistrer tous les réglages Rescue et redémarrer le Waveshare ?")) return;
+    setBusy(true);
+    try {
+      const out = await api("/api/recovery/apply", {
+        method: "POST",
+        body: formBody({
+          set_credentials: recoveryAllowed ? "1" : "0",
+          user,
+          admin_pass: pass,
+          admin_confirm: confirmPass,
+          wifi_enabled: $("wifiEnabled").checked ? "1" : "0",
+          wifi_ssid: $("ssid").value.trim(),
+          wifi_pass: $("pass").value,
+          eth_enabled: $("ethEnabled").checked ? "1" : "0",
+          eth_dhcp: $("ethDhcp").checked ? "1" : "0",
+          eth_ip: $("ethIp").value.trim(),
+          eth_subnet: $("ethSubnet").value.trim(),
+          eth_gateway: $("ethGateway").value.trim(),
+          eth_dns1: $("ethDns1").value.trim(),
+          eth_dns2: $("ethDns2").value.trim(),
+          mqtt_enabled: $("mqttEnabled").checked ? "1" : "0",
+          mqtt_host: $("mqttHost").value.trim(),
+          mqtt_port: $("mqttPort").value.trim(),
+          mqtt_user: $("mqttUser").value.trim(),
+          mqtt_pass: $("mqttPass").value,
+          mqtt_base_topic: $("mqttBaseTopic").value.trim() || "flowio",
+          mqtt_device_name: $("mqttDeviceName").value.trim()
+        })
+      });
+      recoveryAllowed = false;
+      put(saveMsg, `Réglages enregistrés. Redémarrage dans ${out.reboot_in_s || 4} secondes.`, "ok");
+    } catch (e) {
+      put(saveMsg, e.message, "bad");
+      setBusy(false);
+    }
+  }
+
+  function cancelRescue() {
+    if (!confirm("Abandonner les modifications non enregistrées ?")) return;
+    $("adminPass").value = "";
+    $("adminConfirm").value = "";
+    $("pass").value = "";
+    $("mqttPass").value = "";
+    put(saveMsg, "Modifications annulées.", "note");
+    refreshAll();
+  }
+
+  function toggleEthernetStatic() {
+    $("ethStatic").hidden = $("ethDhcp").checked || !$("ethEnabled").checked;
   }
 
   async function scanWifi() {
@@ -4497,26 +4710,6 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
     }
   }
 
-  async function saveWifi() {
-    setBusy(true);
-    try {
-      const out = await api("/api/wifi/config", {
-        method: "POST",
-        body: formBody({
-          enabled: $("wifiEnabled").checked ? "1" : "0",
-          ssid: $("ssid").value.trim(),
-          pass: $("pass").value
-        })
-      });
-      put(wifiMsg, out.reboot_scheduled ? "Réseau enregistre. Redemarrage planifie." : "Réseau enregistre.", "ok");
-      await refreshAll();
-    } catch (e) {
-      put(wifiMsg, e.message, "bad");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function saveFwConfig() {
     setBusy(true);
     try {
@@ -4539,24 +4732,7 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
   async function checkManifest() {
     setBusy(true);
     try {
-      const started = await api("/api/fwupdate/check", { method: "POST" });
-      const requestId = Number(started && started.request_id);
-      if (!Number.isFinite(requestId) || requestId <= 0) {
-        throw new Error("identifiant de vérification invalide");
-      }
-      const deadline = Date.now() + 85000;
-      let out = null;
-      while (Date.now() < deadline) {
-        out = await api("/api/fwupdate/check?request_id=" + encodeURIComponent(String(requestId)));
-        if (out && out.state === "ready") break;
-        if (!out || (out.state !== "queued" && out.state !== "downloading")) {
-          throw new Error("état de vérification inattendu");
-        }
-        await new Promise((resolve) => setTimeout(resolve, 450));
-      }
-      if (!out || out.state !== "ready") {
-        throw new Error("délai de vérification du manifest dépassé");
-      }
+      const out = await api("/api/fwupdate/check");
       put(fwCfgMsg, out, "ok");
     } catch (e) {
       put(fwCfgMsg, e.message, "bad");
@@ -4597,18 +4773,36 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
     }
   }
 
+  async function pollRecovery() {
+    if (recoveryPollBusy) return;
+    recoveryPollBusy = true;
+    try {
+      const recovery = await api("/api/recovery/status");
+      const active = recovery.active === true;
+      if (active !== recoveryAllowed) await refreshAll();
+    } catch (_) {
+    } finally {
+      recoveryPollBusy = false;
+    }
+  }
+
   $("wifiList").addEventListener("change", () => {
     if ($("wifiList").value) $("ssid").value = $("wifiList").value;
   });
+  $("ethEnabled").addEventListener("change", toggleEthernetStatic);
+  $("ethDhcp").addEventListener("change", toggleEthernetStatic);
   $("refresh").addEventListener("click", refreshAll);
   $("scan").addEventListener("click", scanWifi);
-  $("saveWifi").addEventListener("click", saveWifi);
+  $("saveRescue").addEventListener("click", saveRescue);
+  $("adminPass").addEventListener("input", validateAdminConfirmation);
+  $("adminConfirm").addEventListener("input", validateAdminConfirmation);
+  $("cancelRescue").addEventListener("click", cancelRescue);
   $("saveFwCfg").addEventListener("click", saveFwConfig);
   $("checkManifest").addEventListener("click", checkManifest);
   $("updateSpiffs").addEventListener("click", () => startUpdate("spiffs"));
   $("updateWaveshare").addEventListener("click", () => startUpdate("waveshare"));
   refreshAll();
-  pollStatus();
+  setInterval(pollRecovery, 1000);
 })();
 </script>
 </body>
@@ -5254,7 +5448,8 @@ void WebInterfaceModule::sendActivityLogHttpResponse_(AsyncWebServerRequest* req
         snprintf(out,
                  sizeof(out),
                  "{\"available\":%s,\"capacity\":%u,\"entries\":%u,\"dropped\":%lu,"
-                 "\"persisted\":%lu,\"persist_dropped\":%lu,\"psram\":%s,\"spiffs\":%s}",
+                 "\"persisted\":%lu,\"persist_dropped\":%lu,\"psram\":%s,\"spiffs\":%s,"
+                 "\"delete_id\":%lu,\"delete_state\":%u,\"delete_removed\":%u}",
                  available ? "true" : "false",
                  (unsigned)stats.capacity,
                  (unsigned)stats.count,
@@ -5262,7 +5457,10 @@ void WebInterfaceModule::sendActivityLogHttpResponse_(AsyncWebServerRequest* req
                  (unsigned long)stats.persistedCount,
                  (unsigned long)stats.persistDropCount,
                  stats.psram ? "true" : "false",
-                 stats.spiffs ? "true" : "false");
+                 stats.spiffs ? "true" : "false",
+                 (unsigned long)stats.deleteId,
+                 (unsigned)stats.deleteState,
+                 (unsigned)stats.deleteRemoved);
         AsyncWebServerResponse* response = request->beginResponse(200, "application/json", out);
         addNoCacheHeaders_(response);
         request->send(response);
@@ -5365,8 +5563,20 @@ bool WebInterfaceModule::resolveRequestActor_(AsyncWebServerRequest* request, Ac
     return true;
 }
 
+bool isMutatingRequest_(AsyncWebServerRequest* request)
+{
+    if (!request) return false;
+    const WebRequestMethodComposite method = request->method();
+    return method == HTTP_POST ||
+           method == HTTP_PUT ||
+           method == HTTP_PATCH ||
+           method == HTTP_DELETE;
+}
+
 void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
+    cfg.registerVar(authenticationRequiredVar_, (uint8_t)ConfigModuleId::WebInterface, 1U);
+    pinMode(kBootRecoveryPin, INPUT_PULLUP);
     cfgStore_ = &cfg;
     initRuntimeValuesBodyScratch_();
 
@@ -5390,6 +5600,27 @@ void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     auto* ebSvc = services.get<EventBusService>(ServiceId::EventBus);
     eventBus_ = ebSvc ? ebSvc->bus : nullptr;
     fwUpdateSvc_ = services.get<FirmwareUpdateService>(ServiceId::FirmwareUpdate);
+    const AlarmService* alarmSvc_ = services.get<AlarmService>(ServiceId::Alarm);
+    if (alarmSvc_ && alarmSvc_->registerAlarm) {
+        const AlarmRegistration otaSignatureAlarm{
+            AlarmId::OtaSignatureFailures,
+            AlarmSeverity::Warning,
+            true,
+            0,
+            1000,
+            60000,
+            "ota_sig_fail",
+            "Repeated invalid OTA signatures",
+            "webinterface"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx,
+                                      &otaSignatureAlarm,
+                                      &WebInterfaceModule::condOtaSignatureFailuresStatic_,
+                                      this)) {
+            LOGW("WebInterface failed to register AlarmId::OtaSignatureFailures");
+        }
+    }
+
     userSvc_ = services.get<UserService>(ServiceId::User);
     if (eventBus_) {
         runtimeEventsAvailable_ = dataStore_ != nullptr;
@@ -5420,6 +5651,32 @@ void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     portEXIT_CRITICAL(&healthMux_);
 
     LOGI("WebInterface local runtime deferred (server deferred)");
+}
+
+void WebInterfaceModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry&)
+{
+    size_t actualLen = 0U;
+    WebSecurityConfig stored{};
+    if (cfg.readRuntimeBlob(
+            NvsKeys::WebSecurity::Credentials,
+            &stored,
+            sizeof(stored),
+            &actualLen) &&
+        actualLen == sizeof(stored)) {
+        stored.user[sizeof(stored.user) - 1U] = '\0';
+        stored.pass[sizeof(stored.pass) - 1U] = '\0';
+        webSecurity_ = stored;
+    } else {
+        webSecurity_ = WebSecurityConfig{};
+    }
+    webCredentialsReady_ =
+        webSecurity_.user[0] != '\0' &&
+        webSecurity_.pass[0] != '\0';
+    if (webCredentialsReady_) {
+        LOGI("Web authentication enabled for configured administrator");
+    } else {
+        LOGW("Web authentication disabled until credentials are configured through physical BOOT recovery");
+    }
 }
 
 void WebInterfaceModule::onStart(ConfigStore&, ServiceRegistry&)
@@ -5479,8 +5736,31 @@ void WebInterfaceModule::startLocalRuntime_()
 void WebInterfaceModule::startServer_()
 {
     if (started_) return;
+    ensureCsrfToken_();
     gHttpActivityHook = &WebInterfaceModule::onHttpActivityHook_;
     gHttpActivityHookCtx = this;
+
+    server_.addMiddleware([](AsyncWebServerRequest* request, ArMiddlewareNext next) {
+        next();
+        if (request) {
+            const String& path = request->url();
+            addWebSecurityHeaders(request->getResponse(), path.c_str());
+        }
+    });
+
+    server_.addMiddleware([this](AsyncWebServerRequest* request, ArMiddlewareNext next) {
+        authGate_(request, next);
+    });
+
+    server_.addMiddleware([this](AsyncWebServerRequest* request, ArMiddlewareNext next) {
+        if (!csrfRequestAllowed_(request)) {
+            request->send(403,
+                          "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"CsrfRejected\",\"where\":\"web.security\"}}");
+            return;
+        }
+        next();
+    });
 
     spiffsReady_ = ReleaseStorage::releaseReady();
     if (!spiffsReady_) {
@@ -5677,38 +5957,30 @@ void WebInterfaceModule::startServer_()
         sendRescuePage(request);
     });
 
-    server_.on("/webinterface/app.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
-        SpiffsAssetForensicMeta forensicMeta{};
-        bool heapRejected = false;
-        bool buildBusy = false;
-        AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/app-core.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
-        if (!response) {
-            if (heapRejected || buildBusy) {
-                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+    const auto registerWebAsset = [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](
+                                      const char* route, const char* assetPath, const char* contentType) {
+        server_.on(route, HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse,
+                                    assetPath, contentType](AsyncWebServerRequest* request) {
+            SpiffsAssetForensicMeta forensicMeta{};
+            bool heapRejected = false;
+            bool buildBusy = false;
+            AsyncWebServerResponse* response = beginSpiffsAssetResponse(
+                request, assetPath, contentType, true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+            if (!response) {
+                if (heapRejected || buildBusy) {
+                    sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                } else {
+                    request->send(404, "text/plain", "Not found");
+                }
                 return;
             }
-            request->send(404, "text/plain", "Not found");
-            return;
-        }
-        sendPreparedAssetResponse(request, response, &forensicMeta);
-    });
-    server_.on("/webinterface/app-core.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
-        SpiffsAssetForensicMeta forensicMeta{};
-        bool heapRejected = false;
-        bool buildBusy = false;
-        AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/app-core.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
-        if (!response) {
-            if (heapRejected || buildBusy) {
-                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
-                return;
-            }
-            request->send(404, "text/plain", "Not found");
-            return;
-        }
-        sendPreparedAssetResponse(request, response, &forensicMeta);
-    });
+            sendPreparedAssetResponse(request, response, &forensicMeta);
+        });
+    };
+    registerWebAsset("/webinterface/app.css", "/webinterface/app-core.css", "text/css");
+    registerWebAsset("/webinterface/app-core.css", "/webinterface/app-core.css", "text/css");
+    registerWebAsset("/webinterface/network.css", "/webinterface/network.css", "text/css");
+    registerWebAsset("/webinterface/network.js", "/webinterface/network.js", "application/javascript");
     server_.on("/webinterface/sh.html", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
@@ -5943,20 +6215,48 @@ void WebInterfaceModule::startServer_()
         HttpLatencyScope latency(request, "/api/activity/logs");
         sendActivityLogHttpResponse_(request, false);
     });
+    server_.on("/api/activity/delete", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        noteHttpActivity_();
+        if (!activityLog_ && services_) activityLog_ = services_->get<ActivityLogService>(ServiceId::ActivityLog);
+        if (!activityLog_ || !activityLog_->requestDelete) {
+            request->send(503, "application/json", "{\"ok\":false}"); return;
+        }
+        JsonDocument doc(psramPreferredJsonAllocator());
+        if (!request->hasParam("sequences", true) ||
+            deserializeJson(doc, request->getParam("sequences", true)->value()) ||
+            !doc.is<JsonArray>() || doc.size() == 0 || doc.size() > 128) {
+            request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\"}}"); return;
+        }
+        uint32_t sequences[128]; uint16_t count = 0;
+        for (JsonVariantConst value : doc.as<JsonArrayConst>()) {
+            if (!value.is<uint32_t>() || value.as<uint32_t>() == 0) {
+                request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\"}}"); return;
+            }
+            sequences[count++] = value.as<uint32_t>();
+        }
+        const uint32_t id = activityLog_->requestDelete(activityLog_->ctx, sequences, count, false);
+        char response[96];
+        if (id) {
+            snprintf(response, sizeof(response), "{\"ok\":true,\"delete_id\":%lu}", (unsigned long)id);
+            request->send(202, "application/json", response);
+        } else {
+            request->send(409, "application/json", "{\"ok\":false,\"err\":{\"code\":\"BusyOrNotReady\"}}");
+        }
+    });
     server_.on("/api/activity/purge", HTTP_POST, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/activity/purge");
         noteHttpActivity_();
         if (!activityLog_ && services_) {
             activityLog_ = services_->get<ActivityLogService>(ServiceId::ActivityLog);
         }
-        if (!activityLog_ || !activityLog_->clear) {
+        if (!activityLog_ || !activityLog_->requestDelete) {
             request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"activity.clear\"}}");
             return;
         }
-        const bool ok = activityLog_->clear(activityLog_->ctx);
-        request->send(ok ? 200 : 500,
-                      "application/json",
-                      ok ? "{\"ok\":true}" : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"activity.clear\"}}");
+        const uint32_t id = activityLog_->requestDelete(activityLog_->ctx, nullptr, 0, true);
+        char response[96];
+        snprintf(response, sizeof(response), "{\"ok\":%s,\"delete_id\":%lu}", id ? "true" : "false", (unsigned long)id);
+        request->send(id ? 202 : 409, "application/json", response);
     });
     server_.on("/api/ai/pool-insight", HTTP_POST, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/ai/pool-insight");
@@ -6234,7 +6534,7 @@ void WebInterfaceModule::startServer_()
     });
     server_.on("/api/web/meta", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/web/meta");
-        StaticJsonDocument<1536> doc;
+        JsonDocument doc(psramPreferredJsonAllocator());
         NetworkAccessMode mode = NetworkAccessMode::None;
         if (!netAccessSvc_ && services_) {
             netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
@@ -6250,6 +6550,22 @@ void WebInterfaceModule::startServer_()
         const char* transportTxt = networkTransport_(mode);
 
         doc["ok"] = true;
+        doc["csrf_token"] = csrfToken_;
+        doc["auth_enabled"] = webCredentialsReady_;
+        doc["auth_required"] = authenticationRequired_;
+        doc["admin_authenticated"] = webRequestAuthorized_(request);
+        const bool recoveryAllowedForClient =
+            physicalRecoveryAllowedForRequest_(request, false);
+        doc["physical_recovery_active"] = recoveryAllowedForClient;
+        doc["physical_recovery_remaining_s"] =
+            recoveryAllowedForClient
+                ? (physicalRecoveryRemainingMs_() + 999U) / 1000U
+                : 0U;
+        doc["physical_recovery_client_bound"] = physicalRecoveryClientIp_ != 0U;
+        doc["physical_recovery_gpio"] = kBootRecoveryPin;
+        doc["physical_recovery_hold_s"] = kBootRecoveryHoldMs / 1000U;
+        doc["physical_recovery_method"] = "boot_long_press";
+
         doc["web_asset_version"] = webAssetVersion_();
         doc["firmware_version"] = FirmwareVersion::Full;
         doc["profile"] = FLOW_BUILD_PROFILE_NAME;
@@ -6299,7 +6615,7 @@ void WebInterfaceModule::startServer_()
         SystemStats::collect(snap);
 
         doc["upms"] = snap.uptimeMs;
-        JsonObject heap = doc.createNestedObject("heap");
+        JsonObject heap = doc["heap"].to<JsonObject>();
         heap["free"] = snap.heap.freeBytes;
         heap["min_free"] = snap.heap.minFreeBytes;
         heap["largest"] = snap.heap.largestFreeBlock;
@@ -6309,17 +6625,364 @@ void WebInterfaceModule::startServer_()
         heap["internal_largest"] = snap.heap.internalLargestFreeBlock;
         heap["internal_frag"] = snap.heap.internalFragPercent;
 
-        char out[960] = {0};
-        const size_t n = serializeJson(doc, out, sizeof(out));
-        if (n == 0 || n >= sizeof(out)) {
+        if (doc.overflowed()) {
             request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"web.meta\"}}");
+                          "{\"ok\":false,\"err\":{\"code\":\"NoMemory\",\"where\":\"web.meta\"}}");
+            return;
+        }
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        if (!response) {
+            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NoMemory\"}}");
+            return;
+        }
+        serializeJson(doc, *response);
+        addNoCacheHeaders_(response);
+        request->send(response);
+    });
+    server_.on("/api/recovery/status", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/recovery/status");
+        const bool recoveryAllowedForClient =
+            physicalRecoveryAllowedForRequest_(request, false);
+        char out[288] = {0};
+        const int n = snprintf(
+            out,
+            sizeof(out),
+            "{\"ok\":true,\"active\":%s,\"remaining_s\":%lu,\"client_bound\":%s,"
+            "\"gpio\":%d,\"hold_s\":%lu,\"method\":\"boot_long_press\",\"auth_enabled\":%s}",
+            recoveryAllowedForClient ? "true" : "false",
+            (unsigned long)(recoveryAllowedForClient
+                                ? ((physicalRecoveryRemainingMs_() + 999U) / 1000U)
+                                : 0U),
+            physicalRecoveryClientIp_ != 0U ? "true" : "false",
+            kBootRecoveryPin,
+            (unsigned long)(kBootRecoveryHoldMs / 1000U),
+            webCredentialsReady_ ? "true" : "false");
+        request->send(
+            200,
+            "application/json",
+            (n > 0 && (size_t)n < sizeof(out))
+                ? out
+                : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"recovery.status\"}}");
+    });
+    server_.on("/api/recovery/apply", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/recovery/apply");
+        if (!cfgStore_) {
+            request->send(
+                503,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"recovery.apply\"}}");
             return;
         }
 
-        AsyncWebServerResponse* response = request->beginResponse(200, "application/json", out);
-        addNoCacheHeaders_(response);
-        request->send(response);
+        char setCredentialsStr[8] = {0};
+        copyRequestParamValue_(request,
+                               "set_credentials",
+                               true,
+                               setCredentialsStr,
+                               sizeof(setCredentialsStr),
+                               "0");
+        const bool setCredentials = parseBoolParam_(setCredentialsStr, false);
+        if (setCredentials && !physicalRecoveryAllowedForRequest_(request, false)) {
+            request->send(
+                403,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"RecoveryInactive\",\"where\":\"recovery.apply.credentials\"}}");
+            return;
+        }
+
+        WebSecurityConfig replacement{};
+        if (setCredentials) {
+            char confirm[sizeof(replacement.pass)] = {0};
+            copyRequestParamValue_(request, "user", true, replacement.user, sizeof(replacement.user), "");
+            copyRequestParamValue_(request, "admin_pass", true, replacement.pass, sizeof(replacement.pass), "");
+            copyRequestParamValue_(request, "admin_confirm", true, confirm, sizeof(confirm), "");
+            const size_t userLen = strnlen(replacement.user, sizeof(replacement.user));
+            const size_t passLen = strnlen(replacement.pass, sizeof(replacement.pass));
+            if (userLen == 0U || userLen > 32U ||
+                passLen < 12U || passLen > 32U ||
+                strcmp(replacement.pass, confirm) != 0 ||
+                strchr(replacement.user, '\r') || strchr(replacement.user, '\n') ||
+                strchr(replacement.pass, '\r') || strchr(replacement.pass, '\n')) {
+                request->send(
+                    400,
+                    "application/json",
+                    "{\"ok\":false,\"err\":{\"code\":\"InvalidCredentials\",\"where\":\"recovery.apply.credentials\",\"msg\":\"Utilisateur 1-32 caracteres; mot de passe 12-32 caracteres identique a la confirmation.\"}}");
+                return;
+            }
+        }
+
+        char wifiEnabledStr[8] = {0};
+        char wifiSsid[96] = {0};
+        char wifiPass[96] = {0};
+        char previousWifiPass[96] = {0};
+        copyRequestParamValue_(request, "wifi_enabled", true, wifiEnabledStr, sizeof(wifiEnabledStr), "1");
+        copyRequestParamValue_(request, "wifi_ssid", true, wifiSsid, sizeof(wifiSsid), "");
+        copyRequestParamValue_(request, "wifi_pass", true, wifiPass, sizeof(wifiPass), "");
+        const bool wifiEnabled = parseBoolParam_(wifiEnabledStr, true);
+        if (wifiEnabled && wifiSsid[0] == '\0') {
+            request->send(
+                400,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\",\"where\":\"recovery.apply.wifi\",\"msg\":\"SSID Wi-Fi requis.\"}}");
+            return;
+        }
+        if (wifiPass[0] == '\0') {
+            char previousWifiJson[320] = {0};
+            if (cfgStore_->toJsonModule("wifi", previousWifiJson, sizeof(previousWifiJson), nullptr, false)) {
+                JsonDocument previousDoc;
+                if (deserializeJson(previousDoc, previousWifiJson) == DeserializationError::Ok &&
+                    previousDoc.is<JsonObjectConst>()) {
+                    snprintf(previousWifiPass,
+                             sizeof(previousWifiPass),
+                             "%s",
+                             previousDoc.as<JsonObjectConst>()["pass"] | "");
+                }
+            }
+        }
+        const char* effectiveWifiPass = wifiPass[0] != '\0' ? wifiPass : previousWifiPass;
+
+        char ethEnabledStr[8] = {0};
+        char ethDhcpStr[8] = {0};
+        char ethIp[16] = {0};
+        char ethSubnet[16] = {0};
+        char ethGateway[16] = {0};
+        char ethDns1[16] = {0};
+        char ethDns2[16] = {0};
+        copyRequestParamValue_(request, "eth_enabled", true, ethEnabledStr, sizeof(ethEnabledStr), "1");
+        copyRequestParamValue_(request, "eth_dhcp", true, ethDhcpStr, sizeof(ethDhcpStr), "1");
+        copyRequestParamValue_(request, "eth_ip", true, ethIp, sizeof(ethIp), "");
+        copyRequestParamValue_(request, "eth_subnet", true, ethSubnet, sizeof(ethSubnet), "255.255.255.0");
+        copyRequestParamValue_(request, "eth_gateway", true, ethGateway, sizeof(ethGateway), "");
+        copyRequestParamValue_(request, "eth_dns1", true, ethDns1, sizeof(ethDns1), "");
+        copyRequestParamValue_(request, "eth_dns2", true, ethDns2, sizeof(ethDns2), "");
+        const bool ethEnabled = parseBoolParam_(ethEnabledStr, true);
+        const bool ethDhcp = parseBoolParam_(ethDhcpStr, true);
+        if (!wifiEnabled && !ethEnabled) {
+            request->send(
+                400,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\",\"where\":\"recovery.apply.last_interface\",\"msg\":\"Ethernet et Wi-Fi ne peuvent pas etre desactives simultanement.\"}}");
+            return;
+        }
+        if (ethEnabled && !ethDhcp &&
+            (!validIpv4Param_(ethIp, true) ||
+             !validIpv4Param_(ethSubnet, true) ||
+             !validIpv4Param_(ethGateway, true) ||
+             !validIpv4Param_(ethDns1, false) ||
+             !validIpv4Param_(ethDns2, false))) {
+            request->send(
+                400,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\",\"where\":\"recovery.apply.ethernet\",\"msg\":\"Configuration IPv4 Ethernet invalide.\"}}");
+            return;
+        }
+
+        char mqttEnabledStr[8] = {0};
+        char mqttHost[96] = {0};
+        char mqttPortStr[12] = {0};
+        char mqttUser[64] = {0};
+        char mqttPass[Limits::Mqtt::Buffers::Pass] = {0};
+        char previousMqttPass[Limits::Mqtt::Buffers::Pass] = {0};
+        char mqttBaseTopic[48] = {0};
+        char mqttDeviceName[48] = {0};
+        copyRequestParamValue_(request, "mqtt_enabled", true, mqttEnabledStr, sizeof(mqttEnabledStr), "0");
+        copyRequestParamValue_(request, "mqtt_host", true, mqttHost, sizeof(mqttHost), "");
+        copyRequestParamValue_(request, "mqtt_port", true, mqttPortStr, sizeof(mqttPortStr), "8883");
+        copyRequestParamValue_(request, "mqtt_user", true, mqttUser, sizeof(mqttUser), "");
+        if (request->hasParam("mqtt_pass", true) &&
+            request->getParam("mqtt_pass", true)->value().length() >= sizeof(mqttPass)) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"ArgsTooLarge\",\"where\":\"recovery.apply.mqtt\"}}");
+            return;
+        }
+        copyRequestParamValue_(request, "mqtt_pass", true, mqttPass, sizeof(mqttPass), "");
+        copyRequestParamValue_(request, "mqtt_base_topic", true, mqttBaseTopic, sizeof(mqttBaseTopic), "flowio");
+        copyRequestParamValue_(request, "mqtt_device_name", true, mqttDeviceName, sizeof(mqttDeviceName), "");
+        const bool mqttEnabled = parseBoolParam_(mqttEnabledStr, false);
+        int32_t mqttPort = (int32_t)atoi(mqttPortStr);
+        if (mqttPort <= 0 || mqttPort > 65535) mqttPort = Limits::Mqtt::Defaults::Port;
+        if (mqttEnabled && mqttHost[0] == '\0') {
+            request->send(
+                400,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\",\"where\":\"recovery.apply.mqtt\",\"msg\":\"Broker MQTT requis.\"}}");
+            return;
+        }
+        if (mqttPass[0] == '\0') {
+            char previousMqttJson[640] = {0};
+            if (cfgStore_->toJsonModule("mqtt", previousMqttJson, sizeof(previousMqttJson), nullptr, false)) {
+                JsonDocument previousDoc;
+                if (deserializeJson(previousDoc, previousMqttJson) == DeserializationError::Ok &&
+                    previousDoc.is<JsonObjectConst>()) {
+                    snprintf(previousMqttPass,
+                             sizeof(previousMqttPass),
+                             "%s",
+                             previousDoc.as<JsonObjectConst>()["pass"] | "");
+                }
+            }
+        }
+        const char* effectiveMqttPass = mqttPass[0] != '\0' ? mqttPass : previousMqttPass;
+
+        JsonDocument patch;
+        JsonObject root = patch.to<JsonObject>();
+        JsonObject wifi = root["wifi"].to<JsonObject>();
+        wifi["enabled"] = wifiEnabled;
+        wifi["ssid"] = wifiSsid;
+        wifi["pass"] = effectiveWifiPass;
+        JsonObject ethernet = root["ethernet"].to<JsonObject>();
+        ethernet["enabled"] = ethEnabled;
+        ethernet["dhcp"] = ethDhcp;
+        ethernet["ip"] = ethIp;
+        ethernet["subnet"] = ethSubnet;
+        ethernet["gateway"] = ethGateway;
+        ethernet["dns1"] = ethDns1;
+        ethernet["dns2"] = ethDns2;
+        JsonObject mqtt = root["mqtt"].to<JsonObject>();
+        mqtt["enabled"] = mqttEnabled;
+        mqtt["host"] = mqttHost;
+        mqtt["port"] = mqttPort;
+        mqtt["user"] = mqttUser;
+        mqtt["pass"] = effectiveMqttPass;
+        mqtt["baseTopic"] = mqttBaseTopic[0] != '\0' ? mqttBaseTopic : "flowio";
+        mqtt["deviceName"] = mqttDeviceName;
+
+        char patchJson[1024] = {0};
+        const size_t patchLen = serializeJson(patch, patchJson, sizeof(patchJson));
+        if (patchLen == 0U || patchLen >= sizeof(patchJson) || !cfgStore_->applyJson(patchJson)) {
+            request->send(
+                500,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"recovery.apply.config\"}}");
+            return;
+        }
+
+        if (setCredentials &&
+            !cfgStore_->writeRuntimeBlob(
+                NvsKeys::WebSecurity::Credentials,
+                &replacement,
+                sizeof(replacement))) {
+            request->send(
+                500,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"recovery.apply.credentials\"}}");
+            return;
+        }
+
+        if (setCredentials) {
+            if (!userSvc_ && services_) userSvc_ = services_->get<UserService>(ServiceId::User);
+            char accountError[40] = {0};
+            if (!userSvc_ || !userSvc_->replaceAdministrator ||
+                !userSvc_->replaceAdministrator(userSvc_->ctx, replacement.user, replacement.pass,
+                                                accountError, sizeof(accountError))) {
+                request->send(500, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"recovery.apply.account\"}}");
+                return;
+            }
+        }
+
+        Actor actor = systemActor();
+        (void)resolveRequestActor_(request, actor);
+        emitConfigPatchActivity_("Rescue", patchJson, actor);
+        if (setCredentials) {
+            webSecurity_ = replacement;
+            webCredentialsReady_ = true;
+        }
+        portENTER_CRITICAL(&webAuthThrottleMux_);
+        webAuthThrottleState_ = Security::WebAuthThrottleState{};
+        portEXIT_CRITICAL(&webAuthThrottleMux_);
+
+        if (!flowCfgSvc_ && services_) {
+            flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
+        }
+        if (flowCfgSvc_ && flowCfgSvc_->applyPatchJson) {
+            char flowAck[Limits::Mqtt::Buffers::Ack] = {0};
+            if (!flowCfgSvc_->applyPatchJson(flowCfgSvc_->ctx,
+                                             patchJson,
+                                             flowAck,
+                                             sizeof(flowAck))) {
+                LOGW("Rescue config sync to flow.io failed before reboot");
+            }
+        }
+
+        physicalRecoveryDeadlineMs_ = 0U;
+        physicalRecoveryClientIp_ = 0U;
+        scheduleReboot_(request, 4000U, "recovery.apply");
+    });
+
+    server_.on("/api/recovery/web-credentials", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/recovery/web-credentials");
+        if (!physicalRecoveryAllowedForRequest_(request, false)) {
+            request->send(
+                403,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"RecoveryInactive\",\"where\":\"recovery.credentials\"}}");
+            return;
+        }
+        if (!cfgStore_) {
+            request->send(
+                503,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"recovery.credentials\"}}");
+            return;
+        }
+
+        char user[sizeof(webSecurity_.user)] = {0};
+        char pass[sizeof(webSecurity_.pass)] = {0};
+        char confirm[sizeof(webSecurity_.pass)] = {0};
+        copyRequestParamValue_(request, "user", true, user, sizeof(user), "");
+        copyRequestParamValue_(request, "pass", true, pass, sizeof(pass), "");
+        copyRequestParamValue_(request, "confirm", true, confirm, sizeof(confirm), "");
+
+        const size_t userLen = strnlen(user, sizeof(user));
+        const size_t passLen = strnlen(pass, sizeof(pass));
+        if (userLen == 0U || userLen > 32U ||
+            passLen < 12U || passLen > 32U ||
+            strcmp(pass, confirm) != 0 ||
+            strchr(user, '\r') || strchr(user, '\n') ||
+            strchr(pass, '\r') || strchr(pass, '\n')) {
+            request->send(
+                400,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"InvalidCredentials\","
+                "\"where\":\"recovery.credentials\","
+                "\"msg\":\"Utilisateur 1-32 caracteres; mot de passe 12-32 caracteres identique a la confirmation.\"}}");
+            return;
+        }
+
+        WebSecurityConfig replacement{};
+        snprintf(replacement.user, sizeof(replacement.user), "%s", user);
+        snprintf(replacement.pass, sizeof(replacement.pass), "%s", pass);
+        if (!cfgStore_->writeRuntimeBlob(
+                NvsKeys::WebSecurity::Credentials,
+                &replacement,
+                sizeof(replacement))) {
+            request->send(
+                500,
+                "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"recovery.credentials\"}}");
+            return;
+        }
+
+        if (!userSvc_ && services_) userSvc_ = services_->get<UserService>(ServiceId::User);
+        char accountError[40] = {0};
+        if (!userSvc_ || !userSvc_->replaceAdministrator ||
+            !userSvc_->replaceAdministrator(userSvc_->ctx, replacement.user, replacement.pass,
+                                            accountError, sizeof(accountError))) {
+            request->send(500, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"recovery.credentials.account\"}}");
+            return;
+        }
+
+        webSecurity_ = replacement;
+        webCredentialsReady_ = true;
+        portENTER_CRITICAL(&webAuthThrottleMux_);
+        webAuthThrottleState_ = Security::WebAuthThrottleState{};
+        portEXIT_CRITICAL(&webAuthThrottleMux_);
+        LOGW("Physical BOOT recovery replaced web administrator credentials");
+        request->send(
+            200,
+            "application/json",
+            "{\"ok\":true,\"reboot_scheduled\":false}");
     });
     server_.on("/webinterface", HTTP_GET, [this,
                                            spiffsAssetExists,
@@ -6725,7 +7388,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        StaticJsonDocument<320> doc;
+        JsonDocument doc(psramPreferredJsonAllocator());
         const DeserializationError err = deserializeJson(doc, wifiJson);
         if (err || !doc.is<JsonObjectConst>()) {
             request->send(500, "application/json",
@@ -6737,27 +7400,61 @@ void WebInterfaceModule::startServer_()
         bool enabled = root["enabled"] | true;
         const char* ssid = root["ssid"] | "";
         const char* pass = root["pass"] | "";
+        const bool passwordConfigured = pass && pass[0] != '\0';
 
-        char ssidSafe[96] = {0};
-        char passSafe[96] = {0};
-        snprintf(ssidSafe, sizeof(ssidSafe), "%s", ssid ? ssid : "");
-        snprintf(passSafe, sizeof(passSafe), "%s", pass ? pass : "");
-        sanitizeJsonString_(ssidSafe);
-        sanitizeJsonString_(passSafe);
-
-        char out[360] = {0};
-        const int n = snprintf(out,
-                               sizeof(out),
-                               "{\"ok\":true,\"enabled\":%s,\"ssid\":\"%s\",\"pass\":\"%s\"}",
-                               enabled ? "true" : "false",
-                               ssidSafe,
-                               passSafe);
-        if (n <= 0 || (size_t)n >= sizeof(out)) {
+        char ethernetJson[512] = {0};
+        if (!cfgStore_->toJsonModule("ethernet", ethernetJson, sizeof(ethernetJson), nullptr, false)) {
             request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"wifi.config.get\"}}");
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"ethernet.config.get\"}}");
             return;
         }
-        request->send(200, "application/json", out);
+
+        JsonDocument ethernetDoc(psramPreferredJsonAllocator());
+        const DeserializationError ethernetErr = deserializeJson(ethernetDoc, ethernetJson);
+        if (ethernetErr || !ethernetDoc.is<JsonObjectConst>()) {
+            request->send(500, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidData\",\"where\":\"ethernet.config.get\"}}");
+            return;
+        }
+        JsonObjectConst ethernetRoot = ethernetDoc.as<JsonObjectConst>();
+
+        JsonDocument responseDoc(psramPreferredJsonAllocator());
+        JsonObject response = responseDoc.to<JsonObject>();
+        response["ok"] = true;
+        response["enabled"] = enabled;
+        response["ssid"] = ssid ? ssid : "";
+        response["password_configured"] = passwordConfigured;
+        JsonObject wifiRuntime = response["runtime"].to<JsonObject>();
+        const bool wifiConnected = wifiSvc_ && wifiSvc_->isConnected &&
+                                   wifiSvc_->isConnected(wifiSvc_->ctx);
+        char wifiIp[24] = {0};
+        if (wifiConnected && wifiSvc_->getIP) {
+            (void)wifiSvc_->getIP(wifiSvc_->ctx, wifiIp, sizeof(wifiIp));
+        }
+        wifiRuntime["connected"] = wifiConnected;
+        wifiRuntime["ip"] = wifiIp;
+        wifiRuntime["rssi"] = wifiConnected ? WiFi.RSSI() : 0;
+        JsonObject ethernet = response["ethernet"].to<JsonObject>();
+        ethernet["enabled"] = ethernetRoot["enabled"] | true;
+        ethernet["dhcp"] = ethernetRoot["dhcp"] | true;
+        ethernet["ip"] = ethernetRoot["ip"] | "";
+        ethernet["subnet"] = ethernetRoot["subnet"] | "255.255.255.0";
+        ethernet["gateway"] = ethernetRoot["gateway"] | "";
+        ethernet["dns1"] = ethernetRoot["dns1"] | "";
+        ethernet["dns2"] = ethernetRoot["dns2"] | "";
+        const bool ethernetConnected = ETH.linkUp() && ((uint32_t)ETH.localIP() != 0U);
+        ethernet["connected"] = ethernetConnected;
+        ethernet["link_up"] = ETH.linkUp();
+        ethernet["runtime_ip"] = ethernetConnected ? ETH.localIP().toString() : "";
+
+        if (responseDoc.overflowed()) {
+            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NoMemory\"}}");
+            return;
+        }
+        AsyncResponseStream* responseStream = request->beginResponseStream("application/json");
+        addNoCacheHeaders_(responseStream);
+        serializeJson(responseDoc, *responseStream);
+        request->send(responseStream);
     });
 
     server_.on("/api/wifi/ap", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -6815,14 +7512,14 @@ void WebInterfaceModule::startServer_()
         int32_t port = Limits::Mqtt::Defaults::Port;
         char host[96] = {0};
         char user[64] = {0};
-        char pass[64] = {0};
+        char pass[Limits::Mqtt::Buffers::Pass] = {0};
         char baseTopic[48] = "flowio";
         char topicDeviceId[48] = {0};
         char deviceName[48] = {0};
 
         char mqttJson[640] = {0};
         if (cfgStore_->toJsonModule("mqtt", mqttJson, sizeof(mqttJson), nullptr, false)) {
-            StaticJsonDocument<640> doc;
+            JsonDocument doc(psramPreferredJsonAllocator());
             const DeserializationError err = deserializeJson(doc, mqttJson);
             if (err || !doc.is<JsonObjectConst>()) {
                 request->send(500, "application/json",
@@ -6843,32 +7540,20 @@ void WebInterfaceModule::startServer_()
             LOGW("mqtt.config.get: module unavailable, returning defaults");
         }
 
-        sanitizeJsonString_(host);
-        sanitizeJsonString_(user);
-        sanitizeJsonString_(pass);
-        sanitizeJsonString_(baseTopic);
-        sanitizeJsonString_(topicDeviceId);
-        sanitizeJsonString_(deviceName);
-
-        char out[640] = {0};
-        const int n = snprintf(out,
-                               sizeof(out),
-                               "{\"ok\":true,\"enabled\":%s,\"host\":\"%s\",\"port\":%ld,"
-                               "\"user\":\"%s\",\"pass\":\"%s\",\"baseTopic\":\"%s\","
-                               "\"topicDeviceId\":\"%s\",\"deviceName\":\"%s\"}",
-                               enabled ? "true" : "false",
-                               host,
-                               (long)port,
-                               user,
-                               pass,
-                               baseTopic,
-                               topicDeviceId,
-                               deviceName);
-        request->send(200,
-                      "application/json",
-                      (n > 0 && (size_t)n < sizeof(out))
-                          ? out
-                          : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"mqtt.config.get\"}}");
+        JsonDocument responseDoc(psramPreferredJsonAllocator());
+        responseDoc["ok"] = true;
+        responseDoc["enabled"] = enabled;
+        responseDoc["host"] = host;
+        responseDoc["port"] = port;
+        responseDoc["user"] = user;
+        responseDoc["password_configured"] = pass[0] != '\0';
+        responseDoc["baseTopic"] = baseTopic;
+        responseDoc["topicDeviceId"] = topicDeviceId;
+        responseDoc["deviceName"] = deviceName;
+        auto response = request->beginResponseStream("application/json");
+        serializeJson(responseDoc, *response);
+        addNoCacheHeaders_(response);
+        request->send(response);
     });
 
     server_.on("/api/wifi/config", HTTP_POST, [this](AsyncWebServerRequest* request) {
@@ -6887,21 +7572,93 @@ void WebInterfaceModule::startServer_()
                                        (netAccessSvc_->mode(netAccessSvc_->ctx) == NetworkAccessMode::AccessPoint);
 
         char enabledStr[8] = {0};
+        char scope[16] = {0};
         char ssid[96] = {0};
         char pass[96] = {0};
+        char previousPass[96] = {0};
+        char clearPassStr[8] = {0};
+        copyRequestParamValue_(request, "scope", true, scope, sizeof(scope), "wifi");
+        const bool applyWifiConfig = strcmp(scope, "ethernet") != 0;
         copyRequestParamValue_(request, "enabled", true, enabledStr, sizeof(enabledStr), "1");
         const bool enabled = parseBoolParam_(enabledStr, true);
         copyRequestParamValue_(request, "ssid", true, ssid, sizeof(ssid), "");
         copyRequestParamValue_(request, "pass", true, pass, sizeof(pass), "");
+        copyRequestParamValue_(request, "clearPass", true, clearPassStr, sizeof(clearPassStr), "0");
+        const bool clearPass = parseBoolParam_(clearPassStr, false);
 
-        StaticJsonDocument<320> patch;
+        const bool hasEthernetConfig = request->hasParam("eth_enabled", true) ||
+                                       request->hasParam("eth_dhcp", true) ||
+                                       request->hasParam("eth_ip", true) ||
+                                       request->hasParam("eth_subnet", true) ||
+                                       request->hasParam("eth_gateway", true) ||
+                                       request->hasParam("eth_dns1", true) ||
+                                       request->hasParam("eth_dns2", true);
+        char ethEnabledStr[8] = {0};
+        char ethDhcpStr[8] = {0};
+        char ethIp[16] = {0};
+        char ethSubnet[16] = {0};
+        char ethGateway[16] = {0};
+        char ethDns1[16] = {0};
+        char ethDns2[16] = {0};
+        copyRequestParamValue_(request, "eth_enabled", true, ethEnabledStr, sizeof(ethEnabledStr), "1");
+        copyRequestParamValue_(request, "eth_dhcp", true, ethDhcpStr, sizeof(ethDhcpStr), "1");
+        copyRequestParamValue_(request, "eth_ip", true, ethIp, sizeof(ethIp), "");
+        copyRequestParamValue_(request, "eth_subnet", true, ethSubnet, sizeof(ethSubnet), "255.255.255.0");
+        copyRequestParamValue_(request, "eth_gateway", true, ethGateway, sizeof(ethGateway), "");
+        copyRequestParamValue_(request, "eth_dns1", true, ethDns1, sizeof(ethDns1), "");
+        copyRequestParamValue_(request, "eth_dns2", true, ethDns2, sizeof(ethDns2), "");
+        const bool ethEnabled = parseBoolParam_(ethEnabledStr, true);
+        const bool ethDhcp = parseBoolParam_(ethDhcpStr, true);
+        if (hasEthernetConfig && !enabled && !ethEnabled) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\",\"where\":\"network.last_interface\",\"message\":\"Ethernet et WiFi ne peuvent pas être désactivés simultanément\"}}");
+            return;
+        }
+        if (hasEthernetConfig && ethEnabled && !ethDhcp &&
+            (!validIpv4Param_(ethIp, true) ||
+             !validIpv4Param_(ethSubnet, true) ||
+             !validIpv4Param_(ethGateway, true) ||
+             !validIpv4Param_(ethDns1, false) ||
+             !validIpv4Param_(ethDns2, false))) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArgument\",\"where\":\"ethernet.static_ipv4\"}}");
+            return;
+        }
+
+        char previousWifiJson[320] = {0};
+        if (applyWifiConfig && !clearPass && pass[0] == '\0' &&
+            cfgStore_->toJsonModule("wifi", previousWifiJson, sizeof(previousWifiJson), nullptr, false)) {
+            JsonDocument previousDoc(psramPreferredJsonAllocator());
+            if (deserializeJson(previousDoc, previousWifiJson) == DeserializationError::Ok &&
+                previousDoc.is<JsonObjectConst>()) {
+                snprintf(previousPass,
+                         sizeof(previousPass),
+                         "%s",
+                         previousDoc.as<JsonObjectConst>()["pass"] | "");
+            }
+        }
+        const char* effectivePass = clearPass ? "" : (pass[0] != '\0' ? pass : previousPass);
+
+        JsonDocument patch(psramPreferredJsonAllocator());
         JsonObject root = patch.to<JsonObject>();
-        JsonObject wifi = root.createNestedObject("wifi");
-        wifi["enabled"] = enabled;
-        wifi["ssid"] = ssid;
-        wifi["pass"] = pass;
+        if (applyWifiConfig) {
+            JsonObject wifi = root["wifi"].to<JsonObject>();
+            wifi["enabled"] = enabled;
+            wifi["ssid"] = ssid;
+            wifi["pass"] = effectivePass;
+        }
+        if (hasEthernetConfig) {
+            JsonObject ethernet = root["ethernet"].to<JsonObject>();
+            ethernet["enabled"] = ethEnabled;
+            ethernet["dhcp"] = ethDhcp;
+            ethernet["ip"] = ethIp;
+            ethernet["subnet"] = ethSubnet;
+            ethernet["gateway"] = ethGateway;
+            ethernet["dns1"] = ethDns1;
+            ethernet["dns2"] = ethDns2;
+        }
 
-        char patchJson[320] = {0};
+        char patchJson[768] = {0};
         if (serializeJson(patch, patchJson, sizeof(patchJson)) == 0) {
             request->send(500, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"wifi.config.set\"}}");
@@ -6915,12 +7672,12 @@ void WebInterfaceModule::startServer_()
         }
         Actor actor{};
         resolveRequestActor_(request, actor);
-        emitConfigPatchActivity_("WiFi", patchJson, actor);
+        emitConfigPatchActivity_("Réseau", patchJson, actor);
 
         if (!netAccessSvc_ && services_) {
             netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
         }
-        if (netAccessSvc_ && netAccessSvc_->notifyWifiConfigChanged) {
+        if (applyWifiConfig && netAccessSvc_ && netAccessSvc_->notifyWifiConfigChanged) {
             netAccessSvc_->notifyWifiConfigChanged(netAccessSvc_->ctx);
         }
 
@@ -6930,15 +7687,15 @@ void WebInterfaceModule::startServer_()
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
-        if (flowCfgSvc_ && flowCfgSvc_->applyPatchJson) {
+        if (applyWifiConfig && flowCfgSvc_ && flowCfgSvc_->applyPatchJson) {
             flowSyncAttempted = true;
 
-            StaticJsonDocument<320> flowPatchDoc;
+            JsonDocument flowPatchDoc(psramPreferredJsonAllocator());
             JsonObject flowRoot = flowPatchDoc.to<JsonObject>();
-            JsonObject flowWifi = flowRoot.createNestedObject("wifi");
+            JsonObject flowWifi = flowRoot["wifi"].to<JsonObject>();
             flowWifi["enabled"] = enabled;
             flowWifi["ssid"] = ssid;
-            flowWifi["pass"] = pass;
+            flowWifi["pass"] = effectivePass;
 
             char flowPatchJson[320] = {0};
             const size_t flowPatchLen = serializeJson(flowPatchDoc, flowPatchJson, sizeof(flowPatchJson));
@@ -6964,7 +7721,7 @@ void WebInterfaceModule::startServer_()
         bool flowRebootAttempted = false;
         bool flowRebootOk = false;
         char flowRebootErr[96] = {0};
-        if (wasApProvisioning && flowSyncAttempted && flowSyncOk) {
+        if (applyWifiConfig && wasApProvisioning && flowSyncAttempted && flowSyncOk) {
             flowRebootAttempted = true;
             if (!cmdSvc_ && services_) {
                 cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
@@ -6992,7 +7749,7 @@ void WebInterfaceModule::startServer_()
             LOGW("flow.io reboot request failed err=%s", flowRebootErr[0] ? flowRebootErr : "unknown");
         }
 
-        if (wasApProvisioning) {
+        if (applyWifiConfig && wasApProvisioning) {
             scheduleReboot_(request, 1200U, "prov.done.wifi");
             return;
         }
@@ -7037,7 +7794,7 @@ void WebInterfaceModule::startServer_()
         char host[96] = {0};
         char portStr[12] = {0};
         char user[64] = {0};
-        char pass[64] = {0};
+        char pass[Limits::Mqtt::Buffers::Pass] = {0};
         char baseTopic[48] = {0};
         char topicDeviceId[48] = {0};
         char deviceName[48] = {0};
@@ -7053,32 +7810,38 @@ void WebInterfaceModule::startServer_()
         const bool enabled = parseBoolParam_(enabledStr, false);
         int32_t port = (int32_t)atoi(portStr);
         if (port <= 0 || port > 65535) port = Limits::Mqtt::Defaults::Port;
-        sanitizeJsonString_(host);
-        sanitizeJsonString_(user);
-        sanitizeJsonString_(pass);
-        sanitizeJsonString_(baseTopic);
-        sanitizeJsonString_(topicDeviceId);
-        sanitizeJsonString_(deviceName);
-
-        char patchJson[640] = {0};
-        const int n = snprintf(patchJson,
-                               sizeof(patchJson),
-                               "{\"mqtt\":{\"enabled\":%s,\"host\":\"%s\",\"port\":%ld,"
-                               "\"user\":\"%s\",\"pass\":\"%s\",\"baseTopic\":\"%s\","
-                               "\"topicDeviceId\":\"%s\",\"deviceName\":\"%s\"}}",
-                               enabled ? "true" : "false",
-                               host,
-                               (long)port,
-                               user,
-                               pass,
-                               baseTopic,
-                               topicDeviceId,
-                               deviceName);
-        if (n <= 0 || (size_t)n >= sizeof(patchJson)) {
+        // Reject oversized values instead of silently changing credentials or topics.
+        const struct { const char* name; size_t capacity; } fields[] = {
+            {"host", sizeof(host)}, {"user", sizeof(user)}, {"pass", sizeof(pass)},
+            {"baseTopic", sizeof(baseTopic)}, {"topicDeviceId", sizeof(topicDeviceId)},
+            {"deviceName", sizeof(deviceName)}
+        };
+        for (const auto& field : fields) {
+            if (request->hasParam(field.name, true) &&
+                request->getParam(field.name, true)->value().length() >= field.capacity) {
+                request->send(400, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"ArgsTooLarge\",\"where\":\"mqtt.config.set\"}}");
+                return;
+            }
+        }
+        JsonDocument patchDoc(psramPreferredJsonAllocator());
+        JsonObject mqttPatch = patchDoc["mqtt"].to<JsonObject>();
+        mqttPatch["enabled"] = enabled;
+        mqttPatch["host"] = host;
+        mqttPatch["port"] = port;
+        mqttPatch["user"] = user;
+        // The web form leaves the secret empty when retaining the saved password.
+        if (pass[0] != '\0') mqttPatch["pass"] = pass;
+        mqttPatch["baseTopic"] = baseTopic;
+        mqttPatch["topicDeviceId"] = topicDeviceId;
+        mqttPatch["deviceName"] = deviceName;
+        char patchJson[1536] = {0};
+        if (patchDoc.overflowed() || measureJson(patchDoc) >= sizeof(patchJson)) {
             request->send(400, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"ArgsTooLarge\",\"where\":\"mqtt.config.set\"}}");
             return;
         }
+        serializeJson(patchDoc, patchJson, sizeof(patchJson));
 
         if (!cfgStore_->applyJson(patchJson)) {
             request->send(500, "application/json",
@@ -7389,8 +8152,8 @@ void WebInterfaceModule::startServer_()
         auto* snapshot = new (memory) PoolHistorySnapshot{};
         const bool ready = history->getSnapshot(history->ctx, snapshot);
         auto body = std::make_shared<WebJsonBuffer>(24U * 1024U);
-        SpiRamJsonDocument doc(4096);
-        if (!body->valid() || doc.capacity() < 4096) {
+        JsonDocument doc(psramOnlyJsonAllocator());
+        if (!body->valid() || doc.overflowed()) {
             snapshot->~PoolHistorySnapshot(); heap_caps_free(memory);
             sendTinyBusyJson_(request, "history_memory"); return;
         }
@@ -7447,8 +8210,8 @@ void WebInterfaceModule::startServer_()
             request->send(404, "application/json", "{\"ok\":false,\"err\":{\"code\":\"UnknownValue\"}}"); return;
         }
         auto body = std::make_shared<WebJsonBuffer>(12U * 1024U);
-        SpiRamJsonDocument doc(768);
-        if (!body->valid() || doc.capacity() < 768) { sendTinyBusyJson_(request, "history_memory"); return; }
+        JsonDocument doc(psramOnlyJsonAllocator());
+        if (!body->valid() || doc.overflowed()) { sendTinyBusyJson_(request, "history_memory"); return; }
         body->printf("{\"ok\":true,\"id\":%u,\"mode\":%u,\"type\":%u,\"unit\":%u,\"records\":[", id,
                      (unsigned)meta.aggregation, (unsigned)meta.type, (unsigned)meta.unit);
         bool first = true, overflow = false;
@@ -7485,8 +8248,8 @@ void WebInterfaceModule::startServer_()
                 return;
             }
         }
-        SpiRamJsonDocument doc(768);
-        if (doc.capacity() < 768U) {
+        JsonDocument doc(psramOnlyJsonAllocator());
+        if (doc.overflowed()) {
             request->send(503, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"NoMemory\",\"where\":\"runtime.alarm_options\"}}");
             return;
@@ -7536,8 +8299,8 @@ void WebInterfaceModule::startServer_()
             if (meta.used) devices[count++] = meta;
         }
 
-        SpiRamJsonDocument deviceDoc(4096);
-        if (deviceDoc.capacity() < 4096U) {
+        JsonDocument deviceDoc(psramOnlyJsonAllocator());
+        if (deviceDoc.overflowed()) {
             request->send(503, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"NoMemory\",\"where\":\"runtime.pooldevice_options\"}}");
             return;
@@ -7557,19 +8320,15 @@ void WebInterfaceModule::startServer_()
             const bool stateAvailable = dataStore_ && poolDeviceRuntimeState(*dataStore_, devices[idx].slot, state);
             deviceDoc["controllable"] = stateAvailable && devices[idx].enabled && devices[idx].driverReady &&
                 poolSvc->writesEnabled && poolSvc->writesEnabled(poolSvc->ctx);
-            auto outputs = deviceDoc.createNestedArray("outputs");
+            auto outputs = deviceDoc["outputs"].to<JsonArray>();
             for (uint8_t n = 0; n < devices[idx].outputCount; ++n) outputs.add(devices[idx].outputs[n]);
             deviceDoc["kind"] = uint8_t(devices[idx].capabilities.kind);
             deviceDoc["unit"] = uint8_t(devices[idx].capabilities.unit);
             deviceDoc["minimum"] = devices[idx].capabilities.minimum;
             deviceDoc["maximum"] = devices[idx].capabilities.maximum;
-            auto steps = deviceDoc.createNestedArray("steps");
+            auto steps = deviceDoc["steps"].to<JsonArray>();
             for (uint8_t n = 0; n < devices[idx].capabilities.stepCount; ++n) steps.add(devices[idx].capabilities.steps[n]);
             deviceDoc["setpoint"] = state.desiredSetpoint;
-            deviceDoc["mode"] = devices[idx].guidedTarget.mode;
-            auto modes = deviceDoc.createNestedArray("modes");
-            for (uint8_t n = 0; n < devices[idx].runModes.count; ++n) modes.add(devices[idx].runModes.options[n].label);
-            writePoolTelemetryJson(deviceDoc.as<JsonObject>(), devices[idx].telemetryProfile, state.feedback.telemetry, true);
             deviceDoc["desiredOn"] = state.desiredOn;
             deviceDoc["quality"] = uint8_t(state.feedback.quality);
             deviceDoc["phase"] = uint8_t(state.feedback.phase);
@@ -7587,12 +8346,12 @@ void WebInterfaceModule::startServer_()
             deviceDoc["label"] = label;
             PoolDeviceRuntimeMetricsEntry metrics{};
             if (dataStore_ && poolDeviceRuntimeMetrics(*dataStore_, devices[idx].slot, metrics)) {
-                JsonObject running = deviceDoc.createNestedObject("running");
+                JsonObject running = deviceDoc["running"].to<JsonObject>();
                 running["day_s"] = metrics.runningSecDay;
                 running["week_s"] = metrics.runningSecWeek;
                 running["month_s"] = metrics.runningSecMonth;
                 running["total_s"] = metrics.runningSecTotal;
-                JsonObject injected = deviceDoc.createNestedObject("injected");
+                JsonObject injected = deviceDoc["injected"].to<JsonObject>();
                 injected["day_ml"] = metrics.injectedMlDay;
                 injected["week_ml"] = metrics.injectedMlWeek;
                 injected["month_ml"] = metrics.injectedMlMonth;
@@ -7689,7 +8448,7 @@ void WebInterfaceModule::startServer_()
             char* body = static_cast<char*>(request->_tempObject);
             request->_tempObject = nullptr;
 
-            StaticJsonDocument<kRuntimeValuesJsonDocCapacity> reqDoc;
+            JsonDocument reqDoc(psramPreferredJsonAllocator());
             const DeserializationError reqErr = deserializeJson(reqDoc, body);
             releaseRuntimeValuesBodyScratch_();
             if (reqErr) {
@@ -7947,27 +8706,6 @@ void WebInterfaceModule::startServer_()
         emitConfigPatchActivity_("Config flow.io", patchStr.data, actor);
         request->send(200, "application/json", "{\"ok\":true}");
         return;
-    });
-
-    server_.on("/api/io/counter/reset", HTTP_POST, [this](AsyncWebServerRequest* request) {
-        char idText[16]{};
-        uint32_t id = 0;
-        if (!copyRequestParamValue_(request, "id", true, idText, sizeof(idText)) ||
-            !parseStrictUInt32Param_(idText, id) || id > UINT16_MAX) {
-            request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\"}}");
-            return;
-        }
-        if (!cmdSvc_ && services_) cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
-        if (!cmdSvc_ || !cmdSvc_->execute) {
-            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\"}}");
-            return;
-        }
-        char json[32]{}, reply[196]{};
-        snprintf(json, sizeof(json), "{\"id\":%lu}", (unsigned long)id);
-        Actor actor{};
-        resolveRequestActor_(request, actor);
-        const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "io.counter.reset", json, nullptr, actor, reply, sizeof(reply));
-        request->send(ok ? 200 : 500, "application/json", reply);
     });
 
     server_.on("/api/system/reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {
@@ -8336,9 +9074,6 @@ void WebInterfaceModule::startServer_()
 
     // --- Authentication routes and middleware --------------------------------
 
-    server_.addMiddleware([this](AsyncWebServerRequest* request, ArMiddlewareNext next) {
-        this->authGate_(request, next);
-    });
 
     server_.on("/login", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(200, "text/html",
@@ -8353,66 +9088,66 @@ void WebInterfaceModule::startServer_()
     });
 
     server_.on("/api/auth/login", HTTP_POST, [this](AsyncWebServerRequest* request) {
-        if (!userSvc_ && services_) {
-            userSvc_ = services_->get<UserService>(ServiceId::User);
+        uint32_t retryAfter = 0U;
+        if (webAuthRateLimited_(request, retryAfter)) {
+            auto* response = request->beginResponse(429, "application/json",
+                "{\"ok\":false,\"err\":{\"code\":\"AuthRateLimited\"}}");
+            char seconds[12] = {0};
+            snprintf(seconds, sizeof(seconds), "%lu", (unsigned long)retryAfter);
+            response->addHeader("Retry-After", seconds);
+            request->send(response);
+            return;
         }
+        if (!userSvc_ && services_) userSvc_ = services_->get<UserService>(ServiceId::User);
         char username[40] = {0};
         char password[96] = {0};
         copyRequestParamValue_(request, "username", true, username, sizeof(username), "");
         copyRequestParamValue_(request, "password", true, password, sizeof(password), "");
-        if (!userSvc_ || !userSvc_->authenticate) {
-            request->send(503, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"auth.login\"}}");
-            return;
-        }
         char token[kSessionTokenMax] = {0};
-        char err[32] = {0};
-        if (!userSvc_->authenticate(userSvc_->ctx, username, password, token, sizeof(token), err, sizeof(err))) {
-            char out[192] = {0};
-            snprintf(out, sizeof(out),
-                     "{\"ok\":false,\"err\":{\"code\":\"Unauthorized\",\"where\":\"auth.login\",\"msg\":\"%s\"}}",
-                     err[0] ? err : "invalid_credentials");
-            request->send(401, "application/json", out);
+        char error[40] = {0};
+        if (!userSvc_ || !userSvc_->authenticate ||
+            !userSvc_->authenticate(userSvc_->ctx, username, password, token, sizeof(token),
+                                    error, sizeof(error))) {
+            noteWebAuthFailure_(request);
+            request->send(401, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Unauthorized\"}}");
             return;
         }
-        auto* resp = request->beginResponseStream("application/json");
+        noteWebAuthSuccess_(request);
+        auto* response = request->beginResponseStream("application/json");
         char cookie[320] = {0};
         snprintf(cookie, sizeof(cookie),
                  "%s=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=%lu",
                  kSessionCookieName, token, (unsigned long)kSessionCookieMaxAgeSeconds);
-        resp->addHeader("Set-Cookie", cookie);
-        resp->print("{\"ok\":true}");
-        request->send(resp);
+        response->addHeader("Set-Cookie", cookie);
+        response->print("{\"ok\":true}");
+        request->send(response);
     });
-
     server_.on("/api/auth/logout", HTTP_POST, [](AsyncWebServerRequest* request) {
-        auto* resp = request->beginResponseStream("application/json");
-        char cookie[96] = {0};
-        snprintf(cookie, sizeof(cookie), "%s=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0", kSessionCookieName);
-        resp->addHeader("Set-Cookie", cookie);
-        resp->print("{\"ok\":true}");
-        request->send(resp);
+        auto* response = request->beginResponseStream("application/json");
+        response->addHeader("Set-Cookie",
+            "flowio_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+        response->print("{\"ok\":true}");
+        request->send(response);
     });
-
     server_.on("/api/auth/session", HTTP_GET, [this](AsyncWebServerRequest* request) {
-        if (!userSvc_ && services_) {
-            userSvc_ = services_->get<UserService>(ServiceId::User);
-        }
+        if (!userSvc_ && services_) userSvc_ = services_->get<UserService>(ServiceId::User);
         char token[kSessionTokenMax] = {0};
-        extractSessionCookie_(request, token, sizeof(token));
-        UserRole role = UserRole::None;
         char username[40] = {0};
-        const bool authorized =
-            userSvc_ && userSvc_->sessionInfo &&
+        UserRole role = UserRole::None;
+        extractSessionCookie_(request, token, sizeof(token));
+        const bool ok = userSvc_ && userSvc_->sessionInfo &&
             userSvc_->sessionInfo(userSvc_->ctx, token, &role, username, sizeof(username));
-        if (!authorized) role = UserRole::None;
-        char out[160] = {0};
-        snprintf(out, sizeof(out),
-                 "{\"ok\":true,\"authenticated\":%s,\"role\":\"%s\",\"username\":\"%s\"}",
-                 authorized ? "true" : "false", userRoleName(role), username);
-        request->send(200, "application/json", out);
+        auto* response = request->beginResponseStream("application/json");
+        const bool localOperator = !ok && webCredentialsReady_ && !authenticationRequired_;
+        response->printf("{\"ok\":true,\"authenticated\":%s,\"local_operator\":%s,\"role\":\"%s\",\"username\":",
+                         ok ? "true" : "false",
+                         localOperator ? "true" : "false",
+                         userRoleName(ok ? role : (localOperator ? UserRole::Operator : UserRole::None)));
+        printJsonEscaped_(*response, ok ? username : (localOperator ? "Opérateur local" : ""));
+        response->print("}");
+        request->send(response);
     });
-
     // Refreshes the browser cookie lifetime (sliding window) without re-issuing
     // the token: the token keeps its absolute 24h expiry, so the session can
     // never outlive UserModule::kTokenTtlSeconds even with continuous activity.
@@ -8446,34 +9181,7 @@ void WebInterfaceModule::startServer_()
         request->send(resp);
     });
 
-    server_.on("/api/auth/initial", HTTP_GET, [this](AsyncWebServerRequest* request) {
-        if (!userSvc_ && services_) {
-            userSvc_ = services_->get<UserService>(ServiceId::User);
-        }
-        NetworkAccessMode mode = NetworkAccessMode::None;
-        if (netAccessSvc_ && netAccessSvc_->mode) {
-            mode = netAccessSvc_->mode(netAccessSvc_->ctx);
-        }
-        if (mode != NetworkAccessMode::AccessPoint) {
-            request->send(404, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"auth.initial\"}}");
-            return;
-        }
-        char username[40] = {0};
-        char password[40] = {0};
-        if (!userSvc_ || !userSvc_->getInitialCredentials ||
-            !userSvc_->getInitialCredentials(userSvc_->ctx, username, sizeof(username), password, sizeof(password))) {
-            request->send(404, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"auth.initial\"}}");
-            return;
-        }
-        char out[128] = {0};
-        snprintf(out, sizeof(out), "{\"ok\":true,\"username\":\"%s\",\"password\":\"%s\"}",
-                 username, password);
-        request->send(200, "application/json", out);
-    });
-
-    server_.on("/api/auth/users", HTTP_GET, [this](AsyncWebServerRequest* request) {
+    server_.on(AsyncURIMatcher::exact("/api/auth/users"), HTTP_GET, [this](AsyncWebServerRequest* request) {
         if (!userSvc_ && services_) {
             userSvc_ = services_->get<UserService>(ServiceId::User);
         }
@@ -8493,7 +9201,7 @@ void WebInterfaceModule::startServer_()
         }
     });
 
-    server_.on("/api/auth/users", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    server_.on(AsyncURIMatcher::exact("/api/auth/users"), HTTP_POST, [this](AsyncWebServerRequest* request) {
         if (!userSvc_ && services_) {
             userSvc_ = services_->get<UserService>(ServiceId::User);
         }
@@ -8529,7 +9237,7 @@ void WebInterfaceModule::startServer_()
         request->send(200, "application/json", "{\"ok\":true}");
     });
 
-    server_.on("/api/auth/users/delete", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    server_.on(AsyncURIMatcher::exact("/api/auth/users/delete"), HTTP_POST, [this](AsyncWebServerRequest* request) {
         if (!userSvc_ && services_) {
             userSvc_ = services_->get<UserService>(ServiceId::User);
         }
@@ -8592,6 +9300,10 @@ void WebInterfaceModule::startServer_()
 
         server_.addHandler(&wsLog_);
         wsLog_.addMiddleware([this](AsyncWebServerRequest* request, ArMiddlewareNext next) {
+            if (!requestOriginAllowed_(request, true)) {
+                request->send(403, "application/json", "{\"ok\":false,\"err\":{\"code\":\"OriginRejected\"}}");
+                return;
+            }
             this->authGate_(request, next);
         });
         if (!bridgeUartEnabled_) {
@@ -8656,55 +9368,38 @@ void WebInterfaceModule::startServer_()
 void WebInterfaceModule::authGate_(AsyncWebServerRequest* request, ArMiddlewareNext next)
 {
     if (!request) return;
-    if (!userSvc_ && services_) {
-        userSvc_ = services_->get<UserService>(ServiceId::User);
-    }
-
-    const char* url = request->url().c_str();
-
-    // During AccessPoint (provisioning) mode the device is behind a WPA2-local
-    // AP and acts as a trusted setup console: skip the auth gate entirely so
-    // first-boot provisioning is never blocked.
-    if (netAccessSvc_ && netAccessSvc_->mode &&
-        netAccessSvc_->mode(netAccessSvc_->ctx) == NetworkAccessMode::AccessPoint) {
+    if (allowUnauthenticatedRequest_(request) ||
+        isPublicSessionPath_(request, request->url().c_str()) ||
+        pathStartsWith_(request->url().c_str(), "/api/auth/")) {
         next();
         return;
     }
-
-    if (isPublicAuthPath_(request, url)) {
-        next();
-        return;
-    }
-
+    if (!userSvc_ && services_) userSvc_ = services_->get<UserService>(ServiceId::User);
     char token[kSessionTokenMax] = {0};
     extractSessionCookie_(request, token, sizeof(token));
-
     UserRole role = UserRole::None;
-    const bool authorized =
-        userSvc_ && userSvc_->authorize &&
+    const bool authorized = userSvc_ && userSvc_->authorize &&
         userSvc_->authorize(userSvc_->ctx, token, &role);
-
-    if (!authorized) {
-        const bool wantsPage = request->method() == HTTP_GET &&
-                               !pathStartsWith_(url, "/api/") &&
-                               !pathStartsWith_(url, "/webserial") &&
-                               !pathStartsWith_(url, "/fwupdate");
-        if (wantsPage) {
-            request->redirect("/login");
-        } else {
-            request->send(401, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Unauthorized\",\"where\":\"auth\"}}");
-        }
+    if (!authorized && (!webCredentialsReady_ || authenticationRequired_)) {
+        const char* url = request->url().c_str();
+        const bool page = request->method() == HTTP_GET &&
+            !pathStartsWith_(url, "/api/") && !pathStartsWith_(url, "/ws");
+        if (page) request->redirect("/login");
+        else request->send(401, "application/json",
+                           "{\"ok\":false,\"err\":{\"code\":\"Unauthorized\",\"where\":\"auth\"}}");
         return;
     }
-
-    if (requiresAdmin_(request, url) &&
+    if (!authorized) role = UserRole::Operator;
+    if (sessionRequiresAdmin_(request, request->url().c_str()) &&
         !roleHasPermission(role, UserPermission::UpdateSystem)) {
-        request->send(403, "application/json",
-                      "{\"ok\":false,\"err\":{\"code\":\"Forbidden\",\"where\":\"auth\"}}");
+        const char* url = request->url().c_str();
+        const bool page = request->method() == HTTP_GET &&
+            !pathStartsWith_(url, "/api/") && !pathStartsWith_(url, "/ws");
+        if (page) request->redirect("/login");
+        else request->send(403, "application/json",
+                           "{\"ok\":false,\"err\":{\"code\":\"Forbidden\",\"where\":\"auth\"}}");
         return;
     }
-
     next();
 }
 
@@ -8756,6 +9451,184 @@ void WebInterfaceModule::handleUpdateRequest_(AsyncWebServerRequest* request, Fi
                   (n > 0 && (size_t)n < sizeof(out))
                       ? out
                       : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fwupdate.start.response\"}}");
+}
+
+void WebInterfaceModule::ensureCsrfToken_()
+{
+    if (csrfToken_[0] != '\0') return;
+    const uint32_t r0 = esp_random();
+    const uint32_t r1 = esp_random();
+    const uint32_t r2 = esp_random();
+    const uint32_t r3 = esp_random();
+    snprintf(csrfToken_,
+             sizeof(csrfToken_),
+             "%08lx%08lx%08lx%08lx",
+             (unsigned long)r0,
+             (unsigned long)r1,
+             (unsigned long)r2,
+             (unsigned long)r3);
+}
+
+bool WebInterfaceModule::requestOriginAllowed_(AsyncWebServerRequest* request,
+                                               bool originRequired) const
+{
+    if (!request) return false;
+    if (!request->hasHeader("Origin")) return !originRequired;
+
+    const String& origin = request->header("Origin");
+    const String& host = request->host();
+    if (origin.length() == 0U || host.length() == 0U ||
+        origin.equalsIgnoreCase("null")) {
+        return false;
+    }
+
+    const String httpOrigin = String("http://") + host;
+    const String httpsOrigin = String("https://") + host;
+    return origin.equalsIgnoreCase(httpOrigin) ||
+           origin.equalsIgnoreCase(httpsOrigin);
+}
+
+bool WebInterfaceModule::csrfRequestAllowed_(AsyncWebServerRequest* request) const
+{
+    if (!request) return false;
+    if (request->url() == "/api/auth/login") return true;
+    const bool tokenPresent = request->hasHeader("X-Flow-CSRF");
+    const String suppliedToken = tokenPresent ? request->header("X-Flow-CSRF") : String();
+    const Security::CsrfRequestFacts facts{
+        isMutatingRequest_(request),
+        requestOriginAllowed_(request, false),
+        request->hasHeader("Sec-Fetch-Site") &&
+            request->header("Sec-Fetch-Site").equalsIgnoreCase("cross-site"),
+        tokenPresent
+    };
+    return Security::csrfRequestAllowed(facts,
+                                        csrfToken_,
+                                        suppliedToken.c_str(),
+                                        suppliedToken.length());
+}
+
+bool WebInterfaceModule::webRequestAuthorized_(AsyncWebServerRequest* request) const
+{
+    if (!request || !userSvc_ || !userSvc_->authorize) return false;
+    char token[kSessionTokenMax]{};
+    UserRole role = UserRole::None;
+    return extractSessionCookie_(request, token, sizeof(token)) &&
+        userSvc_->authorize(userSvc_->ctx, token, &role) && role == UserRole::Admin;
+}
+
+bool WebInterfaceModule::webAuthRateLimited_(AsyncWebServerRequest* request,
+                                             uint32_t& retryAfterSeconds)
+{
+    retryAfterSeconds = 0U;
+    if (!request || !request->client()) return false;
+    const uint32_t ip = (uint32_t)request->client()->remoteIP();
+    const uint32_t now = millis();
+    portENTER_CRITICAL(&webAuthThrottleMux_);
+    const Security::WebAuthLimitResult result =
+        Security::checkWebAuthLimit(webAuthThrottleState_, ip, now);
+    portEXIT_CRITICAL(&webAuthThrottleMux_);
+    retryAfterSeconds = result.retryAfterSeconds;
+    return result.limited;
+}
+
+void WebInterfaceModule::noteWebAuthFailure_(AsyncWebServerRequest* request)
+{
+    if (!request || !request->client()) return;
+    const IPAddress remote = request->client()->remoteIP();
+    const uint32_t ip = (uint32_t)remote;
+    const uint32_t now = millis();
+    portENTER_CRITICAL(&webAuthThrottleMux_);
+    const Security::WebAuthFailureResult result =
+        Security::noteWebAuthFailure(webAuthThrottleState_, ip, now);
+    portEXIT_CRITICAL(&webAuthThrottleMux_);
+
+    LOGW("Web auth failed ip=%s failures=%u blocked=%u global_blocked=%u",
+         remote.toString().c_str(),
+         (unsigned)result.sourceFailures,
+         result.sourceNewlyBlocked ? 1U : 0U,
+         result.globalNewlyBlocked ? 1U : 0U);
+}
+
+void WebInterfaceModule::noteWebAuthSuccess_(AsyncWebServerRequest* request)
+{
+    if (!request || !request->client()) return;
+    const uint32_t ip = (uint32_t)request->client()->remoteIP();
+    portENTER_CRITICAL(&webAuthThrottleMux_);
+    Security::noteWebAuthSuccess(webAuthThrottleState_, ip);
+    portEXIT_CRITICAL(&webAuthThrottleMux_);
+}
+
+bool WebInterfaceModule::physicalRecoveryAllowedForRequest_(AsyncWebServerRequest* request,
+                                                             bool allowClaim)
+{
+    if (!physicalRecoveryActive_() || !request || !request->client()) return false;
+    const uint32_t remoteIp = (uint32_t)request->client()->remoteIP();
+    if (remoteIp == 0U) return false;
+
+    if (physicalRecoveryClientIp_ == 0U && allowClaim && request->method() == HTTP_GET) {
+        const String& path = request->url();
+        const bool claimRoute =
+            path == "/" ||
+            path == "/rescue" ||
+            path == "/webinterface/rescue" ||
+            path == "/api/recovery/status";
+        if (claimRoute) {
+            physicalRecoveryClientIp_ = remoteIp;
+            LOGW("Web physical recovery claimed by client_ip=0x%08lx",
+                 (unsigned long)remoteIp);
+        }
+    }
+    return physicalRecoveryClientIp_ != 0U &&
+           physicalRecoveryClientIp_ == remoteIp;
+}
+
+bool WebInterfaceModule::allowUnauthenticatedRequest_(AsyncWebServerRequest* request)
+{
+    if (!request) return false;
+    Security::WebRouteMethod method = Security::WebRouteMethod::Other;
+    if (request->method() == HTTP_GET) method = Security::WebRouteMethod::Get;
+    else if (request->method() == HTTP_POST) method = Security::WebRouteMethod::Post;
+    return Security::unauthenticatedWebRouteAllowed(
+        webCredentialsReady_,
+        physicalRecoveryAllowedForRequest_(request, true),
+        provisioningOnly_,
+        method,
+        request->url().c_str());
+}
+
+void WebInterfaceModule::noteInvalidOtaSignature_()
+{
+    const uint32_t now = millis();
+    portENTER_CRITICAL(&otaSignatureFailureMux_);
+    const bool thresholdReached =
+        Security::recordFailure(otaSignatureFailureState_,
+                                now,
+                                kOtaSignatureFailureThreshold,
+                                kOtaSignatureFailureWindowMs);
+    const uint8_t failures = otaSignatureFailureState_.failures;
+    portEXIT_CRITICAL(&otaSignatureFailureMux_);
+    LOGW("Invalid OTA signature failures=%u threshold_reached=%u",
+         (unsigned)failures,
+         thresholdReached ? 1U : 0U);
+}
+
+AlarmCondState WebInterfaceModule::condOtaSignatureFailuresStatic_(void* ctx, uint32_t nowMs)
+{
+    return ctx
+        ? static_cast<WebInterfaceModule*>(ctx)->condOtaSignatureFailures_(nowMs)
+        : AlarmCondState::Unknown;
+}
+
+AlarmCondState WebInterfaceModule::condOtaSignatureFailures_(uint32_t nowMs) const
+{
+    portENTER_CRITICAL(&otaSignatureFailureMux_);
+    const bool active =
+        Security::failureAlarmCondition(otaSignatureFailureState_,
+                                        nowMs,
+                                        kOtaSignatureFailureThreshold,
+                                        kOtaSignatureFailureHoldMs);
+    portEXIT_CRITICAL(&otaSignatureFailureMux_);
+    return active ? AlarmCondState::True : AlarmCondState::False;
 }
 
 bool WebInterfaceModule::isWebReachable_() const

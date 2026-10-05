@@ -40,13 +40,27 @@ class MqttQueueTests(unittest.TestCase):
             cpp = Path(tmp) / 'mqtt_queue.cpp'
             cpp.write_text(code)
             binary = Path(tmp) / 'test'
-            for command in (['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                             '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
-                             '-Isrc', str(cpp), '-o', str(binary)], [str(binary)]):
-                result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                if result.stdout:
-                    print(result.stdout, end='')
+            base = ['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                    '-Isrc', str(cpp), '-o', str(binary)]
+            sanitized = subprocess.run(
+                base[:1] + ['-fsanitize=address,undefined', '-fno-omit-frame-pointer'] + base[1:],
+                cwd=ROOT, capture_output=True, text=True)
+            if sanitized.returncode == 0:
+                compile_result = sanitized
+                test_result = subprocess.run([str(binary)], cwd=ROOT, capture_output=True, text=True)
+            elif 'cannot find -lasan' in sanitized.stderr or 'cannot find -lubsan' in sanitized.stderr:
+                # Some Windows GCC distributions omit sanitizer runtimes; keep
+                # the deterministic logic test available there without them.
+                compile_result = subprocess.run(base, cwd=ROOT, capture_output=True, text=True)
+                test_result = (subprocess.run([str(binary)], cwd=ROOT, capture_output=True, text=True)
+                               if compile_result.returncode == 0 else compile_result)
+            else:
+                compile_result = sanitized
+                test_result = sanitized
+            self.assertEqual(compile_result.returncode, 0, compile_result.stdout + compile_result.stderr)
+            self.assertEqual(test_result.returncode, 0, test_result.stdout + test_result.stderr)
+            if test_result.stdout:
+                print(test_result.stdout, end='')
 
 
 if __name__ == '__main__':

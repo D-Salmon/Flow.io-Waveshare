@@ -123,7 +123,7 @@ private:
         bool conditionKnown = false;
         uint16_t cardBg = 0U;
         uint16_t alarmId = 0U;
-        char label[24]{};
+        char label[64]{};
     };
 
     static St7789DisplaySpec displaySpecFromBoard_(const BoardSpec& board);
@@ -215,7 +215,7 @@ private:
     struct AlarmSlotConfig {
         bool enabled = true;
         uint16_t alarmId = 0U;
-        char label[24]{};
+        char label[64]{};
         uint8_t colorId = 0U;
     };
 

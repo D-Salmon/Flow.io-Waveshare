@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');const vm=require('node:vm');const path=require('node:path');
+const source=fs.readFileSync(path.resolve(__dirname,'../../data/webinterface/app.js'),'utf8');
+const slice=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
+const ctx={tr:(_,fallback)=>fallback};vm.createContext(ctx);
+vm.runInContext(slice('    function ioSummaryText(', '    function ioSummarySlotLabel(')+slice('    function poolConfigDisinfectionLabel(', '    function poolConfigBoolLabel(')+slice('    function mergeIoTopologyAndRuntime(', '    async function fetchIoTopology('),ctx);
+assert.equal(ctx.ioSummaryRelayLabel({binding_port:305}),'CH6');
+assert.equal(ctx.ioSummaryRelayLabel({binding_port:301}),'CH2');
+assert.equal(ctx.ioSummaryRelayLabel({binding_port:0}),'Non affecté');
+for(const [mode,label] of [[0,'Chlore / Brome'],[1,'Électrolyse'],[2,'Oxygène actif'],[3,'Désactivé'],[null,'Désinfection']]) assert.equal(ctx.ioSummaryDomainLabel({domain_slot_id:16,display_name:'Chlorine Pump'},mode),label);
+const result=ctx.mergeIoTopologyAndRuntime({domain_slots:[{domain_slot_id:16,io_slot:'digital_out',io_slot_index:2}],io_slots:[{domain_slot_id:16,binding_port:302}]},{io_slots:[{domain_slot_id:16,binding_port:305}],domain_slots:[{domain_slot_id:16}]});
+assert.equal(result.domain_slots[0].binding_port,305);
+assert.equal(result.io_slots[0].binding_port,305);
+assert.equal(result.domain_slots[0].io_slot_index,2);
+console.log('Disinfection name follows all modes; physical CH6 is independent of logical output 2; live binding refreshes both IO tables.');
+
+const actual=ctx.mergeIoTopologyAndRuntime({domain_slots:[{domain_slot_id:16}],io_slots:[{domain_slot_id:16,io_id:2}]},{binding_ports:[{port_id:305,io_id:2}],io_slots:[{domain_slot_id:16,binding_port:0}],domain_slots:[{domain_slot_id:16}]});
+assert.equal(actual.domain_slots[0].binding_port,305);
+assert.equal(actual.io_slots[0].binding_port,305);
+console.log('Physical port snapshot supplies CH6 even when actuator metadata omits its binding.');

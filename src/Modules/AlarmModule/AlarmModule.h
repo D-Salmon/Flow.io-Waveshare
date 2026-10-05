@@ -76,6 +76,7 @@ private:
     uint8_t resetAll_();
     uint8_t resetAllWithActor_(const Actor& actor);
     bool isActive_(AlarmId id) const;
+    bool isEnabled_() const { return enabled_; }
     bool isResettable_(AlarmId id) const;
     uint8_t activeCount_() const;
     AlarmSeverity highestSeverity_() const;
@@ -113,7 +114,8 @@ private:
         ServiceBinding::bind<&AlarmModule::buildAlarmState_>,
         ServiceBinding::bind<&AlarmModule::buildPacked_>,
         this,
-        ServiceBinding::bind<&AlarmModule::readState_>
+        ServiceBinding::bind<&AlarmModule::readState_>,
+        ServiceBinding::bind<&AlarmModule::isEnabled_>
     };
 
     const LogHubService* logHub_ = nullptr;

@@ -6,7 +6,7 @@
     "cfgdocs.wifi.pass.label": "Mot de passe réseau",
     "cfgdocs.wifi.ssid.help": "Nom du réseau auquel se connecter.",
     "cfgdocs.wifi.ssid.label": "SSID",
-    "cfgmods.network.label": "network",
+    "cfgmods.network.label": "réseau",
     "cfgmods.network.ethernet.label": "ethernet",
     "cfgmods.network.wifi.label": "réseau",
     "runtimeui.wifi.v01.display.activeText": "Connecte",

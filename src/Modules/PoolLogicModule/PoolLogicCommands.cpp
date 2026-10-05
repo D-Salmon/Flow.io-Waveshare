@@ -1,3 +1,4 @@
+#include "Domain/Pool/ManualDosingMode.h"
 /**
  * @file PoolLogicCommands.cpp
  * @brief Command handlers for PoolLogicModule.
@@ -10,7 +11,7 @@
 #include "Core/ErrorCodes.h"
 #include "Core/SystemLimits.h"
 
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <cstdlib>
 #include <cstring>
 #include <stdio.h>
@@ -23,7 +24,7 @@ namespace {
 // "args" object. This helper accepts both shapes to preserve compatibility.
 static bool parseCmdArgsObject_(const CommandRequest& req, JsonDocument& doc, JsonObjectConst& outObj)
 {
-    if (doc.capacity() == 0U) return false;
+    if (doc.overflowed()) return false;
 
     doc.clear();
     const char* json = req.args ? req.args : req.json;
@@ -135,13 +136,13 @@ bool PoolLogicModule::cmdDeviceWrite_(const CommandRequest& req, char* reply, si
         writeCmdError_(reply, replyLen, "poollogic.device.write", ErrorCode::NotReady);
         return false;
     }
-    SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         writeCmdError_(reply, replyLen, "poollogic.device.write", ErrorCode::MissingArgs);
         return false;
     }
-    if (!args.containsKey("slot")) {
+    if (args["slot"].isUnbound()) {
         writeCmdError_(reply, replyLen, "poollogic.device.write", ErrorCode::MissingSlot);
         return false;
     }
@@ -163,13 +164,13 @@ bool PoolLogicModule::cmdFiltrationWrite_(const CommandRequest& req, char* reply
         return false;
     }
 
-    SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         writeCmdError_(reply, replyLen, "poollogic.filtration.write", ErrorCode::MissingArgs);
         return false;
     }
-    if (!args.containsKey("value")) {
+    if (args["value"].isUnbound()) {
         writeCmdError_(reply, replyLen, "poollogic.filtration.write", ErrorCode::MissingValue);
         return false;
     }
@@ -234,13 +235,13 @@ bool PoolLogicModule::cmdAutoModeSet_(const CommandRequest& req, char* reply, si
         return false;
     }
 
-    SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         writeCmdError_(reply, replyLen, "poollogic.auto_mode.set", ErrorCode::MissingArgs);
         return false;
     }
-    if (!args.containsKey("value")) {
+    if (args["value"].isUnbound()) {
         writeCmdError_(reply, replyLen, "poollogic.auto_mode.set", ErrorCode::MissingValue);
         return false;
     }
@@ -251,8 +252,7 @@ bool PoolLogicModule::cmdAutoModeSet_(const CommandRequest& req, char* reply, si
         return false;
     }
 
-    (void)cfgStore_->set(autoModeVar_, requested);
-    autoMode_ = requested;
+    applyAutoMode_(requested);
 
     snprintf(reply, replyLen, "{\"ok\":true,\"value\":%s}", requested ? "true" : "false");
     return true;
@@ -271,13 +271,13 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
             return false;
         }
 
-        SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+        JsonDocument argsDoc(psramOnlyJsonAllocator());
         JsonObjectConst args;
         if (!parseCmdArgsObject_(req, argsDoc, args)) {
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingArgs);
             return false;
         }
-        if (!args.containsKey("value")) {
+        if (args["value"].isUnbound()) {
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingValue);
             return false;
         }
@@ -313,7 +313,7 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
                                 uint8_t slot,
                                 bool requested,
                                 bool forceManualAutoMode,
-                                const char* clearDosingModeKey) -> bool {
+                                ManualDosingTarget dosingTarget) -> bool {
         if (!poolSvc_ || !poolSvc_->setManualRunning) {
             writeCmdError_(reply, replyLen, where, ErrorCode::NotReady);
             return false;
@@ -348,43 +348,22 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
 
         // Keep behavior aligned with pooldevice.write: manual pump start disables
         // the corresponding automatic dosing only after the hardware write is accepted.
-        if (requested && clearDosingModeKey && cfgStore_) {
-            const bool disabledPhAutoMode = (strcmp(clearDosingModeKey, "ph_auto_mode") == 0) && phAutoMode_;
-            const bool disabledOrpAutoMode = (strcmp(clearDosingModeKey, "dis_auto_mode") == 0) && orpAutoMode_;
-            const bool disabledDisinfection = (strcmp(clearDosingModeKey, "disinfection_type") == 0) &&
-                                              (disinfectionType_ != DisinfectionDisabled);
-            char patch[96]{};
-            if (strcmp(clearDosingModeKey, "disinfection_type") == 0) {
-                snprintf(patch, sizeof(patch), "{\"poollogic/modes\":{\"disinfection_type\":%u}}", (unsigned)DisinfectionDisabled);
-            } else if (strcmp(clearDosingModeKey, "ph_auto_mode") == 0) {
-                snprintf(patch, sizeof(patch), "{\"poollogic/ph\":{\"ph_auto_mode\":false}}");
-            } else if (strcmp(clearDosingModeKey, "dis_auto_mode") == 0) {
-                snprintf(patch, sizeof(patch), "{\"poollogic/chlorine\":{\"dis_auto_mode\":false}}");
-            } else {
-                snprintf(patch, sizeof(patch), "{\"poollogic/modes\":{\"%s\":false}}", clearDosingModeKey);
-            }
-            if (cfgStore_->applyJson(patch)) {
-                if (strcmp(clearDosingModeKey, "ph_auto_mode") == 0) phAutoMode_ = false;
-                else if (strcmp(clearDosingModeKey, "dis_auto_mode") == 0) orpAutoMode_ = false;
-                else if (strcmp(clearDosingModeKey, "disinfection_type") == 0) {
-                    disinfectionType_ = DisinfectionDisabled;
-                    const PoolDeviceSvcStatus rest = poolSvc_->setManualRunning(poolSvc_->ctx, slot, 1U);
-                    if (rest != POOLDEV_SVC_OK) {
-                        writeCmdError_(reply, replyLen, where, ErrorCode::Failed);
-                        return false;
-                    }
+        if (requested && dosingTarget != ManualDosingTarget::None && cfgStore_) {
+            const auto mode = manualDosingMode(dosingTarget, static_cast<PoolDisinfectionMethod>(disinfectionType_));
+            const bool wasAutomatic = dosingTarget == ManualDosingTarget::Ph ? phAutoMode_ : disinfectionAutoMode_();
+            if (mode.key) {
+                char patch[128]{};
+                snprintf(patch, sizeof(patch), "{\"%s\":{\"%s\":false}}", mode.module, mode.key);
+                if (!cfgStore_->applyJson(patch)) {
+                    writeCmdError_(reply, replyLen, where, ErrorCode::Failed);
+                    return false;
                 }
-                if (disabledPhAutoMode) {
-                    emitAutoModeDisabledByManualActivity_(ActivityRole::Ph,
-                                                          slot,
-                                                          "pH",
-                                                          req.actor);
-                } else if (disabledOrpAutoMode || disabledDisinfection) {
-                    emitAutoModeDisabledByManualActivity_(ActivityRole::Disinfection,
-                                                          slot,
-                                                          "ORP",
-                                                          req.actor);
-                }
+                if (dosingTarget == ManualDosingTarget::Ph) phAutoMode_ = false;
+                else if (disinfectionType_ == DisinfectionChlorineBromine) orpAutoMode_ = false;
+                else treatmentAutoMode_ = false;
+                if (wasAutomatic) emitAutoModeDisabledByManualActivity_(
+                    dosingTarget == ManualDosingTarget::Ph ? ActivityRole::Ph : ActivityRole::Disinfection,
+                    slot, dosingTarget == ManualDosingTarget::Ph ? "pH" : "Désinfection", req.actor);
             }
         }
 
@@ -407,14 +386,14 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
     auto writeDeviceFromArgs = [&](const char* where,
                                    uint8_t slot,
                                    bool forceManualAutoMode,
-                                   const char* clearDosingModeKey) -> bool {
-        SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+                                   ManualDosingTarget dosingTarget) -> bool {
+        JsonDocument argsDoc(psramOnlyJsonAllocator());
         JsonObjectConst args;
         if (!parseCmdArgsObject_(req, argsDoc, args)) {
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingArgs);
             return false;
         }
-        if (!args.containsKey("value")) {
+        if (args["value"].isUnbound()) {
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingValue);
             return false;
         }
@@ -423,19 +402,19 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingValue);
             return false;
         }
-        return writeDeviceValue(where, slot, requested, forceManualAutoMode, clearDosingModeKey);
+        return writeDeviceValue(where, slot, requested, forceManualAutoMode, dosingTarget);
     };
 
     auto toggleDeviceValue = [&](const char* where,
                                  uint8_t slot,
                                  bool forceManualAutoMode,
-                                 const char* clearDosingModeKey) -> bool {
+                                 ManualDosingTarget dosingTarget) -> bool {
         bool current = false;
         if (!readDeviceActualOn_(slot, current)) {
             writeCmdError_(reply, replyLen, where, ErrorCode::NotReady);
             return false;
         }
-        return writeDeviceValue(where, slot, !current, forceManualAutoMode, clearDosingModeKey);
+        return writeDeviceValue(where, slot, !current, forceManualAutoMode, dosingTarget);
     };
 
     auto applyRobotManualValue = [&](const char* where, bool requested) -> bool {
@@ -510,13 +489,13 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
     };
 
     auto applyRobotManualFromArgs = [&](const char* where) -> bool {
-        SpiRamJsonDocument argsDoc(Limits::JsonCmdPoolDeviceBuf);
+        JsonDocument argsDoc(psramOnlyJsonAllocator());
         JsonObjectConst args;
         if (!parseCmdArgsObject_(req, argsDoc, args)) {
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingArgs);
             return false;
         }
-        if (!args.containsKey("value")) {
+        if (args["value"].isUnbound()) {
             writeCmdError_(reply, replyLen, where, ErrorCode::MissingValue);
             return false;
         }
@@ -538,7 +517,14 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
     };
 
     if (strcmp(cmdName, "poollogic.auto_mode.toggle") == 0) {
-        return toggleModeValue("poollogic.auto_mode.toggle", autoModeVar_, autoMode_);
+        if (!cfgStore_) {
+            writeCmdError_(reply, replyLen, cmdName, ErrorCode::NotReady);
+            return false;
+        }
+        const bool requested = !autoMode_;
+        applyAutoMode_(requested);
+        snprintf(reply, replyLen, "{\"ok\":true,\"value\":%s}", requested ? "true" : "false");
+        return true;
     }
     if (strcmp(cmdName, "poollogic.ph_auto_mode.set") == 0) {
         return setModeValue("poollogic.ph_auto_mode.set", phAutoModeVar_, phAutoMode_);
@@ -546,11 +532,23 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
     if (strcmp(cmdName, "poollogic.ph_auto_mode.toggle") == 0) {
         return toggleModeValue("poollogic.ph_auto_mode.toggle", phAutoModeVar_, phAutoMode_);
     }
-    if (strcmp(cmdName, "poollogic.orp_auto_mode.set") == 0 || strcmp(cmdName, "poollogic.dis_auto_mode.set") == 0) {
-        return setModeValue("poollogic.dis_auto_mode.set", orpAutoModeVar_, orpAutoMode_);
+    if (strcmp(cmdName, "poollogic.orp_auto_mode.set") == 0) {
+        return setModeValue(cmdName, orpAutoModeVar_, orpAutoMode_);
     }
-    if (strcmp(cmdName, "poollogic.orp_auto_mode.toggle") == 0 || strcmp(cmdName, "poollogic.dis_auto_mode.toggle") == 0) {
-        return toggleModeValue("poollogic.dis_auto_mode.toggle", orpAutoModeVar_, orpAutoMode_);
+    if (strcmp(cmdName, "poollogic.orp_auto_mode.toggle") == 0) {
+        return toggleModeValue(cmdName, orpAutoModeVar_, orpAutoMode_);
+    }
+    if (strcmp(cmdName, "poollogic.dis_auto_mode.set") == 0 || strcmp(cmdName, "poollogic.dis_auto_mode.toggle") == 0) {
+        if (disinfectionType_ == DisinfectionDisabled) {
+            snprintf(reply, replyLen, "{\"ok\":false,\"err\":{\"code\":\"DisinfectionDisabled\",\"msg\":\"Choisissez un traitement de désinfection.\"}}");
+            return false;
+        }
+        ConfigVariable<bool, 0>& variable = disinfectionType_ == DisinfectionChlorineBromine
+            ? orpAutoModeVar_ : treatmentAutoModeVar_;
+        if (strcmp(cmdName, "poollogic.dis_auto_mode.set") == 0) {
+            return setModeValue(cmdName, variable, *variable.value);
+        }
+        return toggleModeValue(cmdName, variable, *variable.value);
     }
     if (strcmp(cmdName, "poollogic.heater_auto_mode.set") == 0) {
         return setModeValue("poollogic.heater_auto_mode.set", heaterAutoModeVar_, heaterAutoMode_);
@@ -565,25 +563,25 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
         return toggleModeValue("poollogic.winter_mode.toggle", winterModeVar_, winterMode_);
     }
     if (strcmp(cmdName, "poollogic.filtration.toggle") == 0) {
-        return toggleDeviceValue("poollogic.filtration.toggle", filtrationDeviceSlot_, true, nullptr);
+        return toggleDeviceValue("poollogic.filtration.toggle", filtrationDeviceSlot_, true, ManualDosingTarget::None);
     }
     if (strcmp(cmdName, "poollogic.ph_pump.write") == 0) {
-        return writeDeviceFromArgs("poollogic.ph_pump.write", phPumpDeviceSlot_, false, "ph_auto_mode");
+        return writeDeviceFromArgs("poollogic.ph_pump.write", phPumpDeviceSlot_, false, ManualDosingTarget::Ph);
     }
     if (strcmp(cmdName, "poollogic.ph_pump.toggle") == 0) {
-        return toggleDeviceValue("poollogic.ph_pump.toggle", phPumpDeviceSlot_, false, "ph_auto_mode");
+        return toggleDeviceValue("poollogic.ph_pump.toggle", phPumpDeviceSlot_, false, ManualDosingTarget::Ph);
     }
     if (strcmp(cmdName, "poollogic.orp_pump.write") == 0 || strcmp(cmdName, "poollogic.dis_pump.write") == 0) {
-        return writeDeviceFromArgs("poollogic.dis_pump.write", orpPumpDeviceSlot_, false, "disinfection_type");
+        return writeDeviceFromArgs("poollogic.dis_pump.write", orpPumpDeviceSlot_, false, ManualDosingTarget::Disinfection);
     }
     if (strcmp(cmdName, "poollogic.orp_pump.toggle") == 0 || strcmp(cmdName, "poollogic.dis_pump.toggle") == 0) {
-        return toggleDeviceValue("poollogic.dis_pump.toggle", orpPumpDeviceSlot_, false, "disinfection_type");
+        return toggleDeviceValue("poollogic.dis_pump.toggle", orpPumpDeviceSlot_, false, ManualDosingTarget::Disinfection);
     }
     if (strcmp(cmdName, "poollogic.light.write") == 0 || strcmp(cmdName, "poollogic.lights.write") == 0) {
-        return writeDeviceFromArgs("poollogic.lights.write", PoolIds::DeviceLights, false, nullptr);
+        return writeDeviceFromArgs("poollogic.lights.write", PoolIds::DeviceLights, false, ManualDosingTarget::None);
     }
     if (strcmp(cmdName, "poollogic.light.toggle") == 0 || strcmp(cmdName, "poollogic.lights.toggle") == 0) {
-        return toggleDeviceValue("poollogic.lights.toggle", PoolIds::DeviceLights, false, nullptr);
+        return toggleDeviceValue("poollogic.lights.toggle", PoolIds::DeviceLights, false, ManualDosingTarget::None);
     }
     if (strcmp(cmdName, "poollogic.robot.write") == 0) {
         return applyRobotManualFromArgs("poollogic.robot.write");
@@ -592,16 +590,16 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
         return toggleRobotManualValue("poollogic.robot.toggle");
     }
     if (strcmp(cmdName, "poollogic.heater.write") == 0) {
-        return writeDeviceFromArgs("poollogic.heater.write", heaterDeviceSlot_, false, nullptr);
+        return writeDeviceFromArgs("poollogic.heater.write", heaterDeviceSlot_, false, ManualDosingTarget::None);
     }
     if (strcmp(cmdName, "poollogic.heater.toggle") == 0) {
-        return toggleDeviceValue("poollogic.heater.toggle", heaterDeviceSlot_, false, nullptr);
+        return toggleDeviceValue("poollogic.heater.toggle", heaterDeviceSlot_, false, ManualDosingTarget::None);
     }
     if (strcmp(cmdName, "poollogic.chlorine_generator.write") == 0 || strcmp(cmdName, "poollogic.swg.write") == 0) {
-        return writeDeviceFromArgs("poollogic.chlorine_generator.write", swgDeviceSlot_, false, nullptr);
+        return writeDeviceFromArgs("poollogic.chlorine_generator.write", swgDeviceSlot_, false, ManualDosingTarget::Disinfection);
     }
     if (strcmp(cmdName, "poollogic.chlorine_generator.toggle") == 0 || strcmp(cmdName, "poollogic.swg.toggle") == 0) {
-        return toggleDeviceValue("poollogic.chlorine_generator.toggle", swgDeviceSlot_, false, nullptr);
+        return toggleDeviceValue("poollogic.chlorine_generator.toggle", swgDeviceSlot_, false, ManualDosingTarget::Disinfection);
     }
 
     writeCmdError_(reply, replyLen, cmdName, ErrorCode::UnknownCmd);

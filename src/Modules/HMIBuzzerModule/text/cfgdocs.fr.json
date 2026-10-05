@@ -9,6 +9,11 @@
       "type": "Bool",
       "label_t": "cfgdocs.hmi.buzzer.enable.label",
       "help_t": "cfgdocs.hmi.buzzer.enable.help"
+    },
+    "hmi/buzzer/alarm_sound": {
+      "type": "Bool",
+      "label_t": "cfgdocs.hmi.buzzer.alarm_sound.label",
+      "help_t": "cfgdocs.hmi.buzzer.alarm_sound.help"
     }
   }
 }

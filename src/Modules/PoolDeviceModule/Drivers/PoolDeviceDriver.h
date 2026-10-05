@@ -52,7 +52,7 @@ public:
     void applyTarget(const PoolDeviceTarget&, uint32_t revision) override;
     void tick(uint32_t now, bool writesEnabled) override;
 private:
-    enum class Operation : uint8_t { None, Setpoint, Run, Status, Feedback, Telemetry };
+    enum class Operation : uint8_t { None, Setpoint, Run, Status, Feedback };
     bool submit_(Operation, uint32_t now);
     void consume_(const ModbusResponse&, uint32_t now);
     uint16_t transaction_ = MODBUS_TRANSACTION_INVALID;
@@ -67,8 +67,6 @@ private:
     bool levelValid_ = false;
     bool pollLevel_ = false;
     bool frozen_ = false;
-    bool pollTelemetry_ = false;
-    uint8_t telemetryBlock_ = 0;
 };
 
 class PoolDeviceDriver {
@@ -81,7 +79,5 @@ private:
 
 bool validatePoolDriverConfig(const PoolDriverConfig& config);
 bool validatePoolTarget(const PoolDriverConfig&, const PoolDeviceTarget&);
-/** Quantize the wire value within the configured running range (never the stop code). */
-uint16_t poolSerialRawSetpoint(const PoolDriverConfig&, float setpoint);
 
 float poolCalibratedFlow(const PoolDriverConfig&, float setpoint);

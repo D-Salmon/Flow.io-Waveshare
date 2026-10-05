@@ -41,7 +41,6 @@ inline constexpr RuntimeUiActionManifestItem kRuntimeUiActionManifestItems[] = {
     {2304, "set", "poollogic.robot.write", "value", RuntimeUiActionInputType::Bool, nullptr},
     {2305, "set_device", "poollogic.device.write", "value", RuntimeUiActionInputType::Bool, "slot"},
     {2305, "setpoint", "pooldevice.setpoint", "value", RuntimeUiActionInputType::Float, "slot"},
-    {2305, "mode", "pooldevice.mode", "value", RuntimeUiActionInputType::UInt32, "slot"},
     {2305, "reset_uptime", "pooldevice.uptime.reset", "slot", RuntimeUiActionInputType::UInt32, nullptr},
     {2305, "reset_uptime_all", "pooldevice.uptime.reset_all", nullptr, RuntimeUiActionInputType::None, nullptr},
     {2305, "override_on", "pooldevice.override_on", "duration_s", RuntimeUiActionInputType::UInt32, "slot"},
@@ -53,7 +52,7 @@ inline constexpr RuntimeUiActionManifestItem kRuntimeUiActionManifestItems[] = {
     {2404, "set", "poollogic.dis_auto_mode.set", "value", RuntimeUiActionInputType::Bool, nullptr},
 };
 
-inline constexpr size_t kRuntimeUiActionManifestItemCount = 18U;
+inline constexpr size_t kRuntimeUiActionManifestItemCount = 17U;
 
 inline constexpr RuntimeUiManifestItem kRuntimeUiManifestItems[] = {
     {901, "alarms.active_mask", "uint32", nullptr},

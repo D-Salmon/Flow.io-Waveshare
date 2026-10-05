@@ -84,3 +84,12 @@ htmlcov/
 *.temp
 *.bak
 *.orig
+
+# Accès locaux à la carte (mots de passe AP)
+local-device/
+
+# Dépendances locales de développement
+node_modules/
+.test-deps/
+.dummy/
+.pnpm-store/

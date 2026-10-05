@@ -1,0 +1,74 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs'); const path=require('node:path'); const {chromium}=require('playwright');
+const root=path.resolve(__dirname,'../..'); const app=fs.readFileSync(path.join(root,'data/webinterface/app.js'),'utf8');
+const start=app.indexOf('    function poolConfigRenderAssignments('); const end=app.indexOf('    function poolConfigRenderGeneralCards(',start); assert(start>=0&&end>start);
+const code=app.slice(start,end);
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.FLOWIO_TEST_BROWSER?{executablePath:process.env.FLOWIO_TEST_BROWSER}:{})});
+ try {
+ const page=await browser.newPage(); await page.setContent('<main id="grid"></main>');
+ await page.evaluate(code=>{
+  window.poolConfigGrid=document.querySelector('#grid'); window.isAdminSession=()=>true; window.toBool=v=>v===true||v===1||v==='1';
+  window.invalidatePoolDashboardSlots=()=>{}; window.createFormPostOptions=x=>x; window.fetchWithBusyRetry=()=>{}; window.formatFlowCfgApplyError=()=> 'Erreur'; window.patches=[]; window.reboots=[]; let ioTopologyCache={}; let flowCfgChildrenCache={}; const fetchOkJson=async (url)=>{window.reboots.push(url);return {ok:true};}; const poolConfigDisinfectionLabel=value=>['Chlore / Brome','Électrolyse','Oxygène actif','Désactivé'][Number(value)];
+  window.fetchJsonResponse=async(url,x)=>{patches.push(JSON.parse(x.patch));return {res:{ok:true},data:{ok:true}};};
+  const modules={'poollogic/sensors':{psi_io_id:194,wat_temp_io_id:196,air_temp_io_id:197,psi_monitoring:false,flow_switch_enabled:false,filtr_fb_io_id:65535,swg_fb_io_id:65535},'poollogic/safety':{sensor_hold_wat:true},'poollogic/modes':{disinfection_type:1},'io/drivers/ds18b20':{water_transport:1,air_transport:0},'io/drivers/ads1115_int':{address:72},'io/input/a02':{binding_port:110},'io/drivers/bme680':{enabled:true},'io/drivers/bmp280':{enabled:true},'io/input/i01':{binding_port:201,counter_total:1234}};
+  for(let i=0;i<8;i++) modules['io/output/d'+String(i).padStart(2,'0')]={binding_port:300+i};
+  eval(code); poolConfigRenderAssignments(modules);
+ },code);
+ await page.addStyleTag({path:path.join(root,'data/webinterface/app-core.css')});
+ const form=page.locator('article').first();
+ assert.equal(await form.getByText('Surveillance de pression',{exact:true}).count(),0);
+ assert.equal(await form.getByLabel('Surveillance pression',{exact:true}).count(),0);
+ // Changing only flow must not re-enable pressure monitoring.
+ await form.getByLabel('Surveillance de débit',{exact:true}).selectOption('64');
+ await form.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ await page.waitForFunction(()=>patches.length===1);
+ const flowOnly=await page.evaluate(()=>patches[0]);
+ assert.equal(flowOnly['poollogic/sensors'].flow_switch_enabled,true);
+ assert.equal(Object.hasOwn(flowOnly['poollogic/sensors'],'psi_monitoring'),false);
+ await page.evaluate(()=>{window.patches=[];});
+
+ const feedback=form.getByLabel('Surveillance disjoncteur filtration',{exact:true});
+ const polarity=form.getByLabel('Surveillance disjoncteur filtration — polarité du retour',{exact:true});
+ assert.equal(await polarity.isVisible(),false);
+ await feedback.selectOption('64'); assert.equal(await polarity.isVisible(),true);
+ await polarity.selectOption('0'); await feedback.selectOption('65535'); assert.equal(await polarity.isVisible(),false);
+ await feedback.selectOption('64'); assert.equal(await polarity.inputValue(),'0');
+ await form.getByRole('button',{name:'Annuler',exact:true}).click(); assert.equal(await polarity.isVisible(),false);
+ const fields=form.locator('select');
+ await fields.nth(0).selectOption('73'); assert.match(await fields.nth(1).locator('option[value="ads:0"]').textContent(),/0x48/);
+ await fields.nth(1).selectOption('ads:3'); await fields.nth(2).selectOption('ds2484'); await fields.nth(3).selectOption('direct:197'); await fields.nth(4).selectOption('0'); await fields.nth(5).selectOption('64');
+ await page.locator('article').first().getByRole('button',{name:'Enregistrer',exact:true}).click();
+ await page.waitForFunction(()=>patches.length===1); const patch=await page.evaluate(()=>patches[0]);
+ assert.equal(patch['io/drivers/ads1115_ext'].address,72); assert.equal(patch['io/input/a02'].binding_port,113); assert.equal(patch['poollogic/safety'].sensor_hold_wat,false);
+ assert.equal(patch['poollogic/sensors'].psi_monitoring,true); assert.equal(patch['poollogic/sensors'].flow_switch_enabled,true); assert.equal(patch['poollogic/sensors'].flow_switch_io_id,64);
+ assert.equal(patch['io/drivers/ds18b20'].water_transport,0); assert.equal(patch['io/drivers/ds18b20'].air_transport,1);
+ await fields.nth(1).selectOption('194'); await page.locator('article').first().getByRole('button',{name:'Enregistrer',exact:true}).click(); await page.waitForFunction(()=>patches.length===2); assert.equal(await page.evaluate(()=>patches[1]['io/input/a02'].binding_port),102);
+ await fields.nth(1).selectOption('65535'); await form.getByRole('button',{name:'Enregistrer',exact:true}).click(); await page.waitForFunction(()=>patches.length===3);
+ assert.equal(await page.evaluate(()=>patches[2]['poollogic/sensors'].psi_monitoring),false);
+ await page.evaluate(()=>{window.patches=[];});
+ await form.getByLabel('Compteur d’eau',{exact:true}).selectOption('0');
+ await form.getByLabel('BME680',{exact:true}).selectOption('0');
+ await form.getByLabel('BMP280',{exact:true}).selectOption('0');
+ await form.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ await page.waitForFunction(()=>patches.length===1);
+ const optional=await page.evaluate(()=>patches[0]);
+ assert.deepEqual(optional['io/input/i01'],{binding_port:0},'Disabling never writes or clears the counter total');
+ assert.deepEqual(optional['io/drivers/bme680'],{enabled:false});
+ assert.deepEqual(optional['io/drivers/bmp280'],{enabled:false});
+ await form.getByLabel('Compteur d’eau',{exact:true}).selectOption('201');
+ await form.getByLabel('BME680',{exact:true}).selectOption('1');
+ await form.getByLabel('BMP280',{exact:true}).selectOption('1');
+ await form.getByRole('button',{name:'Enregistrer',exact:true}).click();
+ await page.waitForFunction(()=>patches.length===2);
+ const reenabled=await page.evaluate(()=>patches[1]);
+ assert.deepEqual(reenabled['io/input/i01'],{binding_port:201});
+ assert.deepEqual(reenabled['io/drivers/bme680'],{enabled:true});
+ assert.deepEqual(reenabled['io/drivers/bmp280'],{enabled:true});
+ await page.evaluate(()=>{window.patches=[{},{},{}];});
+ const relays=page.locator('article').nth(1).locator('select'); await relays.nth(0).selectOption('302'); assert.equal(await relays.nth(1).inputValue(),'300');
+ await page.locator('article').nth(1).getByRole('button',{name:'Enregistrer et redémarrer',exact:true}).click(); await page.waitForFunction(()=>patches.length===4); const relayPatch=await page.evaluate(()=>patches[3]); assert.equal(relayPatch['io/output/d00'].binding_port,302); assert.equal(relayPatch['io/output/d02'].binding_port,300);
+ assert.deepEqual(await page.evaluate(()=>reboots),['/api/system/reboot']);
+ console.log('Assignments: complementary ADS addresses, all pressure channels, mixed temperature transports, basin hold, flow and relay swap passed');
+ } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

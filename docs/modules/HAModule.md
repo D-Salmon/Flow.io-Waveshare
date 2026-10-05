@@ -123,20 +123,6 @@ Ce mode est utilisé par le firmware Waveshare:
 - le service HA reste présent mais refuse les nouveaux enregistrements après teardown, afin d'éviter des pointeurs pendants dans les services/callbacks existants
 - pour diagnostiquer la séquence de boot one-shot, le build peut activer `FLOW_HA_BOOT_TRACE=1` (logs de jalons alloc/enqueue/publish/release)
 
-Les annonces métier Waveshare sont construites après les callbacks `onConfigLoaded`,
-à partir des affectations PoolLogic validées. Les interrupteurs, compteurs, niveaux
-de cuve, paramètres de débit/temps maximal et boutons de remplissage/remise à zéro
-conservent leurs identités historiques, mais suivent le slot affecté au rôle.
-Les chaînes dynamiques appartiennent au stockage temporaire de découverte du profil,
-alloué prioritairement en PSRAM et libéré après publication. Aucune republication
-n'est déclenchée lors d'une modification d'affectation ; un redémarrage est requis.
-
-Les logs `HA boot roles`, `boot memory` et `HA discovery released` donnent les
-affectations, les octets des buffers de découverte, la RAM interne libre, son plus
-grand bloc, la PSRAM libre et les statistiques NVS au démarrage. Le suivi SystemMonitor
-reste nécessaire sous charge HTTP/MQTT ; la RAM statique de compilation n'inclut pas
-les allocations dynamiques ni les piles des tâches.
-
 ## Alarmes natives
 
 `AlarmModule` génère la découverte depuis son registre après l'initialisation de

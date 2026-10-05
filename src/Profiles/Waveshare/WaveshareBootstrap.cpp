@@ -58,6 +58,9 @@ IoSlotId findIoSlotForDomainSlot(const DomainSpec& domain, DomainSlotId id)
 void requireSetup(bool ok, const char* step)
 {
     if (ok) return;
+    // Report startup failures on USB as well as the configured log UART:
+    // the Web diagnostics are unavailable until startup has completed.
+    Serial.printf("[BOOT] setup failure: %s\r\n", step ? step : "unknown");
     Log::error((LogModuleId)LogModuleIdValue::Core, "setup failure: %s", step ? step : "unknown");
     if (!Log::hub()) {
         Board::SerialMap::logSerial().printf("Setup failure: %s\r\n", step ? step : "unknown");
@@ -248,6 +251,7 @@ namespace Waveshare {
 
 void setupProfile(AppContext& ctx)
 {
+    Serial.println("[BOOT] preparing Waveshare modules");
     ModuleInstances& modules = moduleInstances();
 
     Serial.begin(Board::SerialMap::uart0Baud());
@@ -265,10 +269,12 @@ void setupProfile(AppContext& ctx)
         requireSetup(tlsMemoryPolicyInstalled, "install TLS PSRAM memory policy");
     }
 
+    Serial.println("[BOOT] opening configuration and filesystems");
     ctx.preferences.begin(NvsKeys::StorageNamespace, false);
     ctx.registry.setPreferences(ctx.preferences);
     requireSetup(ReleaseStorage::beginReleaseFilesystem(), "mount release filesystem");
     requireSetup(ReleaseStorage::beginRuntimeFilesystem(), "mount runtime filesystem");
+    Serial.println("[BOOT] registering modules and IO");
     registerModules(ctx, modules);
     modules.hmiModule.setRemoteUdpServer(&modules.hmiUdpServerModule);
     modules.poolDeviceModule.configureDomainStatus(*ctx.domain, &Profiles::Waveshare::IoLayout::bindingPortExists);
@@ -283,8 +289,10 @@ void setupProfile(AppContext& ctx)
         requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.poolDeviceModule), "register runtime provider pooldev");
     }
 
+    Serial.println("[BOOT] initializing modules");
     requireSetup(ctx.moduleManager.initAll(ctx.registry, ctx.services), "init modules");
     postInit(ctx, modules);
+    Serial.println("[BOOT] module startup ready");
     nvs_stats_t nvsStats{};
     const esp_err_t nvsResult = nvs_get_stats(nullptr, &nvsStats);
     Board::SerialMap::logSerial().printf(

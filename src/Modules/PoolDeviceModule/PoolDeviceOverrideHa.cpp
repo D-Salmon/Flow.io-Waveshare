@@ -1,13 +1,13 @@
 #include "PoolDeviceModule.h"
 #include "PoolDeviceOverrideDiscovery.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 
 void PoolDeviceModule::registerOverrideHa_()
 {
     using namespace PoolDeviceOverrideDiscovery;
-    SpiRamJsonDocument options(2048);
+    JsonDocument options(psramOnlyJsonAllocator());
     auto array = options.to<JsonArray>();
     for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
         if (!overrideSupported_(i)) continue;

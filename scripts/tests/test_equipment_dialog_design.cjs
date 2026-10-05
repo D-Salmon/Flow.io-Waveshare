@@ -1,3 +1,4 @@
+const os = require('node:os');
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -44,7 +45,7 @@ async function main() {
     assert(header.y + header.height < table.y, 'Title, count and actions sit above the table');
     assert(await dialog.locator('table').evaluate(element => element.scrollWidth <= element.parentElement.clientWidth),
       'The eight-equipment table fits the desktop popup');
-    await dialog.screenshot({ animations: 'disabled', path: '/tmp/flowio-equipment-reference.png' });
+    await dialog.screenshot({ animations: 'disabled', path: path.join(os.tmpdir(), 'flowio-equipment-reference.png') });
     await page.evaluate(async () => {
       testState.options[0].actualOn = true;
       await refreshRuntimeActionDialog(['equipements']);
@@ -71,9 +72,9 @@ async function main() {
     assert.deepEqual(switchMetrics.track, [36, 14]);
     assert.deepEqual(switchMetrics.thumb, [20, 20]);
     assert(switchMetrics.transition.includes('transform'), 'The popup uses the animated Configuration switch model');
-    await dialog.screenshot({ animations: 'disabled', path: '/tmp/flowio-equipment-compact-active.png' });
+    await dialog.screenshot({ animations: 'disabled', path: path.join(os.tmpdir(), 'flowio-equipment-compact-active.png') });
     await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
-    await dialog.screenshot({ animations: 'disabled', path: '/tmp/flowio-equipment-reference-dark.png' });
+    await dialog.screenshot({ animations: 'disabled', path: path.join(os.tmpdir(), 'flowio-equipment-reference-dark.png') });
     await page.evaluate(() => delete document.documentElement.dataset.theme);
     await page.setViewportSize({ width: 390, height: 844 });
     const mobile = await dialog.boundingBox();
@@ -83,7 +84,7 @@ async function main() {
       assert(box.x >= mobile.x && box.x + box.width <= mobile.x + mobile.width, 'Header actions fit on mobile');
     }
     assert(await dialog.locator('.runtime-counter-table-scroll').evaluate(element => element.scrollWidth > element.clientWidth));
-    await page.screenshot({ animations: 'disabled', path: '/tmp/flowio-equipment-reference-mobile.png' });
+    await page.screenshot({ animations: 'disabled', path: path.join(os.tmpdir(), 'flowio-equipment-reference-mobile.png') });
     console.log('Equipment reference design: eight devices, header actions, desktop and mobile layout passed');
   } finally {
     await browser.close();

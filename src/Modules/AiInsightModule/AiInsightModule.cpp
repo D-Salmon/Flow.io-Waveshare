@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file AiInsightModule.cpp
  * @brief Registers insight configuration and asynchronously refreshes weather data.
@@ -532,12 +533,12 @@ bool AiInsightModule::buildWeatherStatusJson_(char* out, size_t outLen) const
     AiWeatherStatus status{};
     if (!getWeatherStatus_(&status)) return false;
 
-    StaticJsonDocument<4096> document;
+    JsonDocument document(psramPreferredJsonAllocator());
     document["ok"] = true;
     document["state"] = aiWeatherStateCode(status.state);
     document["updated_at_ms"] = status.updatedAtMs;
     document["message"] = status.message;
-    JsonObject weather = document.createNestedObject("weather");
+    JsonObject weather = document["weather"].to<JsonObject>();
     weather["available"] = status.weather.available;
     weather["from_cache"] = status.weather.fromCache;
     weather["latitude"] = status.weather.latitude;
@@ -548,10 +549,10 @@ bool AiInsightModule::buildWeatherStatusJson_(char* out, size_t outLen) const
     writeOptionalValue_(weather, "current_cloud_cover_percent", status.weather.currentCloudCoverPercent);
     writeOptionalValue_(weather, "current_wind_speed_kmh", status.weather.currentWindSpeedKmh);
     weather["current_local_date"] = status.weather.currentLocalDate;
-    JsonArray daily = weather.createNestedArray("daily");
+    JsonArray daily = weather["daily"].to<JsonArray>();
     for (uint8_t i = 0U; i < status.weather.dailyCount; ++i) {
         const PoolWeatherDaySummary& source = status.weather.daily[i];
-        JsonObject day = daily.createNestedObject();
+        JsonObject day = daily.add<JsonObject>();
         day["valid"] = source.valid;
         day["local_date"] = source.localDate;
         day["forecast"] = source.forecast;

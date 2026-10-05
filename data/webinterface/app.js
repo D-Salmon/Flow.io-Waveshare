@@ -710,11 +710,11 @@
     async function fetchWithBusyRetry(url, options, fetchImpl) {
       let res;
       if (typeof fetchImpl === 'function') {
-        res = await fetchImpl(url, options);
+        res = await window.FlowWebCore.csrfAwareMutationFetch(url, options, fetchImpl);
       } else if (window.FlowWebCore && typeof window.FlowWebCore.supervisorFetch === 'function') {
         res = await window.FlowWebCore.supervisorFetch(url, options, { retries: 4 });
       } else {
-        res = await fetch(url, options);
+        res = await fetch(url, window.FlowWebCore ? window.FlowWebCore.secureFetchOptions(options) : options);
       }
       if (res && res.status === 401) {
         redirectToLogin();
@@ -872,6 +872,16 @@
 
     async function fetchOkJson(url, options, message, fetchImpl) {
       return ensureOkJsonResponse(await fetchJsonResponse(url, options, fetchImpl), message);
+    }
+
+    function toBool(value) {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
+      }
+      return false;
     }
 
     function createUrlEncodedBody(values) {
@@ -1194,7 +1204,74 @@
       if (headerWifiDot) {
         headerWifiDot.classList.toggle('is-connected', isHeaderWifiConnected());
       }
+      renderNetworkAddresses();
       renderHeaderReachability();
+    }
+
+    function networkInformationRows(wifi, type) {
+      const [ethernet, wireless, ...other] = networkAddressRows(wifi);
+      return [ethernet, wireless, [tr('info.row.networkType', 'Type réseau'), type], ...other];
+    }
+
+    function networkAddressRows(wifi) {
+      const hasIp = (value) => value !== '-' && value !== '0.0.0.0';
+      const ethernetIp = normalizeIpValue(wifi.ethernet_ip);
+      const wifiIp = normalizeIpValue(wifi.wifi_ip);
+      const apIp = normalizeIpValue(wifi.ap_ip);
+      const mqttCache = flowStatusDomainCache.mqtt || {};
+      const wifiCache = flowStatusDomainCache.wifi || {};
+      const networkSnapshot = wifiCache.data;
+      const mqttSnapshot = mqttCache.data;
+      const mqtt = networkSnapshot && networkSnapshot.mqtt &&
+        (!mqttSnapshot || (wifiCache.fetchedAt || 0) > (mqttCache.fetchedAt || 0))
+        ? networkSnapshot.mqtt : (mqttSnapshot && mqttSnapshot.mqtt ? mqttSnapshot.mqtt : {});
+      const rows = [
+        ['IP Ethernet', hasIp(ethernetIp) ? ethernetIp : 'Non connectée', hasIp(ethernetIp)],
+        ['IP Wi-Fi', hasIp(wifiIp) ? wifiIp : 'Non connectée', hasIp(wifiIp)],
+        ['MQTT', mqtt.rdy ? 'Connecté' : 'Déconnecté', !!mqtt.rdy]
+      ];
+      if (hasIp(apIp)) rows.push(['IP du point d’accès', apIp, true]);
+      return rows;
+    }
+
+    function renderConfigNetworkState(pathValue) {
+      const root = document.getElementById('flowCfgNetworkState');
+      if (!root) return;
+      const path = pathValue === undefined ? flowCfgPath.join('/') : pathValue;
+      const module = cfgStorePathFromDisplayPath(path);
+      const rowIndex = {ethernet: 0, wifi: 1, mqtt: 2}[module];
+      root.hidden = rowIndex === undefined;
+      if (root.hidden) { root.replaceChildren(); return; }
+      const domain = flowStatusDomainCache.wifi && flowStatusDomainCache.wifi.data;
+      const [label, value, connected] = networkAddressRows(domain && domain.wifi ? domain.wifi : {})[rowIndex];
+      const dot = document.createElement('span');
+      dot.className = 'network-address-dot ' + (connected ? 'is-connected' : 'is-disconnected');
+      dot.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span');
+      text.textContent = module === 'mqtt' ? label + ' ' + value.toLowerCase() : label + ' : ' + value;
+      root.replaceChildren(dot, text);
+    }
+
+    function renderNetworkAddresses() {
+      renderConfigNetworkState();
+      const domain = flowStatusDomainCache.wifi && flowStatusDomainCache.wifi.data;
+      const wifi = domain && domain.wifi ? domain.wifi : {};
+      ['networkAddresses', 'dashboardNetworkAddresses'].forEach((id) => {
+        const root = document.getElementById(id); if (!root) return;
+        root.replaceChildren();
+        networkAddressRows(wifi).forEach(([label, value, connected]) => {
+          const row = document.createElement('span');
+          row.className = 'network-address-item';
+          const dot = document.createElement('span');
+          dot.className = 'network-address-dot ' + (connected ? 'is-connected' : 'is-disconnected');
+          dot.setAttribute('aria-hidden', 'true');
+          const text = document.createElement('span');
+          text.textContent = label + ' : ' + value;
+          row.appendChild(dot);
+          row.appendChild(text);
+          root.appendChild(row);
+        });
+      });
     }
 
     function refreshAppHeaderClock() {
@@ -1531,6 +1608,12 @@
 
       setInfoFlowDomainLoading(cleanDomain, true);
       try {
+        if (cleanDomain === 'wifi') {
+          const data = await fetchFlowStatusDomain(cleanDomain, true, 'info');
+          infoFlowLastSuccessAt = Date.now();
+          renderInfoPanel();
+          return data;
+        }
         flowStatusDebugLog('info domain fetch start', {
           domain: cleanDomain,
           endpoint: '/api/runtime/values',
@@ -1644,11 +1727,9 @@
         [tr('info.row.firmwareVersion', 'Version firmware'), firmwareParts.version],
         [tr('info.row.buildVersion', 'Version build'), firmwareParts.build],
         [tr('info.row.uptime', 'Uptime'), systemDomain ? formatInfoUptime(systemDomain.upms) : formatInfoUptime(supervisorUptimeMs)],
-        [tr('info.row.ip', 'Adresse IP'), wifiDomain ? normalizeIpValue(wifi.ip) : '-'],
+        ...networkInformationRows(wifi, wifiDomain ? formatInfoNetworkType(infoNetworkType) : '-'),
         [tr('info.row.mac', 'Adresse MAC'), mac],
-        [tr('info.row.networkType', 'Type réseau'), wifiDomain ? formatInfoNetworkType(infoNetworkType) : '-'],
         [tr('info.row.signal', 'Signal'), (wifiDomain && wifi.hrss) ? formatInfoDbm(wifi.rssi) : '-'],
-        [tr('info.row.mqtt', 'MQTT'), mqttDomain ? formatInfoBoolean(!!mqtt.rdy, tr('info.state.connected', 'Connecté'), tr('info.state.disconnected', 'Déconnecté')) : '-'],
         [tr('info.row.time', 'Heure'), time ? flowTimeStatusLabel(time) : '-']
       ];
       if (systemDomain) {
@@ -1949,6 +2030,7 @@
       }
       const deferredHeavyMs = Math.max(0, Number(opts.deferHeavyMs) || 0);
       const pageToken = ++pageLoadToken;
+      if (pageId !== 'page-wifi' && networkPage) networkPage.hide();
       currentPageId = pageId;
       if (pageId !== 'page-history') cancelHistoryRequest();
       if (pageId !== 'page-activity-log') {
@@ -2092,6 +2174,11 @@
     const activityNextBtn = document.getElementById('activityNextBtn');
     const activityRangeText = document.getElementById('activityRangeText');
     const activityFilterBtns = Array.from(document.querySelectorAll('[data-activity-filter]'));
+    const activitySelectVisibleBtn = document.getElementById('activitySelectVisibleBtn');
+    const activityPeriodScope = document.getElementById('activityPeriodScope');
+    const activityDeleteConfirmation = document.getElementById('activityDeleteConfirmation');
+    let activityConfirmationSequences = null;
+    let activityShowWholeJournal = true;
     let autoScrollEnabled = true;
     let logsOverlayOpen = false;
     let activityFilter = 'all';
@@ -2099,6 +2186,8 @@
     let activityRequestToken = 0;
     let activityAbortController = null;
     let activityLoadedEvents = [];
+    const activitySelectedSequences = new Set();
+    let activityDeleting = false;
     let activityLoadedStats = null;
 
     const checkUpdatesBtn = document.getElementById('checkUpdates');
@@ -2115,14 +2204,6 @@
     const upgradeProgressPanel = document.getElementById('upgradeProgressPanel');
     const upStatusChip = document.getElementById('upStatusChip');
 
-    const wifiEnabled = document.getElementById('wifiEnabled');
-    const wifiSsid = document.getElementById('wifiSsid');
-    const wifiSsidList = document.getElementById('wifiSsidList');
-    const wifiPass = document.getElementById('wifiPass');
-    const toggleWifiPassBtn = document.getElementById('toggleWifiPass');
-    const scanWifiBtn = document.getElementById('scanWifi');
-    const applyWifiCfgBtn = document.getElementById('applyWifiCfg');
-    const wifiConfigStatus = document.getElementById('wifiConfigStatus');
     const rebootDeviceTargetSelect = document.getElementById('rebootDeviceTarget');
     const rebootDeviceActionBtn = document.getElementById('rebootDeviceAction');
     const factoryResetDeviceActionBtn = document.getElementById('factoryResetDeviceAction');
@@ -2227,7 +2308,6 @@
     let flowCfgFailureStreak = 0;
     let flowCfgLocalApplyBusyDepth = 0;
     let flowCfgApplyBtnSavedText = '';
-    let wifiConfigLoadedOnce = false;
     let flowCfgLoadedOnce = false;
     let calibrationLoadedOnce = false;
     let calibrationContext = null;
@@ -2241,7 +2321,7 @@
     const ioOutputPdmLabels = Object.freeze({
       0: 'Filtration',
       1: 'Pompe pH',
-      2: 'Pompe chlore',
+      2: 'Désinfection',
       3: 'Robot',
       4: 'Pompe remplissage',
       5: 'Electrolyse',
@@ -2256,7 +2336,6 @@
       14: 'COMP07',
       15: 'COMP08'
     });
-    let wifiScanAutoRequested = false;
     let flowStatusReqSeq = 0;
     let ioSummaryReqSeq = 0;
     let ioSummaryLoadedOnce = false;
@@ -2277,7 +2356,21 @@
         ioSlot: 1,
         runtimeUiId: 2203,
         recommendedSpan: 1.5,
-        warningOffset: 1.0
+        warningOffset: 1.0,
+        defaultC0: 0.9583,
+        defaultC1: 4.834
+      },
+      ph_one: {
+        key: 'ph_one',
+        label: 'pH (1 point)',
+        mode: 'one',
+        poollogicKey: 'ph_io_id',
+        ioSlot: 1,
+        runtimeUiId: 2203,
+        recommendedSpan: 0,
+        warningOffset: 1.0,
+        defaultC0: 0.9583,
+        defaultC1: 4.834
       },
       orp: {
         key: 'orp',
@@ -2287,17 +2380,33 @@
         ioSlot: 0,
         runtimeUiId: 2204,
         recommendedSpan: 120,
-        warningOffset: 120
+        warningOffset: 120,
+        defaultC0: 129.2,
+        defaultC1: 384.1
+      },
+      orp_one: {
+        key: 'orp_one',
+        label: 'ORP (1 point)',
+        mode: 'one',
+        poollogicKey: 'dis_io_id',
+        ioSlot: 0,
+        runtimeUiId: 2204,
+        recommendedSpan: 0,
+        warningOffset: 120,
+        defaultC0: 129.2,
+        defaultC1: 384.1
       },
       psi: {
         key: 'psi',
-        label: 'Pression PSI',
+        label: 'Pression (bar)',
         mode: 'two',
         poollogicKey: 'psi_io_id',
         ioSlot: 2,
         runtimeUiId: 2206,
         recommendedSpan: 0.4,
-        warningOffset: 0.6
+        warningOffset: 0.6,
+        defaultC0: 0.377923399,
+        defaultC1: -0.17634473
       },
       water_temp: {
         key: 'water_temp',
@@ -2307,7 +2416,9 @@
         ioSlot: 4,
         runtimeUiId: 2201,
         recommendedSpan: 0,
-        warningOffset: 2.0
+        warningOffset: 2.0,
+        defaultC0: 1.0,
+        defaultC1: 0.0
       },
       air_temp: {
         key: 'air_temp',
@@ -2317,7 +2428,9 @@
         ioSlot: 5,
         runtimeUiId: 2202,
         recommendedSpan: 0,
-        warningOffset: 2.0
+        warningOffset: 2.0,
+        defaultC0: 1.0,
+        defaultC1: 0.0
       }
     });
     const flowStatusDomainKeys = ['system', 'wifi', 'mqtt', 'pool', 'i2c'];
@@ -2502,7 +2615,6 @@
       if (getActivePageId() !== 'page-io-summary' || document.hidden) return;
       return refreshIoSummary(false);
     }, 10000);
-    const wifiScanPoller = createTimeoutRunner(() => refreshWifiScanStatus(false));
 
     function activeLogSourceMeta() {
       return logSourceMeta[logSource] || logSourceMeta.supervisor;
@@ -2747,7 +2859,18 @@
       return 'Il y a ' + diffDay + ' j';
     }
 
+    function activityMatchesCategory(ev) {
+      if (activityFilter === 'all') return true;
+      if (activityFilter === 'poollogic') return ev.domain_name === 'poollogic' || ev.domain_name === 'pooldevice';
+      if (activityFilter === 'manual') return ev.source_name === 'manual';
+      if (activityFilter === 'safety') return ev.domain_name === 'alarm' || ev.source_name === 'safety' || ev.severity_name === 'warning' || ev.severity_name === 'alarm';
+      if (activityFilter === 'system') return ev.domain_name === 'system';
+      return true;
+    }
+
     function activityMatchesFilter(ev) {
+      if (!activityMatchesCategory(ev)) return false;
+      if (activityShowWholeJournal) return true;
       const date = activityEventDate(ev);
       if (date) {
         const end = Date.now() - (activityWindowShiftHours * 3 * 3600000);
@@ -2757,16 +2880,20 @@
       } else if (activityWindowShiftHours !== 0) {
         return false;
       }
-      if (activityFilter === 'all') return true;
-      if (activityFilter === 'poollogic') return ev.domain_name === 'poollogic' || ev.domain_name === 'pooldevice';
-      if (activityFilter === 'manual') return ev.source_name === 'manual';
-      if (activityFilter === 'safety') return ev.domain_name === 'alarm' || ev.source_name === 'safety' || ev.severity_name === 'warning' || ev.severity_name === 'alarm';
-      if (activityFilter === 'system') return ev.domain_name === 'system';
       return true;
+    }
+
+    function setActivityPeriodScope(showWholeJournal) {
+      activityShowWholeJournal = showWholeJournal;
+      if (activityPeriodScope) activityPeriodScope.value = showWholeJournal ? 'all' : 'period';
     }
 
     function updateActivityRangeText() {
       if (!activityRangeText) return;
+      if (activityShowWholeJournal) {
+        activityRangeText.textContent = 'Toutes les dates du journal conservé';
+        return;
+      }
       const end = new Date(Date.now() - (activityWindowShiftHours * 3 * 3600000));
       const start = new Date(end.getTime() - (3 * 3600000));
       activityRangeText.textContent =
@@ -2776,11 +2903,6 @@
         end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    function activityWindowBoundsMs() {
-      const end = Date.now() - (activityWindowShiftHours * 3 * 3600000);
-      return { start: end - (3 * 3600000), end };
-    }
-
     function cancelActivityLogRefresh() {
       activityRequestToken += 1;
       const controller = activityAbortController;
@@ -2788,10 +2910,24 @@
       if (controller) controller.abort();
     }
 
+    function updateActivitySelection() {
+      const busy = activityDeleting || !!activityAbortController || !!activityConfirmationSequences;
+      if (activityPurgeBtn) activityPurgeBtn.disabled = busy || !activitySelectedSequences.size;
+      if (activitySelectVisibleBtn) activitySelectVisibleBtn.disabled = busy;
+      if (activityRefreshBtn) activityRefreshBtn.disabled = activityDeleting || !!activityConfirmationSequences;
+      if (activityPeriodScope) activityPeriodScope.disabled = busy;
+      if (activityPrevBtn) activityPrevBtn.disabled = busy || activityShowWholeJournal;
+      if (activityNextBtn) activityNextBtn.disabled = busy || activityShowWholeJournal || activityWindowShiftHours === 0;
+      activityFilterBtns.forEach(button => { button.disabled = busy; });
+      const count = document.getElementById('activitySelectionCount');
+      if (count) count.textContent = 'Supprimer la sélection (' + activitySelectedSequences.size + ')';
+    }
+
     function renderActivityLog(events, stats) {
       if (!activityLogList) return;
       activityLogList.innerHTML = '';
       updateActivityRangeText();
+      updateActivitySelection();
       const filtered = (Array.isArray(events) ? events : [])
         .filter(activityMatchesFilter)
         .sort((a, b) => {
@@ -2809,7 +2945,7 @@
           if (stats) {
             activityLogStatus.textContent =
               '0/' + (Number(stats.entries) || 0) +
-              ' événement(s), persistés=' + (Number(stats.persisted) || 0);
+              ' événement(s)';
           } else {
             activityLogStatus.textContent = 'Aucune activité.';
           }
@@ -2847,6 +2983,19 @@
         icon.setAttribute('aria-hidden', 'true');
         icon.textContent = String(ev.icon || 'history');
         rail.appendChild(icon);
+        const selection = document.createElement('input');
+        selection.type = 'checkbox';
+        selection.className = 'activity-row-selection';
+        selection.dataset.sequence = String(ev.seq);
+        selection.checked = activitySelectedSequences.has(Number(ev.seq));
+        selection.disabled = activityDeleting || !!activityConfirmationSequences || authSession.role !== 'admin';
+        selection.setAttribute('aria-label', 'Sélectionner : ' + String(ev.title || 'Activité'));
+        selection.addEventListener('change', () => {
+          if (selection.checked) activitySelectedSequences.add(Number(ev.seq));
+          else activitySelectedSequences.delete(Number(ev.seq));
+          updateActivitySelection();
+        });
+        rail.appendChild(selection);
         const main = document.createElement('div');
         main.className = 'activity-row-main';
         const title = document.createElement('div');
@@ -2879,7 +3028,7 @@
       if (activityLogStatus && stats) {
         activityLogStatus.textContent =
           filtered.length + '/' + (Number(stats.entries) || filtered.length) +
-          ' événement(s), persistés=' + (Number(stats.persisted) || 0);
+          ' événement(s)';
       }
     }
 
@@ -2890,13 +3039,13 @@
       if (activityAbortController) activityAbortController.abort();
       const controller = new AbortController();
       activityAbortController = controller;
+      updateActivitySelection();
       const requestToken = ++activityRequestToken;
       const limit = 32;
       let offset = 0;
       const events = [];
       const seenSequences = new Set();
       let stats = null;
-      const windowBounds = activityWindowBoundsMs();
 
       try {
         while (true) {
@@ -2917,11 +3066,7 @@
             events.push(event);
           });
 
-          const reachedWindowStart = pageEvents.some((event) => {
-            const epoch = Number(event && event.epoch_s) || 0;
-            return epoch > 0 && (epoch * 1000) <= windowBounds.start;
-          });
-          if (reachedWindowStart || page.complete || page.next == null || Number(page.count) === 0) break;
+          if (page.complete || page.next == null || Number(page.count) === 0) break;
 
           offset = Number(page.next);
           if (!Number.isFinite(offset) || offset < 0 || events.length >= 768) break;
@@ -2937,30 +3082,58 @@
       } finally {
         if (activityAbortController === controller) {
           activityAbortController = null;
+          updateActivitySelection();
         }
       }
     }
 
-    async function purgeActivityLog() {
-      if (!confirm('Confirmer la purge du Journal d’Activité ? Cette action efface l’historique en mémoire et dans le SPIFFS.')) {
-        return;
-      }
-      if (activityPurgeBtn) activityPurgeBtn.disabled = true;
-      if (activityLogStatus) activityLogStatus.textContent = 'Purge du journal...';
+    async function purgeActivityLog(sequences) {
+      if (!sequences || !sequences.length || activityDeleting) return;
+      activityDeleting = true;
+      let deletionMessage = '';
+      updateActivitySelection();
       try {
-        const response = await fetch('/api/activity/purge', { method: 'POST', cache: 'no-store' });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const payload = await response.json().catch(() => ({}));
-        if (payload && payload.ok === false) throw new Error('Purge refusée');
-        activityWindowShiftHours = 0;
+        for (let offset = 0; offset < sequences.length; offset += 128) {
+          const batch = sequences.slice(offset, offset + 128);
+          const payload = await fetchOkJson('/api/activity/delete', createFormPostOptions({sequences:JSON.stringify(batch)}), 'suppression refusée', fetch);
+          if (!payload || !payload.delete_id) throw new Error('Confirmation de suppression absente.');
+          const deadline = Date.now() + 60000;
+          while (true) {
+            if (Date.now() >= deadline) throw new Error('Délai dépassé : la suppression reste à vérifier.');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const state = await fetchJsonResponse('/api/activity/status', {cache:'no-store'});
+            if (!state.res.ok || !state.data) throw new Error('État de suppression indisponible.');
+            if (Number(state.data.delete_id) !== Number(payload.delete_id)) throw new Error('Suppression interrompue ou remplacée.');
+            if (Number(state.data.delete_state) === 3) throw new Error('Écriture impossible : la suppression peut être partielle.');
+            if (Number(state.data.delete_state) === 2) break;
+            if (activityLogStatus) activityLogStatus.textContent = 'Suppression en cours : ' + offset + '/' + sequences.length + ' message(s) vérifiés…';
+          }
+          batch.forEach(seq => activitySelectedSequences.delete(seq));
+        }
         await refreshActivityLog(false);
-        if (activityLogStatus) activityLogStatus.textContent = 'Journal purgé.';
+        deletionMessage = 'Sélection supprimée.';
       } catch (err) {
-        if (activityLogStatus) activityLogStatus.textContent = 'Purge impossible: ' + (err && err.message ? err.message : String(err));
+        await refreshActivityLog(false).catch(() => {});
+        deletionMessage = 'Suppression impossible : ' + (err.message || String(err));
       } finally {
-        if (activityPurgeBtn) activityPurgeBtn.disabled = false;
+        activityDeleting = false;
+        renderActivityLog(activityLoadedEvents, activityLoadedStats);
+        updateActivitySelection();
+        if (activityLogStatus) activityLogStatus.textContent = deletionMessage;
       }
     }
+    if (activitySelectVisibleBtn) activitySelectVisibleBtn.addEventListener('click', () => {
+      if (activityDeleting) return;
+      const visible = activityLoadedEvents.filter(activityMatchesFilter);
+      const allSelected = visible.length && visible.every(ev => activitySelectedSequences.has(Number(ev.seq)));
+      visible.forEach(ev => { if (allSelected) activitySelectedSequences.delete(Number(ev.seq)); else activitySelectedSequences.add(Number(ev.seq)); });
+      renderActivityLog(activityLoadedEvents, activityLoadedStats);
+    });
+    if (activityPeriodScope) activityPeriodScope.addEventListener('change', () => {
+      setActivityPeriodScope(activityPeriodScope.value === 'all');
+      activitySelectedSequences.clear();
+      renderActivityLog(activityLoadedEvents, activityLoadedStats);
+    });
 
     function setLogSource(source) {
       let normalized = String(source || '').trim().toLowerCase();
@@ -3041,14 +3214,33 @@
     }
     if (activityPurgeBtn) {
       activityPurgeBtn.addEventListener('click', () => {
-        purgeActivityLog().catch((err) => {
-          if (activityLogStatus) activityLogStatus.textContent = 'Purge impossible: ' + (err && err.message ? err.message : String(err));
-        });
+        if (activityDeleting || !activitySelectedSequences.size || !activityDeleteConfirmation) return;
+        activityConfirmationSequences = [...activitySelectedSequences];
+        const question = document.getElementById('activityDeleteQuestion');
+        if (question) question.textContent = 'Supprimer uniquement les ' + activityConfirmationSequences.length + ' message(s) sélectionné(s) ? Cette suppression est définitive.';
+        activityDeleteConfirmation.hidden = false;
+        renderActivityLog(activityLoadedEvents, activityLoadedStats);
       });
     }
+    const activityDeleteConfirmBtn = document.getElementById('activityDeleteConfirmBtn');
+    const activityDeleteCancelBtn = document.getElementById('activityDeleteCancelBtn');
+    if (activityDeleteConfirmBtn) activityDeleteConfirmBtn.addEventListener('click', () => {
+      const sequences = activityConfirmationSequences;
+      activityConfirmationSequences = null;
+      if (activityDeleteConfirmation) activityDeleteConfirmation.hidden = true;
+      purgeActivityLog(sequences).catch(err => {
+        if (activityLogStatus) activityLogStatus.textContent = 'Suppression impossible : ' + (err.message || String(err));
+      });
+    });
+    if (activityDeleteCancelBtn) activityDeleteCancelBtn.addEventListener('click', () => {
+      activityConfirmationSequences = null;
+      if (activityDeleteConfirmation) activityDeleteConfirmation.hidden = true;
+      renderActivityLog(activityLoadedEvents, activityLoadedStats);
+    });
     if (activityPrevBtn) {
       activityPrevBtn.addEventListener('click', () => {
         activityWindowShiftHours += 1;
+        activitySelectedSequences.clear();
         updateActivityRangeText();
         refreshActivityLog(false).catch(() => {});
       });
@@ -3056,6 +3248,7 @@
     if (activityNextBtn) {
       activityNextBtn.addEventListener('click', () => {
         activityWindowShiftHours = Math.max(0, activityWindowShiftHours - 1);
+        activitySelectedSequences.clear();
         updateActivityRangeText();
         refreshActivityLog(false).catch(() => {});
       });
@@ -3063,6 +3256,8 @@
     activityFilterBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
         activityFilter = String(btn.dataset.activityFilter || 'all');
+        setActivityPeriodScope(true);
+        activitySelectedSequences.clear();
         activityFilterBtns.forEach((el) => el.classList.toggle('is-active', el === btn));
         renderActivityLog(activityLoadedEvents, activityLoadedStats);
       });
@@ -4527,17 +4722,9 @@
       }
     }
 
+    let networkPage = null;
     async function onWifiPageShown() {
-      if (!wifiConfigLoadedOnce) {
-        wifiConfigLoadedOnce = true;
-        await loadWifiConfig();
-      }
-      if (!wifiScanAutoRequested) {
-        wifiScanAutoRequested = true;
-        await refreshWifiScanStatus(true);
-      } else {
-        await refreshWifiScanStatus(false);
-      }
+      await networkPage.show();
     }
 
     async function onControlPageShown() {
@@ -5412,8 +5599,7 @@
 
       flowStatusGrid.innerHTML = '';
       const networkRows = [
-        [tr('info.row.ip', 'Adresse IP'), wifiIp],
-        [tr('info.row.networkType', 'Type réseau'), formatInfoNetworkType(networkType)]
+        ...networkInformationRows(wifi, formatInfoNetworkType(networkType))
       ];
       if (!networkIsEthernet) {
         networkRows.push([tr('info.row.signal', 'Signal'), buildFlowRssiGauge(wifiRssi, wifiHasRssi)]);
@@ -5583,11 +5769,45 @@
       return Number.isFinite(n) ? n : 0;
     }
 
+    function ioSummaryDomainLabel(row, disinfectionType) {
+      if (Number(row && row.domain_slot_id) === 16) {
+        return disinfectionType === null ? tr('pool.disinfection.title', 'Désinfection') : poolConfigDisinfectionLabel(disinfectionType);
+      }
+      if (Number(row && row.domain_slot_id) === 19) return tr('pool.relay.free', 'Relais libre');
+      return ioSummaryLocalizedName(row && row.display_name);
+    }
+
+    function ioSummaryLocalizedName(value) {
+      const name = ioSummaryText(value, '-');
+      return tr('io.name.' + name, name);
+    }
+
+    function ioSummaryKindLabel(value) {
+      const kind = ioSummaryText(value, '-');
+      return tr('io.kind.' + kind, kind);
+    }
+
+    function ioSummaryErrorLabel(value) {
+      const code = ioSummaryText(value, '-');
+      return tr('io.error.' + code, code);
+    }
+
+    function ioSummaryValueLabel(row) {
+      const value = ioSummaryText(row && row.last_value, '-');
+      return tr('io.value.' + value, value);
+    }
+
+    function ioSummaryRelayLabel(row) {
+      const port = Number(row && row.binding_port);
+      if (port >= 300 && port <= 307) return 'CH' + (port - 299);
+      return port === 0 ? tr('io.unassigned', 'Non affecté') : '-';
+    }
+
     function ioSummarySlotLabel(row) {
       const kind = ioSummaryText(row && row.io_slot, '');
       const idx = Number(row && row.io_slot_index);
       if (!kind) return '-';
-      return Number.isFinite(idx) ? (kind + ' #' + idx) : kind;
+      return Number.isFinite(idx) ? (ioSummaryKindLabel(kind) + ' #' + idx) : ioSummaryKindLabel(kind);
     }
 
     function ioSummaryIoIdLabel(row) {
@@ -5906,7 +6126,7 @@
         appendIoSummaryCard(
           tr('io.cards.errors', 'Slots en erreur'),
           ioSummaryNumber(summary.error_slots),
-          errors.length ? errors.map((slot) => ioSummaryText(slot.label, slot.io_slot)).slice(0, 3).join(', ') : tr('io.cards.errors.none', 'aucune erreur active'),
+          errors.length ? errors.map((slot) => ioSummaryLocalizedName(slot.label || slot.io_slot)).slice(0, 3).join(', ') : tr('io.cards.errors.none', 'aucune erreur active'),
           errors.length ? 'error' : 'active'
         );
       }
@@ -5927,12 +6147,12 @@
           tr('io.table.bindingPorts', 'BindingPorts'),
           [
             { key: 'port_id', label: tr('io.col.port', 'Port') },
-            { key: 'board_port', label: tr('io.col.boardPort', 'Port carte'), render: (row) => ioSummaryText(row.board_port, '-') },
+            { key: 'board_port', label: tr('io.col.boardPort', 'Port carte'), render: (row) => tr('io.port.' + Number(row.port_id), ioSummaryText(row.board_port, '-')) },
             { key: 'direction', label: tr('io.col.direction', 'Sens'), render: (row) => createIoDirectionBadge(row.direction) },
             { key: 'driver', label: tr('io.col.driver', 'Driver') },
             { key: 'channel', label: tr('io.col.channel', 'Canal interne') },
             { key: 'state', label: tr('io.col.state', 'Etat'), render: (row) => createIoStateBadge(row.state) },
-            { key: 'last_value', label: tr('io.col.lastValue', 'Dernière valeur') },
+            { key: 'last_value', label: tr('io.col.lastValue', 'Dernière valeur'), render: ioSummaryValueLabel },
             { key: 'io_id', label: tr('io.col.ioId', 'IoId'), render: (row) => ioSummaryIoIdLabel(row) }
           ],
           bindingPorts
@@ -5941,24 +6161,25 @@
           tr('io.table.ioSlots', 'IOSlots'),
           [
             { key: 'io_slot', label: tr('io.col.slot', 'Slot'), render: (row) => ioSummarySlotLabel(row) },
-            { key: 'config_name', label: tr('io.col.configName', 'Nom config'), render: (row) => ioSummaryText(row.config_name, '-') },
-            { key: 'kind', label: tr('io.col.kind', 'Type') },
+            { key: 'config_name', label: tr('io.col.configName', 'Nom config'), render: (row) => ioSummaryLocalizedName(row.config_name) },
+            { key: 'kind', label: tr('io.col.kind', 'Type'), render: row => ioSummaryKindLabel(row.kind) },
             { key: 'driver', label: tr('io.col.driver', 'Driver'), render: (row) => createIoOptionalCell(row.driver) },
             { key: 'channel', label: tr('io.col.channel', 'Canal interne'), render: (row) => createIoOptionalCell(row.channel) },
             { key: 'state', label: tr('io.col.state', 'Etat'), render: (row) => createIoDeviceStateBadge(row) },
-            { key: 'last_value', label: tr('io.col.lastValue', 'Dernière valeur') },
-            { key: 'error', label: tr('io.col.error', 'Erreur') }
+            { key: 'last_value', label: tr('io.col.lastValue', 'Dernière valeur'), render: ioSummaryValueLabel },
+            { key: 'error', label: tr('io.col.error', 'Erreur'), render: row => ioSummaryErrorLabel(row.error) }
           ],
           ioSlots
         ));
         ioSummaryTables.appendChild(createIoCompactTable(
           tr('io.table.domainSlots', 'DomainSlots'),
           [
-            { key: 'display_name', label: tr('io.col.domainSlot', 'Domaine') },
-            { key: 'io_name', label: tr('io.col.ioName', 'IONAME'), render: (row) => ioSummaryText(row.io_name, '-') },
+            { key: 'display_name', label: tr('io.col.domainSlot', 'Domaine'), render: (row) => ioSummaryDomainLabel(row, data.disinfection_type) },
+            { key: 'io_name', label: tr('io.col.ioName', 'IONAME'), render: (row) => ioSummaryLocalizedName(row.io_name) },
             { key: 'io_slot', label: tr('io.col.ioSlot', 'IOSlot'), render: (row) => ioSummarySlotLabel(row) },
+            { key: 'binding_port', label: tr('io.col.relay', 'Relais'), render: (row) => ioSummaryRelayLabel(row) },
             { key: 'state', label: tr('io.col.state', 'Etat'), render: (row) => createIoDeviceStateBadge(row) },
-            { key: 'last_value', label: tr('io.col.lastValue', 'Dernière valeur') }
+            { key: 'last_value', label: tr('io.col.lastValue', 'Dernière valeur'), render: ioSummaryValueLabel }
           ],
           domainSlots
         ));
@@ -5979,16 +6200,27 @@
           .map((row) => [Number(row && row.domain_slot_id), row])
       );
 
+      const physicalPortsByIoId = new Map(
+        (Array.isArray(runtime && runtime.binding_ports) ? runtime.binding_ports : [])
+          .filter(row => Number(row.io_id) !== 65535 && Number.isFinite(Number(row.io_id)))
+          .map(row => [Number(row.io_id), Number(row.port_id)])
+      );
+      const mergeIoSlot = row => {
+        const merged = Object.assign({}, row, ioRuntime.get(Number(row.domain_slot_id)) || {});
+        if (physicalPortsByIoId.has(Number(merged.io_id))) merged.binding_port = physicalPortsByIoId.get(Number(merged.io_id));
+        return merged;
+      };
+      const ioSlots = (Array.isArray(topology && topology.io_slots) ? topology.io_slots : []).map(mergeIoSlot);
+      const ioSlotsByDomain = new Map(ioSlots.map(row => [Number(row.domain_slot_id), row]));
       return {
         ok: true,
         summary: runtime && runtime.summary,
         drivers: Array.isArray(runtime && runtime.drivers) ? runtime.drivers : [],
         binding_ports: (Array.isArray(topology && topology.binding_ports) ? topology.binding_ports : [])
           .map((row) => Object.assign({}, row, bindingRuntime.get(Number(row && row.port_id)) || {})),
-        io_slots: (Array.isArray(topology && topology.io_slots) ? topology.io_slots : [])
-          .map((row) => Object.assign({}, row, ioRuntime.get(Number(row && row.domain_slot_id)) || {})),
+        io_slots: ioSlots,
         domain_slots: (Array.isArray(topology && topology.domain_slots) ? topology.domain_slots : [])
-          .map((row) => Object.assign({}, row, domainRuntime.get(Number(row && row.domain_slot_id)) || {})),
+          .map((row) => Object.assign({}, ioSlotsByDomain.get(Number(row && row.domain_slot_id)) || {}, row, domainRuntime.get(Number(row && row.domain_slot_id)) || {})),
         error_slots: Array.isArray(runtime && runtime.error_slots) ? runtime.error_slots : []
       };
     }
@@ -6033,7 +6265,11 @@
       const reqSeq = ++ioSummaryReqSeq;
       if (forceRefresh || !ioSummaryLoadedOnce) renderIoSummarySkeleton();
       try {
-        const data = await fetchIoSummary(forceRefresh || !ioTopologyCache);
+        const [data, modes] = await Promise.all([
+          fetchIoSummary(forceRefresh || !ioTopologyCache),
+          poolConfigFetchModule('poollogic/modes').catch(() => null)
+        ]);
+        data.disinfection_type = modes ? Number(modes.data.disinfection_type) : null;
         if (reqSeq !== ioSummaryReqSeq) return;
         ioSummaryLoadedOnce = true;
         renderIoSummary(data);
@@ -6152,8 +6388,7 @@
         if (!options.isActive()) return;
         if (connected && !isConnected()) disconnect();
         start();
-        if (!isConnected() || Date.now() - lastFullRefreshAt >= 60000) mark(allDomains);
-        else mark(8); // Sensor readings continue to refresh every ten seconds.
+        mark(allDomains); // Reconcile every dashboard state every ten seconds, even with SSE.
       }
 
       function stop() {
@@ -6448,7 +6683,7 @@
           return {
             slot: Number.isFinite(idx) ? idx : 999,
             runtimeUiId: Number.isFinite(Number(slot && slot.runtime_ui_id)) ? Number(slot.runtime_ui_id) : 0,
-            label: String(slot && slot.label ? slot.label : '').trim(),
+            label: ioSummaryLocalizedName(String(slot && slot.label ? slot.label : '').trim()),
             value: String(slot && slot.value ? slot.value : '').trim(),
             unit: String(slot && slot.unit ? slot.unit : '').trim(),
             bgColor: String(slot && slot.bg_color ? slot.bg_color : '').trim(),
@@ -6482,6 +6717,18 @@
       });
     }
 
+    function poolAlarmLabel(id, fallback = '') {
+      const labels = {
+        1000: ['pool.alarm.pressure.low', 'Seuil pression bas'],
+        1001: ['pool.alarm.pressure.high', 'Seuil pression haut'],
+        1004: ['pool.alarm.ph.duration', 'Durée maximale pompe pH'],
+        1005: ['pool.alarm.chlorine.duration', 'Durée maximale pompe chlore'],
+        1010: ['pool.alarm.flow.absent', 'Débit de filtration absent']
+      };
+      const label = labels[Number(id)];
+      return label ? tr(...label) : String(fallback || '').trim();
+    }
+
     async function fetchPoolAlarmSlots() {
       const data = await fetchPoolDashboardSlots();
       const slots = Array.isArray(data && data.alarm_slots) ? data.alarm_slots : [];
@@ -6491,7 +6738,7 @@
           return {
             slot: Number.isFinite(idx) ? idx : 999,
             alarmId: Number.isFinite(Number(slot && slot.alarm_id)) ? Number(slot.alarm_id) : 0,
-            label: String(slot && slot.label ? slot.label : '').trim(),
+            label: poolAlarmLabel(slot && slot.alarm_id, slot && slot.label),
             enabled: !!(slot && slot.enabled),
             available: !!(slot && slot.available),
             latched: !!(slot && slot.latched),
@@ -6503,8 +6750,7 @@
               : null
           };
         })
-        .sort((a, b) => a.slot - b.slot)
-        .slice(0, 8);
+        .sort((a, b) => a.slot - b.slot);
     }
 
     function runtimeMeasureDisplayLabel(entry) {
@@ -6556,6 +6802,7 @@
 
       for (let i = 0; i < 8; i += 1) {
         const slot = cleanSlots[i] || null;
+        if (!slot || slot.enabled === false) continue;
         const tile = document.createElement('div');
         tile.className = 'status-sonde-slot';
         const available = !!(slot && slot.enabled !== false && slot.available);
@@ -7564,57 +7811,14 @@
             tr('dashboard.action.setpointAccepted', 'Consigne acceptée'));
         });
         wrapper.append(input, status);
-        let modeControl = null;
-        if (target.modes && target.modes.length) {
-          const mode = document.createElement('select');
-          mode.className = 'control-input';
-          mode.setAttribute('aria-label', tr('pool.driver.runMode', 'Mode de fonctionnement') + ' — ' + target.label);
-          target.modes.forEach((label, index) => {
-            const option = document.createElement('option'); option.value = index; option.textContent = label; mode.appendChild(option);
-          });
-          modeControl = { input: mode, target, column, available: false };
-          switchControls.push(modeControl);
-          mode.addEventListener('change', () => {
-            if (!modeControl.available || pending || runtimeActionBusyKey) return;
-            const action = actions.find(item => item.id === 'mode');
-            if (action) applyTargetAction(target, action, Number(mode.value), target.value,
-              tr('pool.driver.modeAccepted', 'Mode accepté'));
-          });
-          wrapper.appendChild(mode);
-        }
-        const telemetryRows = [];
-        if (target.telemetry) {
-          const details = document.createElement('details');
-          const summary = document.createElement('summary'); summary.textContent = tr('pool.telemetry.title', 'Mesures PAC');
-          details.appendChild(summary);
-          Object.keys(target.telemetry).forEach(key => {
-            const row = document.createElement('div');
-            const name = document.createElement('span');
-            name.textContent = tr('pool.telemetry.' + key, key.replaceAll('_', ' ')) + ' : ';
-            const value = document.createElement('span'); row.append(name, value); details.appendChild(row);
-            telemetryRows.push({ key, value });
-          });
-          wrapper.appendChild(details);
-        }
         return { element: wrapper, update: (current) => {
           control.available = current.controllable === true;
           if (document.activeElement !== input) input.value = String(current.setpoint ?? '');
-          if (modeControl) {
-            modeControl.available = control.available;
-            if (document.activeElement !== modeControl.input) modeControl.input.value = String(current.mode ?? 0);
-          }
-          telemetryRows.forEach(({ key, value }) => {
-            const reading = current.telemetry && current.telemetry[key];
-            const text = reading == null ? '—' : typeof reading === 'boolean' ?
-              (reading ? tr('pool.telemetry.yes', 'Oui') : tr('pool.telemetry.no', 'Non')) :
-              String(reading) + (current.telemetry_units?.[key] ? ' ' + current.telemetry_units[key] : '');
-            setRuntimeActionText(value, text);
-          });
           const qualityKeys = ['unknownState', 'estimated', 'confirmed', 'stale'];
           const qualityFallbacks = ['Indisponible', 'Estimé', 'Confirmé', 'Périmé'];
           const q = Number(current.quality) || 0;
           const quality = tr('dashboard.action.' + qualityKeys[q], qualityFallbacks[q]);
-          const suffix = [' %', ' %', ' °C', ' rpm'][current.unit] || '';
+          const suffix = current.unit === 2 ? ' °C' : ' %';
           setRuntimeActionText(status, (current.observedSetpoint == null ? '—' : current.observedSetpoint + suffix) + ' · ' + quality);
         } };
       }
@@ -7716,6 +7920,10 @@
         const hint = document.createElement('p');
         hint.className = 'runtime-override-hint';
         hint.textContent = tr('override.hint', 'Retour automatique au pilotage habituel à la fin du délai.');
+        const safetyMessage = document.createElement('p');
+        safetyMessage.className = 'runtime-override-hint';
+        safetyMessage.setAttribute('role', 'status');
+
         const footer = document.createElement('div');
         footer.className = 'runtime-override-footer';
         const release = makeButton(tr('override.finish', 'Terminer le forçage'));
@@ -7737,10 +7945,19 @@
         duration.addEventListener('input', () => updateControls());
         footer.append(cancel, apply);
         controls.append(fields, footer);
-        panel.append(controls, hint, release);
+        panel.append(controls, safetyMessage, hint, release);
         cell.appendChild(panel); confirmationRow.appendChild(cell); row.after(confirmationRow);
         overridePanel = { primary: apply, update: (blocked) => {
           const available = target.override_available === true && target.controllable === true;
+          const electrolysis = Number(target.domainSlot) === 16 &&
+            Number(poolConfigModulesCache?.['poollogic/modes']?.disinfection_type) === 1;
+          const filtration = targets.find(item => Number(item.domainSlot) === 14);
+          safetyMessage.hidden = !electrolysis || !requested;
+          safetyMessage.textContent = electrolysis && requested ?
+            (filtration?.actualOn === false ?
+              tr('override.electrolysis.filtrationStopped', 'Marche forcée impossible : la filtration est à l’arrêt. Démarrez la filtration avant l’électrolyse.') :
+              tr('override.electrolysis.conditions', 'L’électrolyse forcée exige une filtration en marche, une pression correcte et un débit présent si leurs surveillances sont activées. La température ne bloque pas le forçage.')) : '';
+
           modeButtons.forEach(({ node, value }) => node.setAttribute('aria-pressed', String(value === requested)));
           durationButtons.forEach(({ node, value }) => node.setAttribute('aria-pressed', String(custom ? value === null : value === minutes)));
           customLabel.hidden = !custom;
@@ -7799,7 +8016,7 @@
             label: column.label + ' — ' + current.label,
             title: available ? current.label : tr('dashboard.action.unavailable', 'Commande indisponible')
           });
-          setRuntimeActionText(status, actualUnknown ? tr('dashboard.action.unknownState', 'État indisponible') : (state ? 'On' : 'Off'));
+          setRuntimeActionText(status, actualUnknown ? tr('dashboard.action.unknownState', 'État indisponible') : ioSummaryValueLabel({last_value: state ? 'on' : 'off'}));
         } };
       }
 
@@ -7835,7 +8052,14 @@
             option.value > 4294967295 || typeof option.label !== 'string')) {
             throw new Error(config.errorText || tr('dashboard.action.targetsError', 'Liste des équipements indisponible'));
           }
-          targets = data.options;
+          targets = data.options.map(option => {
+            if (alarmLayout) return { ...option, label: poolAlarmLabel(option.value, option.label) };
+            if (!equipmentLayout) return option;
+            const name = Number(option.domainSlot) === 16
+              ? poolConfigDisinfectionLabel(poolConfigModulesCache?.['poollogic/modes']?.disinfection_type)
+              : Number(option.domainSlot) === 19 ? tr('pool.relay.free', 'Relais libre') : ioSummaryLocalizedName(option.name);
+            return { ...option, name, label: name + ' (' + option.deviceId + ')' };
+          });
           if (interaction) interaction.selection = selection;
           renderTable(updatedSlots, interaction);
           if (tableReadFailed) {
@@ -8254,19 +8478,14 @@
     }
 
     function buildPoolAlarmSlotsGrid(slots, management = {}) {
-      const cleanSlots = Array(8).fill(null);
-      if (Array.isArray(slots)) {
-        slots.forEach((slot) => {
-          const idx = Number(slot && slot.slot);
-          if (Number.isInteger(idx) && idx >= 0 && idx < 8) cleanSlots[idx] = slot;
-        });
-      }
+      const cleanSlots = (Array.isArray(slots) ? slots : [])
+        .filter(slot => Number.isInteger(Number(slot && slot.slot)) && Number(slot.slot) >= 0)
+        .sort((a, b) => Number(a.slot) - Number(b.slot));
 
       const grid = document.createElement('div');
       grid.className = 'status-alarm-slot-grid';
 
-      for (let i = 0; i < 8; i += 1) {
-        const slot = cleanSlots[i] || null;
+      for (const slot of cleanSlots) {
         const enabled = !!(slot && slot.enabled);
         if (!enabled) continue;
 
@@ -8620,7 +8839,70 @@
       return card;
     }
 
+    let poolLightingRead = null;
+    let poolLightingLastRead = 0;
+    let poolLightingTarget = null;
+
+    async function refreshPoolLightingControl(force = false) {
+      const host = document.getElementById('poolLightingControl');
+      if (!host || poolLightingRead || (!force && Date.now() - poolLightingLastRead < 5000)) return;
+      const entry = poolMeasureDomainState.equipements.entries.find(item =>
+        runtimeMeasureDisplayConfig(item).actionDialog?.layout === 'equipment-management');
+      if (!entry) return;
+      const config = runtimeMeasureDisplayConfig(entry).actionDialog;
+      const column = config.columns.find(item => item.type === 'switch');
+      const action = (entry.actions || []).find(item => item.id === column?.action);
+      if (!column || !action) return;
+      poolLightingLastRead = Date.now();
+      poolLightingRead = (async () => {
+        try {
+          const data = await fetchOkJson(config.optionsUrl, { cache: 'no-store' },
+            tr('dashboard.action.targetsError', 'Liste des équipements indisponible'));
+          poolLightingTarget = (data.options || []).find(target => Number(target.domainSlot) === 22) || null;
+          let button = host.querySelector('button');
+          if (!button) {
+            button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'secondary pool-lighting-button';
+            button.append(buildRuntimeActionIcon('light'), document.createElement('span'));
+            button.addEventListener('click', async () => {
+              const target = poolLightingTarget;
+              if (!target || button.disabled) return;
+              button.disabled = true;
+              const desired = !runtimeCounterValue(target, column.key);
+              const ok = await executeRuntimeAction(entry, action, desired,
+                runtimeCounterValue(target, column.targetKey));
+              if (!ok) {
+                const feedback = runtimeActionFeedback.get(runtimeActionKey(entry, action, desired,
+                  runtimeCounterValue(target, column.targetKey)));
+                host.querySelector('[role="status"]').textContent = feedback?.message || tr('dashboard.action.error', 'Commande refusée');
+              } else host.querySelector('[role="status"]').textContent = '';
+              await refreshPoolLightingControl(true);
+            });
+            const feedback = document.createElement('span');
+            feedback.setAttribute('role', 'status');
+            host.append(button, feedback);
+          }
+          const target = poolLightingTarget;
+          const state = runtimeCounterValue(target, column.key);
+          button.disabled = !!runtimeActionBusyKey || !target || typeof state !== 'boolean' ||
+            runtimeCounterValue(target, column.eligibleKey) !== true;
+          button.setAttribute('aria-pressed', String(state === true));
+          button.querySelector('span').textContent = tr('pool.lighting.label', 'Éclairage du bassin') + ' · ' +
+            (typeof state !== 'boolean' ? tr('dashboard.action.unknownState', 'État indisponible') :
+              state ? tr('pool.lighting.on', 'Allumé') : tr('pool.lighting.off', 'Éteint'));
+        } catch (err) {
+          const button = host.querySelector('button');
+          if (button) button.disabled = true;
+          const feedback = host.querySelector('[role="status"]');
+          if (feedback) feedback.textContent = err.message;
+        } finally { poolLightingRead = null; }
+      })();
+      await poolLightingRead;
+    }
+
     function renderPoolMeasuresGrid() {
+      refreshPoolLightingControl();
       if (!poolMeasuresGrid) return;
       const fragment = document.createDocumentFragment();
 
@@ -8767,13 +9049,14 @@
     function poolConfigFormatHour(value) {
       const n = Number(value);
       if (!Number.isFinite(n)) return String(value ?? '-');
-      return String(Math.max(0, Math.min(23, Math.trunc(n)))).padStart(2, '0') + ':00';
+      const minute = Math.max(0, Math.min(1439, Math.round(n * 60)));
+      return String(Math.floor(minute / 60)).padStart(2, '0') + ':' + String(minute % 60).padStart(2, '0');
     }
 
     function poolConfigHourToMinutes(value) {
       const n = Number(value);
       if (!Number.isFinite(n)) return null;
-      return Math.max(0, Math.min(23, Math.trunc(n))) * 60;
+      return Math.max(0, Math.min(1439, Math.round(n * 60)));
     }
 
     function poolConfigDayProgress(startValue, stopValue) {
@@ -8979,8 +9262,8 @@
       const modes = modules['poollogic/modes'] || {};
       const filtration = modules['poollogic/filtration'] || {};
       const alarms = poolConfigActiveAlarms(alarmSlots);
-      const startValue = filtration.filtr_start_clc ?? filtration.filtr_start_min;
-      const stopValue = filtration.filtr_stop_clc ?? filtration.filtr_stop_max;
+      const startValue = (filtration.filtr_start_minute !== undefined ? Number(filtration.filtr_start_minute) / 60 : (filtration.filtr_start_clc ?? filtration.filtr_start_min));
+      const stopValue = (filtration.filtr_stop_minute !== undefined ? Number(filtration.filtr_stop_minute) / 60 : (filtration.filtr_stop_clc ?? filtration.filtr_stop_max));
       const start = poolConfigFormatHour(startValue);
       const stop = poolConfigFormatHour(stopValue);
       if (poolHeroState) {
@@ -9067,11 +9350,20 @@
 
       const choiceGroup = document.createElement('div');
       choiceGroup.className = 'pool-treatment-choice-group';
-      poolDisinfectionModeDefs.forEach((def) => {
+      [{ key: 'none', typeValue: 3, titleKey: 'pool.disinfection.none.title', title: 'Aucun traitement', icon: 'block' }, ...poolDisinfectionModeDefs].forEach((def) => {
         const choice = document.createElement('button');
         choice.type = 'button';
-        choice.disabled = true;
-        choice.className = 'pool-treatment-choice' + (selectedType === def.typeValue ? ' is-selected' : '');
+        choice.disabled = !isAdminSession();
+        choice.addEventListener('click', async () => {
+          choice.disabled = true;
+          try {
+            const result = await fetchJsonResponse('/api/flowcfg/apply', createFormPostOptions({patch: JSON.stringify({'poollogic/modes': {disinfection_type: def.typeValue}})}), fetchWithBusyRetry);
+            if (!result.res.ok || !result.data || !result.data.ok) throw new Error(formatFlowCfgApplyError(result.data));
+            await loadPoolConfig(true);
+          } catch (error) { poolConfigRenderError(error); }
+          finally { choice.disabled = !isAdminSession(); }
+        });
+        choice.className = 'pool-treatment-choice' + (def.key === 'none' ? ' pool-treatment-choice-none' : '') + (selectedType === def.typeValue ? ' is-selected' : '');
         const choiceIcon = document.createElement('span');
         choiceIcon.className = 'ui-msr pool-treatment-choice-icon';
         choiceIcon.setAttribute('aria-hidden', 'true');
@@ -9125,6 +9417,22 @@
         }
       }
       detail.appendChild(metrics);
+      if (selectedDef.key !== 'none' && selectedDef.module && isAdminSession()) {
+        const fields = document.createElement('div');
+        const status = document.createElement('p'); status.setAttribute('role', 'status');
+        const settings = Object.fromEntries(Object.entries(data).filter(([key]) => !['protocol_state','last_dose_day','weekly_done_ml','pending_ml'].includes(key)));
+        renderConfigFields(fields, selectedDef.module, settings, {perFieldApply: true, onApplyField: async (input, button) => {
+          button.disabled = true;
+          try {
+            const value = readConfigFieldValueStrict(input);
+            const patch = {[selectedDef.module]: {[input.dataset.key]: value}};
+            const result = await fetchJsonResponse('/api/flowcfg/apply', createFormPostOptions({patch: JSON.stringify(patch)}), fetchWithBusyRetry);
+            if (!result.res.ok || !result.data || !result.data.ok) throw new Error(formatFlowCfgApplyError(result.data));
+            await loadPoolConfig(true);
+          } catch (error) { status.textContent = error.message || String(error); button.disabled = false; }
+        }});
+        detail.append(fields, status);
+      }
 
       poolDisinfectionModes.appendChild(selector);
       poolDisinfectionModes.appendChild(detail);
@@ -9161,8 +9469,8 @@
       head.appendChild(copy);
       card.appendChild(head);
 
-      const start = poolConfigFormatHour(data.filtr_start_clc ?? data.filtr_start_min);
-      const stop = poolConfigFormatHour(data.filtr_stop_clc ?? data.filtr_stop_max);
+      const start = poolConfigFormatHour((data.filtr_start_minute !== undefined ? Number(data.filtr_start_minute) / 60 : (data.filtr_start_clc ?? data.filtr_start_min)));
+      const stop = poolConfigFormatHour((data.filtr_stop_minute !== undefined ? Number(data.filtr_stop_minute) / 60 : (data.filtr_stop_clc ?? data.filtr_stop_max)));
       const times = document.createElement('div');
       times.className = 'pool-filtration-times';
       const startEl = document.createElement('b');
@@ -9178,6 +9486,206 @@
       times.appendChild(stopEl);
       card.appendChild(times);
       return card;
+    }
+
+    function poolConfigRenderAssignments(modules) {
+      const sensors = modules['poollogic/sensors'] || {};
+      const safety = modules['poollogic/safety'] || {};
+      const transports = modules['io/drivers/ds18b20'] || {};
+      const ads = modules['io/drivers/ads1115_int'] || {};
+      const disabled = 65535;
+      const analogModule = (id) => 'io/input/a' + String(Number(id) - 192).padStart(2, '0');
+      const outputModule = (index) => 'io/output/d' + String(index).padStart(2, '0');
+      const digitalOptions = [[disabled, 'Désactivé / non câblé'],
+        ...Array.from({ length: 16 }, (_, i) => [64 + i, 'Entrée numérique D' + String(i).padStart(2, '0')])];
+      const analogOptions = [[disabled, 'Désactivé / non câblé'],
+        ...Array.from({ length: 16 }, (_, i) => [192 + i, 'Entrée analogique A' + String(i).padStart(2, '0')])];
+      const temperatureOptions = (gpio) => [[disabled, 'Désactivé / non câblé'], ['ds2484', 'I²C 0x18 — DS2484'],
+        ...Array.from({ length: 12 }, (_, i) => ['direct:' + (196 + i), 'Entrée A' + String(i + 4).padStart(2, '0') + ' — direct GPIO' + gpio])];
+      const addCard = (title, description) => {
+        const card = document.createElement('article');
+        card.className = 'pool-config-card';
+        const heading = document.createElement('h3');
+        heading.textContent = title;
+        const note = document.createElement('p');
+        note.textContent = description;
+        const form = document.createElement('form');
+        form.className = 'pool-assignment-form';
+        card.append(heading, note, form);
+        poolConfigGrid.appendChild(card);
+        return form;
+      };
+      const addSelect = (form, labelText, options, initial) => {
+        const label = document.createElement('label');
+        label.className = 'pool-assignment-field';
+        const title = document.createElement('span');
+        title.textContent = labelText;
+        const select = document.createElement('select');
+        select.className = 'pool-setting-control';
+        select.setAttribute('aria-label', labelText);
+        options.forEach(([value, text]) => {
+          const option = document.createElement('option');
+          option.value = String(value);
+          option.textContent = text;
+          select.appendChild(option);
+        });
+        select.value = String(initial);
+        select.dataset.initialValue = select.value;
+        select.disabled = !isAdminSession();
+        label.append(title, select);
+        form.appendChild(label);
+        return select;
+      };
+      const addSave = (form, patchBuilder, restartRequired = false) => {
+        const status = document.createElement('p');
+        status.setAttribute('role', 'status');
+        const button = document.createElement('button');
+        button.type = 'submit';
+        button.className = 'btn';
+        button.textContent = restartRequired ? 'Enregistrer et redémarrer' : 'Enregistrer';
+        button.disabled = !isAdminSession();
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'btn';
+        reset.textContent = 'Annuler';
+        reset.addEventListener('click', () => { form.querySelectorAll('select').forEach((select) => { select.value = select.dataset.initialValue; select.dispatchEvent(new Event('change')); }); status.textContent = ''; });
+        form.append(reset, button, status);
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          button.disabled = true;
+          try {
+            const patch = patchBuilder();
+            const result = await fetchJsonResponse('/api/flowcfg/apply',
+              createFormPostOptions({ patch: JSON.stringify(patch) }), fetchWithBusyRetry);
+            if (!result.res.ok || !result.data || !result.data.ok) throw new Error(formatFlowCfgApplyError(result.data));
+            status.textContent = 'Enregistré. Redémarrez pour appliquer les changements de raccordement.';
+            Object.entries(patch).forEach(([module, data]) => Object.assign(modules[module] || (modules[module] = {}), data));
+            form.querySelectorAll('select').forEach(select => { select.dataset.initialValue = select.value; });
+            ioTopologyCache = null;
+            flowCfgChildrenCache = {};
+            invalidatePoolDashboardSlots();
+            if (restartRequired) {
+              status.textContent = 'Affectations enregistrées. Redémarrage pour appliquer les relais…';
+              await fetchOkJson('/api/system/reboot', {method: 'POST'}, 'Affectations enregistrées, mais redémarrage impossible.', fetchWithBusyRetry);
+              window.setTimeout(() => window.location.reload(), 12000);
+            }
+          } catch (error) {
+            status.textContent = error.message || 'Enregistrement impossible.';
+          } finally {
+            button.disabled = !isAdminSession();
+          }
+        });
+      };
+      const form = addCard('Affectation des sondes', 'Choisissez le raccordement de chaque sonde. Les deux ADS1115 utilisent des adresses complémentaires.');
+      const address = addSelect(form, 'Carte pH / ORP — adresse I²C', [[72, 'I²C 0x48 — ORP A0, pH A1'], [73, 'I²C 0x49 — ORP A0, pH A1']], ads.address || 72);
+      const pressureBinding = Number((modules['io/input/a02'] || {}).binding_port);
+      const pressureInitial = Number(sensors.psi_io_id) === 194 && pressureBinding >= 110 && pressureBinding <= 113
+        ? 'ads:' + (pressureBinding - 110) : sensors.psi_io_id;
+      const pressure = addSelect(form, 'Sonde de pression', [...analogOptions,
+        ...Array.from({ length: 4 }, (_, i) => ['ads:' + i, 'ADS1115 externe — canal A' + i])], pressureInitial);
+      const updatePressureLabels = () => {
+        const hex = Number(address.value) === 72 ? '0x49' : '0x48';
+        Array.from(pressure.options).forEach((option) => {
+          if (option.value.startsWith('ads:')) option.textContent = 'I²C ' + hex + ' — ADS1115 externe, canal A' + option.value.slice(4);
+        });
+      };
+      address.addEventListener('change', updatePressureLabels);
+      updatePressureLabels();
+      const temperatureFields = [
+        { key: 'wat_temp_io_id', transport: 'water_transport', gpio: 20, port: 120, defaultId: 196, label: 'Température eau' },
+        { key: 'air_temp_io_id', transport: 'air_transport', gpio: 19, port: 121, defaultId: 197, label: 'Température air' }
+      ].map((spec) => {
+        const ioId = Number(sensors[spec.key]);
+        const initial = ioId === disabled ? disabled : (Number(transports[spec.transport]) === 0 ? 'ds2484' : 'direct:' + ioId);
+        return { ...spec, control: addSelect(form, spec.label, temperatureOptions(spec.gpio), initial) };
+      });
+      const location = addSelect(form, 'Emplacement de la sonde de température eau', [[1, 'Tuyauterie — gel hors circulation'], [0, 'Bassin — mesure continue, sans gel']], toBool(safety.sensor_hold_wat) ? 1 : 0);
+      const flow = addSelect(form, 'Surveillance de débit', digitalOptions, toBool(sensors.flow_switch_enabled) ? sensors.flow_switch_io_id : disabled);
+      const levels = ['pool_lvl_io_id', 'ph_lvl_io_id', 'chl_lvl_io_id'].map((key, i) => ({ key,
+        control: addSelect(form, ['Niveau du bassin', 'Niveau produit pH', 'Niveau désinfectant'][i], digitalOptions, sensors[key]) }));
+      const feedbacks = [
+        { key: 'filtr_fb_io_id', polarity: 'filtr_fb_active_high', label: 'Surveillance disjoncteur filtration' },
+        { key: 'swg_fb_io_id', polarity: 'swg_fb_active_high', label: 'Surveillance disjoncteur électrolyseur' }
+      ].filter((spec) => spec.key !== 'swg_fb_io_id' || Number((modules['poollogic/modes'] || {}).disinfection_type) === 1).map((spec) => {
+        const control = addSelect(form, spec.label, digitalOptions, sensors[spec.key]);
+        const activeHigh = addSelect(form, spec.label + ' — polarité du retour', [[1, 'Contact actif au niveau haut'], [0, 'Contact actif au niveau bas']], toBool(sensors[spec.polarity]) ? 1 : 0);
+        const syncPolarity = () => { activeHigh.parentElement.hidden = Number(control.value) === disabled; };
+        control.addEventListener('change', syncPolarity);
+        syncPolarity();
+        return { ...spec, control, activeHigh };
+      });
+      const counterConfig = modules['io/input/i01'] || {};
+      const counterPort = Number(counterConfig.binding_port) || 0;
+      const counterOptions = [[0, 'Désactivé / non câblé'], [201, 'Activé — GPIO5 (impulsions)']];
+      if (counterPort && counterPort !== 201) counterOptions.push([counterPort, 'Activé — raccordement actuel']);
+      const counter = addSelect(form, 'Compteur d’eau', counterOptions, counterPort);
+      const environmentalSensors = ['bme680', 'bmp280'].map(driver => ({
+        module: 'io/drivers/' + driver,
+        control: addSelect(form, driver.toUpperCase(), [[0, 'Désactivé / non câblé'], [1, 'Activé']],
+          toBool((modules['io/drivers/' + driver] || {}).enabled) ? 1 : 0)
+      }));
+      const extraInfo = document.createElement('p');
+      extraInfo.className = 'pool-assignment-help';
+      extraInfo.textContent = 'Compteur : volume d’eau par impulsions. BME680 : température, humidité, pression atmosphérique et gaz. BMP280 : température et pression atmosphérique. Les sondes désactivées sont masquées sur le tableau de bord.';
+      form.appendChild(extraInfo);
+      addSave(form, () => {
+        const sensorPatch = {};
+        const patch = {
+          'io/drivers/ads1115_int': { address: Number(address.value) },
+          'io/drivers/ads1115_ext': { address: Number(address.value) === 72 ? 73 : 72 },
+          'poollogic/sensors': sensorPatch,
+          'poollogic/safety': { sensor_hold_wat: location.value === '1' },
+          'io/drivers/ds18b20': {}
+        };
+        sensorPatch.psi_io_id = pressure.value.startsWith('ads:') ? 194 : Number(pressure.value);
+        if (pressure.value !== pressure.dataset.initialValue || sensorPatch.psi_io_id === disabled) {
+          sensorPatch.psi_monitoring = sensorPatch.psi_io_id !== disabled;
+        }
+        if (pressure.value === '194') patch['io/input/a02'] = { binding_port: 102 };
+        if (pressure.value.startsWith('ads:')) patch['io/input/a02'] = { binding_port: 110 + Number(pressure.value.slice(4)) };
+        temperatureFields.forEach((spec) => {
+          const value = spec.control.value;
+          const id = value === 'ds2484' ? spec.defaultId : (value.startsWith('direct:') ? Number(value.slice(7)) : disabled);
+          sensorPatch[spec.key] = id;
+          if (id !== disabled) {
+            patch['io/drivers/ds18b20'][spec.transport] = value === 'ds2484' ? 0 : 1;
+            patch[analogModule(id)] = { binding_port: spec.port };
+          }
+        });
+        const assigned = [sensorPatch.psi_io_id, sensorPatch.wat_temp_io_id, sensorPatch.air_temp_io_id].filter((id) => id !== disabled);
+        if (new Set(assigned).size !== assigned.length) throw new Error('Choisissez une entrée différente pour chaque sonde.');
+        sensorPatch.flow_switch_io_id = Number(flow.value);
+        sensorPatch.flow_switch_enabled = Number(flow.value) !== disabled;
+        levels.forEach(({ key, control }) => { sensorPatch[key] = Number(control.value); });
+        feedbacks.forEach((spec) => {
+          sensorPatch[spec.key] = Number(spec.control.value);
+          sensorPatch[spec.polarity] = spec.activeHigh.value === '1';
+        });
+        if (counter.value !== counter.dataset.initialValue) patch['io/input/i01'] = { binding_port: Number(counter.value) };
+        environmentalSensors.forEach(({ module, control }) => {
+          if (control.value !== control.dataset.initialValue) patch[module] = { enabled: control.value === '1' };
+        });
+        return patch;
+      });
+      const relays = addCard('Affectation des relais', 'Un relais CH par fonction. Un canal déjà utilisé échange son affectation avec la fonction modifiée. L’enregistrement redémarre la carte pour appliquer les raccordements.');
+      const definitions = [[0, 'Pompe de filtration'], [2, poolConfigDisinfectionLabel((modules['poollogic/modes'] || {}).disinfection_type)], [1, 'Pompe pH'], [6, 'Éclairage'], [7, 'Chauffage'], [4, 'Pompe de remplissage'], [3, 'Robot'], [5, 'Relais libre']];
+      const relayOptions = [[0, 'Désactivé / non câblé'], ...Array.from({ length: 8 }, (_, i) => [300 + i, 'CH' + (i + 1)])];
+      const controls = definitions.map(([index, label]) => ({ index,
+        control: addSelect(relays, label, relayOptions, Number((modules[outputModule(index)] || {}).binding_port) || 0)
+      }));
+      controls.forEach((entry) => {
+        entry.previous = entry.control.value;
+        entry.control.addEventListener('change', () => {
+          const other = controls.find((candidate) => candidate !== entry && candidate.control.value === entry.control.value && entry.control.value !== '0');
+          if (other) { other.control.value = entry.previous; other.previous = other.control.value; }
+          entry.previous = entry.control.value;
+        });
+      });
+      addSave(relays, () => {
+        const patch = {};
+        controls.forEach(({ index, control }) => { patch[outputModule(index)] = { binding_port: Number(control.value) }; });
+        return patch;
+      }, true);
     }
 
     function poolConfigRenderGeneralCards(modules) {
@@ -9226,6 +9734,7 @@
       poolConfigRenderHero(source, alarmSlots);
       poolConfigRenderDisinfection(source);
       poolConfigRenderGeneralCards(source);
+      poolConfigRenderAssignments(source);
     }
 
     function poolConfigRenderSkeleton() {
@@ -9333,7 +9842,13 @@
       try {
         await poolConfigEnsureDocs().catch(() => {});
         const modules = {};
-        const allDefs = poolConfigModuleDefs.concat(poolDisinfectionModeDefs);
+        const extraModules = ['poollogic/sensors', 'poollogic/devices', 'io/drivers/ds18b20',
+          'io/drivers/ads1115_int', 'io/drivers/ads1115_ext',
+          'io/drivers/bme680', 'io/drivers/bmp280', 'io/input/i01',
+          ...Array.from({ length: 16 }, (_, i) => 'io/input/a' + String(i).padStart(2, '0')),
+          ...Array.from({ length: 8 }, (_, i) => 'io/output/d' + String(i).padStart(2, '0'))];
+        const allDefs = poolConfigModuleDefs.concat(poolDisinfectionModeDefs,
+          extraModules.map((module) => ({ module })));
         for (const def of allDefs) {
           const payload = await poolConfigFetchModule(def.module);
           if (reqSeq !== poolConfigReqSeq) return;
@@ -9751,7 +10266,11 @@
         calibrationSetLiveFillButtonsDisabled(false);
 
         if (prefillLive) {
-          await calibrationPrefillLiveValue({ silent: true });
+          try {
+            await calibrationPrefillLiveValue({ silent: true });
+          } catch (err) {
+            calibrationSetStatus(tr('calibration.loadedWithoutLive', 'Configuration chargée. Mesure en direct indisponible : vérifiez le raccordement de la sonde ou saisissez la mesure manuellement.'), 'warning');
+          }
         }
       } catch (err) {
         calibrationContext = null;
@@ -10065,133 +10584,6 @@
       }
     }
 
-    function stopWifiScanPolling() {
-      wifiScanPoller.stop();
-    }
-
-    function scheduleWifiScanPolling() {
-      wifiScanPoller.schedule(1200);
-    }
-
-    function renderWifiScanList(data) {
-      const networks = (data && Array.isArray(data.networks)) ? data.networks : [];
-      const currentSsid = (wifiSsid.value || '').trim();
-      const prevSelected = wifiSsidList.value || '';
-      const maxWifiOptionLabelLen = 56;
-
-      wifiSsidList.innerHTML = '';
-      const manualOpt = document.createElement('option');
-      manualOpt.value = '';
-      manualOpt.textContent = 'Saisie manuelle';
-      wifiSsidList.appendChild(manualOpt);
-
-      for (const net of networks) {
-        if (!net || typeof net.ssid !== 'string' || net.ssid.length === 0) continue;
-        if (net.hidden) continue;
-        const opt = document.createElement('option');
-        const secureSuffix = net.secure ? ' (securise)' : ' (ouvert)';
-        const rssiSuffix = Number.isFinite(net.rssi) ? (' ' + net.rssi + ' dBm') : '';
-        const fullLabel = net.ssid + secureSuffix + rssiSuffix;
-        opt.value = net.ssid;
-        opt.textContent = fullLabel.length > maxWifiOptionLabelLen
-            ? (fullLabel.slice(0, maxWifiOptionLabelLen - 1) + '…')
-            : fullLabel;
-        wifiSsidList.appendChild(opt);
-      }
-
-      const values = Array.from(wifiSsidList.options).map((o) => o.value);
-      if (currentSsid && values.includes(currentSsid)) {
-        wifiSsidList.value = currentSsid;
-      } else if (prevSelected && values.includes(prevSelected)) {
-        wifiSsidList.value = prevSelected;
-      } else {
-        wifiSsidList.value = '';
-      }
-    }
-
-    function updateWifiScanStatusText(data, reqError) {
-      if (reqError) {
-        wifiConfigStatus.textContent = 'Scan réseau indisponible: ' + reqError;
-        return;
-      }
-      if (!data || data.ok !== true) {
-        wifiConfigStatus.textContent = 'Scan réseau : réponse invalide.';
-        return;
-      }
-
-      const running = !!data.running;
-      const requested = !!data.requested;
-      const count = Number.isFinite(data.count) ? data.count : 0;
-      const totalFound = Number.isFinite(data.total_found) ? data.total_found : count;
-      if (running || requested) {
-        wifiConfigStatus.textContent = 'Scan réseau en cours...';
-        return;
-      }
-      if (count > 0) {
-        wifiConfigStatus.textContent = 'Scan réseau terminé : ' + count + ' réseaux affichés (' + totalFound + ' détectés).';
-        return;
-      }
-      wifiConfigStatus.textContent = 'Aucun réseau visible détecté.';
-    }
-
-    function toBool(v) {
-      if (typeof v === 'boolean') return v;
-      if (typeof v === 'number') return v !== 0;
-      if (typeof v === 'string') {
-        const s = v.trim().toLowerCase();
-        return s === '1' || s === 'true' || s === 'on' || s === 'yes';
-      }
-      return false;
-    }
-
-    async function requestWifiScan(force) {
-      return fetchOkJson('/api/wifi/scan', createFormPostOptions({
-        force: force ? '1' : '0'
-      }), 'échec démarrage scan');
-    }
-
-    async function refreshWifiScanStatus(triggerScan) {
-      try {
-        if (triggerScan) {
-          await requestWifiScan(true);
-        }
-        const data = await fetchOkJson('/api/wifi/scan', { cache: 'no-store' }, 'échec lecture état');
-
-        renderWifiScanList(data);
-        updateWifiScanStatusText(data, null);
-
-        if (data.running || data.requested) {
-          scheduleWifiScanPolling();
-        } else {
-          stopWifiScanPolling();
-        }
-      } catch (err) {
-        stopWifiScanPolling();
-        updateWifiScanStatusText(null, err);
-      }
-    }
-
-    async function loadWifiConfig() {
-      try {
-        const data = await fetchOkJson('/api/wifi/config', { cache: 'no-store' }, 'chargement réseau indisponible');
-        wifiEnabled.checked = toBool(data.enabled);
-        wifiSsid.value = data.ssid || '';
-        wifiPass.value = data.pass || '';
-        wifiConfigStatus.textContent = 'Configuration réseau chargée.';
-      } catch (err) {
-        wifiConfigStatus.textContent = 'Chargement réseau échoué: ' + err;
-      }
-    }
-
-    async function saveWifiConfig() {
-      await fetchOkJson('/api/wifi/config', createFormPostOptions({
-        enabled: wifiEnabled.checked ? '1' : '0',
-        ssid: wifiSsid.value.trim(),
-        pass: wifiPass.value
-      }), 'échec application');
-      wifiConfigStatus.textContent = 'Configuration réseau appliquée (reconnexion en cours).';
-    }
-
     function nettoyerNomFlowCfg(moduleName) {
       return String(moduleName || '').trim().replace(/^\/+|\/+$/g, '');
     }
@@ -10261,7 +10653,7 @@
       const cleanPath = nettoyerNomFlowCfg(pathValue);
       for (const branch of cfgTreeVirtualBranches) {
         if (branch.display === cleanPath) {
-          return branch.children.slice().sort((a, b) => a.localeCompare(b));
+          return branch.children.slice();
         }
       }
       return null;
@@ -10312,16 +10704,14 @@
       const matchIo = cleanPath.match(/^io\/input\/(?:analog\/)?(a\d{2})$/i)
         || cleanPath.match(/^io\/input\/(?:digital\/)?(i\d{2})$/i)
         || cleanPath.match(/^io\/output\/(d\d{2})$/i);
-      const matchValue = cleanPath.match(/^io\/value\/(v\d{2})$/i);
-      const match = matchIo || matchValue;
-      if (match) {
-        const ref = String(match[1] || '').toLowerCase();
+      if (matchIo) {
+        const ref = String(matchIo[1] || '').toLowerCase();
         if (!ref) return null;
         return {
           type: 'io',
           ref: ref,
           modulePath: cleanPath,
-          nameKey: matchValue ? 'name' : ref + '_name'
+          nameKey: ref + '_name'
         };
       }
       return null;
@@ -10503,6 +10893,7 @@
     }
 
     function renderFlowCfgCurrentPath(pathValue, node) {
+      renderConfigNetworkState(pathValue);
       const cleanPath = nettoyerNomFlowCfg(pathValue);
       const childCount = cfgFilteredChildren(cleanPath).length;
       const level = cleanPath ? cleanPath.split('/').length : 0;
@@ -11846,7 +12237,6 @@
 
     function isCounterModeOnlyConfigField(moduleName, key, doc) {
       if (!isDigitalInputConfigModule(moduleName)) return false;
-      if (doc && doc.counter_only === true) return true;
       const cleanKey = normalizeDigitalInputConfigKey(moduleName, key);
       if (!cleanKey || cleanKey === 'mode') return false;
       if (cleanKey === 'counter_total' || cleanKey === 'edge_mode') return true;
@@ -12068,7 +12458,7 @@
           add(config, 'dead_ms', tr('pool.driver.dead','Temps mort (ms)'), 250);
         }
         if (config.kind !== 0) {
-          add(config, 'unit', tr('pool.driver.unit','Unité'), 0, [[0,tr('pool.driver.speed','Vitesse (%)')],[1,tr('pool.driver.power','Puissance (%)')],[2,'°C'],[3,'RPM']]);
+          add(config, 'unit', tr('pool.driver.unit','Unité'), 0, [[0,tr('pool.driver.speed','Vitesse (%)')],[1,tr('pool.driver.power','Puissance (%)')],[2,'°C']]);
           add(config, 'minimum', 'Minimum', 0); add(config, 'maximum', 'Maximum', 100);
           add(config, 'startup', tr('pool.driver.startup','Consigne au démarrage'), 100);
           add(config, 'flow_curve', tr('pool.driver.flow','Courbe débit : [[consigne, L/h], …]'), [], null, true);
@@ -12082,20 +12472,6 @@
         if (config.kind === 3) {
           const serial = config.serial || (config.serial = {});
           add(serial, 'protocol', tr('pool.driver.protocol','Format de trame'), 0, [[0,'Modbus RTU'],[1,'Vendor Register RTU']]);
-          add(serial, 'control', tr('pool.driver.serialControl','Commande série'), 0,
-            [[0,tr('pool.driver.separateRun','Consigne puis marche')],[1,tr('pool.driver.setpointOrStop','Consigne ou arrêt sur le même registre')]]);
-          add(serial, 'raw_step', tr('pool.driver.rawStep','Pas de la valeur envoyée'), 1);
-          add(serial, 'raw_rounding', tr('pool.driver.rounding','Arrondi au pas'), 0,
-            [[0,tr('pool.driver.nearest','Au plus proche')],[1,tr('pool.driver.down','Vers le bas')]]);
-          add(serial, 'running_source', tr('pool.driver.runningSource','Détection de marche'), 0,
-            [[0,tr('pool.driver.statusMask','Masque du registre d’état')],[1,tr('pool.driver.feedbackThreshold','Retour supérieur au seuil')]]);
-          add(serial, 'running_threshold', tr('pool.driver.runningThreshold','Seuil de marche (unité du retour)'), 0);
-          add(serial, 'feedback_type', tr('pool.driver.feedbackType','Encodage du retour'), 0,
-            [[0,tr('pool.driver.unsigned','Entier 16 bits non signé')],[1,tr('pool.driver.signed','Entier 16 bits signé')]]);
-          add(serial, 'run_modes', tr('pool.driver.runModes', 'Modes : [{"label":"Eco","value":120}, …]'), [], null, true);
-          add(serial, 'telemetry_profile', tr('pool.driver.telemetry', 'Télémétrie complémentaire'), 0,
-            [[0,tr('pool.driver.noTelemetry', 'Aucune')],[1,'PAC Poly (500–523, 1000–1001)']]);
-          add(serial, 'telemetry_stale_ms', tr('pool.driver.telemetryStale', 'Péremption de la télémétrie (ms)'), 30000);
           add(serial, 'bus', 'Bus', 0); add(serial, 'address', tr('pool.driver.address','Adresse'), 1);
           add(serial, 'baud', 'Baud', 9600);
           add(serial, 'parity', tr('pool.driver.parity','Parité'), 0, [[0,'None'],[1,'Even'],[2,'Odd']]);
@@ -12108,48 +12484,11 @@
             const op = serial[name] || (serial[name] = { address, function: fn, layout });
             add(op,'address',name + ' · register',address); add(op,'function',name + ' · function',fn);
             add(op,'layout',name + ' · format',layout,[[0,'Read registers'],[1,'Write single / echo'],[2,'Write multiple / address + count']]);
-            add(op,'response',name + ' · response',0,[[0,'Standard'],[1,'Register address + byte count + values']]);
           });
         }
       };
       render();
       return { element: root, input: stored };
-    }
-
-    function buildConfigAction(doc) {
-      const wrap = document.createElement('div');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'secondary';
-      button.textContent = doc.label;
-      const status = document.createElement('span');
-      status.className = 'control-help';
-      status.setAttribute('role', 'status');
-      const action = doc.action;
-      button.addEventListener('click', async () => {
-        if (button.disabled || !window.confirm(cfgDocTr(action.confirmation_t, doc.help))) return;
-        button.disabled = true;
-        status.textContent = cfgDocTr('config.action.pending', 'En cours…');
-        try {
-          // An action may be destructive: never automatically replay its POST.
-          const response = await fetch(action.endpoint, {
-            method: 'POST',
-            body: new URLSearchParams(action.params || {}),
-            cache: 'no-store'
-          });
-          const result = await response.json();
-          if (!response.ok || !result || result.ok !== true) throw new Error('Action failed');
-          status.textContent = cfgDocTr(action.success_t, 'Action effectuée et sauvegardée.');
-        } catch (error) {
-          status.textContent = cfgDocTr('config.action.failed',
-            'Action non confirmée. Vérifiez la valeur du compteur avant de réessayer.');
-        } finally {
-          button.disabled = false;
-        }
-      });
-      wrap.appendChild(button);
-      wrap.appendChild(status);
-      return wrap;
     }
 
     function renderConfigFields(containerEl, moduleName, dataObj, options) {
@@ -12170,7 +12509,13 @@
       if (controlsPrimaryPane) {
         flowCfgApplyBtn.hidden = perFieldApply;
       }
-      const keys = Object.keys(data).sort();
+      const keys = Object.keys(data).sort((left, right) => {
+        const leftDoc = configDocFor(moduleName, left, []);
+        const rightDoc = configDocFor(moduleName, right, []);
+        const leftOrder = leftDoc && Number.isFinite(leftDoc.order) ? leftDoc.order : Number.MAX_SAFE_INTEGER;
+        const rightOrder = rightDoc && Number.isFinite(rightDoc.order) ? rightDoc.order : Number.MAX_SAFE_INTEGER;
+        return leftOrder - rightOrder || left.localeCompare(right);
+      });
       if (sectionTitle && keys.length > 0) {
         const sectionEl = document.createElement('div');
         sectionEl.className = 'control-section-title';
@@ -12223,9 +12568,7 @@
         const valueWrap = document.createElement('div');
         valueWrap.className = 'control-value-wrap';
 
-        if (doc && doc.widget === 'action' && doc.action) {
-          valueWrap.appendChild(buildConfigAction(doc));
-        } else if (doc && doc.widget === 'pool-driver') {
+        if (doc && doc.widget === 'pool-driver') {
           const editor = buildPoolDriverEditor(value);
           inputEl = editor.input;
           inputEl.dataset.key = key; inputEl.dataset.kind = 'string'; inputEl.dataset.module = moduleName;
@@ -12350,7 +12693,11 @@
           storeConfigFieldInitialValue(input, value);
           inputEl = input;
           inputEl.dataset.module = moduleName;
-          valueWrap.appendChild(input);
+          if (key === 'ssid' && cfgDocPathCandidates(moduleName).includes('wifi')) {
+            window.FlowWebPages.network.attachWifiSelector(input, valueWrap, {fetchOkJson, createFormPostOptions});
+          } else {
+            valueWrap.appendChild(input);
+          }
         }
 
         if (normalizeDigitalInputConfigKey(moduleName, key) === 'mode') {
@@ -13458,35 +13805,11 @@
     }
 
     function initWifiBindings() {
-      if (toggleWifiPassBtn && wifiPass) {
-        mettreAJourEtatVisibiliteMotDePasse(
-          wifiPass,
-          toggleWifiPassBtn,
-          tr('wifi.password.show', 'Afficher le mot de passe réseau'),
-          tr('wifi.password.hide', 'Masquer le mot de passe réseau')
-        );
-        toggleWifiPassBtn.addEventListener('click', () => {
-          basculerVisibiliteMotDePasse(
-            wifiPass,
-            toggleWifiPassBtn,
-            tr('wifi.password.show', 'Afficher le mot de passe réseau'),
-            tr('wifi.password.hide', 'Masquer le mot de passe réseau')
-          );
-        });
-      }
-      wifiSsidList.addEventListener('change', () => {
-        const picked = (wifiSsidList.value || '').trim();
-        if (picked.length > 0) {
-          wifiSsid.value = picked;
-        }
-      });
-      bindClickAction(scanWifiBtn, () => refreshWifiScanStatus(true));
-      bindClickAction(applyWifiCfgBtn, async () => {
-        try {
-          await saveWifiConfig();
-        } catch (err) {
-          wifiConfigStatus.textContent = tr('system.action.wifiApplyFailed', 'Application réseau échouée') + ': ' + err;
-        }
+      networkPage = window.FlowWebPages.network.create({
+        tr, fetchOkJson, createFormPostOptions, fetchFlowStatusDomain, renderNetworkAddresses,
+        normalizeNetworkType, getActivePageId, bindClickAction,
+        updatePasswordVisibility: mettreAJourEtatVisibiliteMotDePasse,
+        togglePasswordVisibility: basculerVisibiliteMotDePasse
       });
     }
 
@@ -13614,11 +13937,11 @@
     }
 
     // ---- Auth / identity ----
-    let authSession = { authenticated: false, role: 'none', username: '' };
+    let authSession = { authenticated: false, local_operator: false, role: 'none', username: '' };
 
     function normalizeRole(raw) {
       const r = String(raw || '').trim().toLowerCase();
-      return r === 'admin' ? 'admin' : 'operator';
+      return r === 'admin' ? 'admin' : r === 'operator' ? 'operator' : 'none';
     }
 
     function roleLabel(role) {
@@ -13653,6 +13976,7 @@
         const data = await res.json().catch(() => null);
         if (data && data.ok === true) {
           authSession.authenticated = !!data.authenticated;
+          authSession.local_operator = data.local_operator === true;
           authSession.role = normalizeRole(data.role);
           authSession.username = String(data.username || '').trim();
         } else {
@@ -13693,9 +14017,9 @@
 
       const account = document.getElementById('drawerAccount');
       if (account) {
-        account.hidden = !authSession.authenticated;
+        account.hidden = !authSession.authenticated && !authSession.local_operator;
       }
-      if (authSession.authenticated) {
+      if (authSession.authenticated || authSession.local_operator) {
         renderAccountIdentity('account');
         renderAccountIdentity('accountDialog');
       }
@@ -13710,7 +14034,7 @@
           ? String(Array.from(authSession.username)[0]).toUpperCase()
           : '?';
       }
-      if (name) name.textContent = authSession.username || '-';
+      if (name) name.textContent = authSession.local_operator ? 'Opérateur local' : (authSession.username || '-');
       if (roleNode) roleNode.textContent = roleLabel(authSession.role);
     }
 
@@ -13720,6 +14044,7 @@
     }
 
     async function logoutSession() {
+      if (authSession.local_operator) { redirectToLogin(); return; }
       try {
         await fetchWithBusyRetry('/api/auth/logout', { method: 'POST', cache: 'no-store' });
       } catch (err) {}
@@ -13803,7 +14128,8 @@
             list.innerHTML = '<div class="users-empty">' + tr('users.empty', 'Aucun compte enregistré.') + '</div>';
           } else {
             list.innerHTML = '';
-            accounts.forEach((account) => list.appendChild(buildUsersRow(account)));
+            const administratorCount = accounts.filter(account => normalizeRole(account.role) === 'admin').length;
+            accounts.forEach((account) => list.appendChild(buildUsersRow(account, administratorCount)));
           }
         }
       } catch (err) {
@@ -13811,7 +14137,7 @@
       }
     }
 
-    function buildUsersRow(account) {
+    function buildUsersRow(account, administratorCount) {
       const row = document.createElement('div');
       row.className = 'users-row';
 
@@ -13847,7 +14173,7 @@
       delBtn.textContent = tr('users.actions.delete', 'Supprimer');
       delBtn.addEventListener('click', () => deleteUser(account.username));
       actions.appendChild(editBtn);
-      actions.appendChild(delBtn);
+      if (roleValue !== 'admin' || administratorCount > 1) actions.appendChild(delBtn);
 
       row.appendChild(avatar);
       row.appendChild(copy);
@@ -14015,3 +14341,5 @@
         startInitialUi().catch(() => {});
       }, 16);
     }
+
+    window.__FLOW_WEB_APP_READY__ = true;

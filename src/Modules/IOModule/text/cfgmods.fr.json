@@ -143,64 +143,19 @@
       "help_t": "cfgmods.io.input.i07.mode.help",
       "enum_set": "flowio_digital_input_mode"
     },
-    "io/drivers/ads1115_int/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.ads1115_int.secondary_address.help",
+    "io/drivers/pcf857x/address": {
       "display_format": "hex"
     },
-    "io/drivers/ads1115_ext/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.ads1115_ext.secondary_address.help",
-      "display_format": "hex"
+    "io/drivers/ds18b20/transport": {
+      "enum_set": "ds18b20_transport"
     },
-    "io/drivers/sht40/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.sht40.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.sht40.secondary_address.help",
-      "display_format": "hex"
+    "io/drivers/ds18b20/water_transport": {
+      "enum_set": "ds18b20_transport"
     },
-    "io/drivers/bmp280/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.bmp280.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.bmp280.secondary_address.help",
-      "display_format": "hex"
+    "io/drivers/ds18b20/air_transport": {
+      "enum_set": "ds18b20_transport"
     },
-    "io/drivers/bme680/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.bme680.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.bme680.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/ina226/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.ina226.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.ina226.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander00/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander00.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander00.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander01/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander01.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander01.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander02/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander02.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander02.secondary_address.help",
-      "display_format": "hex"
-    },
-    "io/drivers/expander03/secondary_address": {
-      "type": "UInt8",
-      "label_t": "cfgdocs.io.drivers.expander03.secondary_address.label",
-      "help_t": "cfgdocs.io.drivers.expander03.secondary_address.help",
+    "io/drivers/mcp23017/address": {
       "display_format": "hex"
     }
   },
@@ -586,6 +541,14 @@
         {
           "value": 142,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_binding_port_analog.21.label"
+        },
+        {
+          "value": 112,
+          "label": "ADS1115 externe A2"
+        },
+        {
+          "value": 113,
+          "label": "ADS1115 externe A3"
         }
       ],
       "flowio_binding_port_digital_input": [
@@ -940,20 +903,53 @@
           "label_t": "cfgmods_meta.iomodule.enum_sets.io_output_boot_behavior.1.label"
         }
       ],
-      "flowio_aggregation_mode": [
+      "ds18b20_transport": [
         {
           "value": 0,
-          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label"
+          "label_t": "cfgmods_meta.iomodule.enum_sets.ds18b20_transport.0.label"
         },
         {
           "value": 1,
-          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label"
+          "label_t": "cfgmods_meta.iomodule.enum_sets.ds18b20_transport.1.label"
+        }
+      ],
+      "ds18b20_transport_per_probe": [
+        {
+          "value": 0,
+          "label": "I²C DS2484 (0x18)"
         },
         {
-          "value": 2,
-          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label"
+          "value": 1,
+          "label": "DS18B20 direct GPIO"
+        },
+        {
+          "value": 255,
+          "label": "Transport global"
         }
       ]
-    }
+    },
+    "cfg_tree_hidden_paths": [
+      "io/drivers/ds18b20/transport",
+      "io/drivers/ds18b20/water_transport",
+      "io/drivers/ds18b20/air_transport",
+      "io/drivers/ads1115_int/address",
+      "io/drivers/ads1115_ext/address",
+      "io/input/a00/binding_port",
+      "io/input/a01/binding_port",
+      "io/input/a02/binding_port",
+      "io/input/a03/binding_port",
+      "io/input/a04/binding_port",
+      "io/input/a05/binding_port",
+      "io/input/a06/binding_port",
+      "io/input/a07/binding_port",
+      "io/input/a08/binding_port",
+      "io/input/a09/binding_port",
+      "io/input/a10/binding_port",
+      "io/input/a11/binding_port",
+      "io/input/a12/binding_port",
+      "io/input/a13/binding_port",
+      "io/input/a14/binding_port",
+      "io/input/a15/binding_port"
+    ]
   }
 }

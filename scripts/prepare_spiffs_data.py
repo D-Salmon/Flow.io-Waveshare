@@ -1,5 +1,6 @@
 from pathlib import Path
 import gzip
+import hashlib
 import shutil
 import os
 import re
@@ -20,6 +21,27 @@ def _gzip_file(src: Path, dst: Path):
     dst.parent.mkdir(parents=True, exist_ok=True)
     with src.open("rb") as in_file, gzip.GzipFile(filename="", mode="wb", fileobj=dst.open("wb"), mtime=0) as out_file:
         shutil.copyfileobj(in_file, out_file)
+
+
+def _sha256_file(path: Path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(128 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_minified_manifest(src_dir: Path):
+    manifest_path = src_dir / "webinterface" / ".minified-assets.json"
+    if not manifest_path.exists():
+        raise RuntimeError(
+            "Missing minified web asset manifest. Run: pnpm install --frozen-lockfile && pnpm web:minify"
+        )
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assets = payload.get("assets")
+    if payload.get("version") != 1 or not isinstance(assets, dict):
+        raise RuntimeError(f"Invalid minified web asset manifest: {manifest_path}")
+    return assets
 
 
 project_dir = Path(env.subst("$PROJECT_DIR"))
@@ -117,6 +139,7 @@ if src_dir.exists():
             rel = cfgdoc_src.relative_to(src_dir)
             compressed_sources[rel] = rel.with_suffix(".j.gz")
     generated_outputs = set(compressed_sources.values())
+    generated_outputs.add(Path("webinterface/.minified-assets.json"))
 
     for path in src_dir.rglob("*"):
         if not path.is_file():
@@ -130,10 +153,23 @@ if src_dir.exists():
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, dst)
 
+    minified_assets = _load_minified_manifest(src_dir)
     for src_rel, dst_rel in compressed_sources.items():
         src = src_dir / src_rel
-        if src.exists():
+        if not src.exists():
+            continue
+        metadata = minified_assets.get(src_rel.relative_to("webinterface").as_posix()) if src_rel.parts[0] == "webinterface" else None
+        gzip_src = src_dir / dst_rel
+        if metadata is None:
+            # Configuration documentation is generated at build time.
+            if src_rel.parts[:2] != ("webinterface", "cfgdoc") and src_rel.parts[0] != "wc":
+                raise RuntimeError(f"Missing minified asset for {src_rel}. Run: pnpm web:minify")
             _gzip_file(src, staging_dir / dst_rel)
+        else:
+            if _sha256_file(src) != metadata.get("source_sha256") or _sha256_file(gzip_src) != metadata.get("gzip_sha256"):
+                raise RuntimeError(f"Stale minified asset: {src_rel}. Run: pnpm web:minify")
+            (staging_dir / dst_rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(gzip_src, staging_dir / dst_rel)
 
     try:
         release_version = str(env.GetProjectOption("custom_version") or "0.0.0")

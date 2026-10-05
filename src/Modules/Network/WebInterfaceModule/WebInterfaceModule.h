@@ -1,3 +1,4 @@
+#include "Core/Services/IAlarm.h"
 #pragma once
 /**
  * @file WebInterfaceModule.h
@@ -8,6 +9,8 @@
  */
 
 #include "Core/Actor.h"
+#include "Core/Services/IMqtt.h"
+#include "Core/Security/WebSecurityPolicy.h"
 #include "Core/Module.h"
 #include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
@@ -61,6 +64,7 @@ public:
         const NetworkAccessMode mode = net->mode(net->ctx);
         return mode == NetworkAccessMode::Station || mode == NetworkAccessMode::AccessPoint;
     }
+    void onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services) override;
     void onStart(ConfigStore& cfg, ServiceRegistry& services) override;
     uint32_t startDelayMs() const override {
         return 3000U;
@@ -90,6 +94,18 @@ private:
     void startLocalRuntime_();
     void handleUpdateRequest_(AsyncWebServerRequest* request, FirmwareUpdateTarget target);
     void authGate_(AsyncWebServerRequest* request, ArMiddlewareNext next);
+    void ensureCsrfToken_();
+    bool csrfRequestAllowed_(AsyncWebServerRequest* request) const;
+    bool requestOriginAllowed_(AsyncWebServerRequest* request, bool originRequired) const;
+    bool webRequestAuthorized_(AsyncWebServerRequest* request) const;
+    bool webAuthRateLimited_(AsyncWebServerRequest* request, uint32_t& retryAfterSeconds);
+    void noteWebAuthFailure_(AsyncWebServerRequest* request);
+    void noteWebAuthSuccess_(AsyncWebServerRequest* request);
+    bool allowUnauthenticatedRequest_(AsyncWebServerRequest* request);
+    bool physicalRecoveryAllowedForRequest_(AsyncWebServerRequest* request, bool allowClaim);
+    bool physicalRecoveryActive_() const;
+    uint32_t physicalRecoveryRemainingMs_() const;
+    void pollBootRecoveryButton_();
     bool isWebReachable_() const;
     bool getNetworkIp_(char* out, size_t len, NetworkAccessMode* modeOut) const;
     const char* networkTransport_(NetworkAccessMode mode) const;
@@ -143,6 +159,9 @@ private:
     // Lifecycle and service surface
     bool setPaused_(bool paused);
     bool isPaused_() const;
+    void noteInvalidOtaSignature_();
+    static AlarmCondState condOtaSignatureFailuresStatic_(void* ctx, uint32_t nowMs);
+    AlarmCondState condOtaSignatureFailures_(uint32_t nowMs) const;
     bool getHealth_(WebInterfaceHealth* out) const;
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -174,6 +193,32 @@ private:
     uint32_t runtimeEventsLastSendMs_ = 0;
     bool runtimeEventsAvailable_ = false;
 
+    char csrfToken_[33] = {0};
+    struct WebSecurityConfig {
+        char user[33]{};
+        char pass[33]{};
+    } webSecurity_{};
+    bool webCredentialsReady_ = false;
+    bool authenticationRequired_ = false;
+    ConfigVariable<bool,0> authenticationRequiredVar_{
+        NVS_KEY(NvsKeys::WebSecurity::AuthenticationRequired),
+        "authentication_required",
+        "webinterface",
+        ConfigType::Bool,
+        &authenticationRequired_,
+        ConfigPersistence::Persistent,
+        0
+    };
+    Security::WebAuthThrottleState webAuthThrottleState_{};
+    portMUX_TYPE webAuthThrottleMux_ = portMUX_INITIALIZER_UNLOCKED;
+    uint32_t bootButtonPressedAtMs_ = 0U;
+    uint32_t physicalRecoveryDeadlineMs_ = 0U;
+    uint32_t physicalRecoveryClientIp_ = 0U;
+    bool bootRecoveryLatched_ = false;
+    static constexpr int kBootRecoveryPin = 0;
+    static constexpr uint32_t kBootRecoveryHoldMs = 5000U;
+    static constexpr uint32_t kPhysicalRecoveryWindowMs = 300000U;
+
     const LogHubService* logHub_ = nullptr;
     const LogSinkRegistryService* logSinkReg_ = nullptr;
     const BootLogCaptureService* bootLogCapture_ = nullptr;
@@ -183,6 +228,10 @@ private:
     const CommandService* cmdSvc_ = nullptr;
     const HmiService* hmiSvc_ = nullptr;
     const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
+    const MqttService* mqttSvc_ = nullptr;
+    bool stationWebDeferredLogged_ = false;
+    uint32_t stationMqttWaitStartedMs_ = 0U;
+    static constexpr uint32_t kStationMqttWebGraceMs = 30000U;
     const NetworkAccessService* netAccessSvc_ = nullptr;
     const IOServiceV2* ioSvc_ = nullptr;
     DataStore* dataStore_ = nullptr;
@@ -258,10 +307,17 @@ private:
     uint32_t ioLastRuntimeBuildMs_ = 0U;
     uint32_t ioLastResponseBuildAttemptMs_ = 0U;
 
+    static constexpr uint8_t kOtaSignatureFailureThreshold = 3U;
+    static constexpr uint32_t kOtaSignatureFailureWindowMs = 600000U;
+    static constexpr uint32_t kOtaSignatureFailureHoldMs = 600000U;
+    Security::FailureWindowState otaSignatureFailureState_{};
+    mutable portMUX_TYPE otaSignatureFailureMux_ = portMUX_INITIALIZER_UNLOCKED;
+
     WebInterfaceService webInterfaceSvc_{
         ServiceBinding::bind<&WebInterfaceModule::setPaused_>,
         ServiceBinding::bind<&WebInterfaceModule::isPaused_>,
         ServiceBinding::bind<&WebInterfaceModule::getHealth_>,
-        this
+        this,
+        ServiceBinding::bind<&WebInterfaceModule::noteInvalidOtaSignature_>
     };
 };

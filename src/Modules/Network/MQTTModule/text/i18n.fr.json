@@ -5,7 +5,7 @@
     "cfgdocs.mqtt.enabled.help": "Active ou désactive le client MQTT.",
     "cfgdocs.mqtt.enabled.label": "MQTT activé",
     "cfgdocs.mqtt.host.help": "Adresse du broker MQTT (DNS ou IP).",
-    "cfgdocs.mqtt.host.label": "Hôte MQTT",
+    "cfgdocs.mqtt.host.label": "Broker MQTT",
     "cfgdocs.mqtt.devicename.help": "Nom d'appareil utilisé pour Home Assistant Discovery (device.name).",
     "cfgdocs.mqtt.devicename.label": "Nom d'appareil MQTT",
     "cfgdocs.mqtt.pass.help": "Mot de passe utilisé pour l'authentification MQTT.",

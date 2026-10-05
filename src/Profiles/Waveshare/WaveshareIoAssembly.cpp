@@ -1,6 +1,5 @@
 #include "Profiles/Waveshare/WaveshareIoAssembly.h"
 #include "Profiles/Waveshare/PoolRoleHaDiscovery.h"
-#include "Profiles/Waveshare/DerivedValueHaDiscovery.h"
 #include "Profiles/Waveshare/WaveshareIoLayout.h"
 
 #include <Arduino.h>
@@ -94,7 +93,6 @@ struct FlowIoDiscoveryHeap {
     char analogStateSuffix[kFlowIoAnalogHaSlots][24]{};
     char digitalStateSuffix[sizeof(kDigitalHaSpecs) / sizeof(kDigitalHaSpecs[0])][24]{};
     PoolRoleHaDiscovery::Storage poolRoles{};
-    DerivedValueHaDiscovery::Storage derivedValues{};
 };
 
 FlowIoDiscoveryHeap* gDiscoveryHeap = nullptr;
@@ -237,16 +235,6 @@ void requireSetup(bool ok, const char* step)
     while (true) delay(1000);
 }
 
-// Discovery is optional: report failures without stopping hardware startup.
-bool reportDiscoveryResult(bool ok, const char* step)
-{
-    if (!ok) {
-        Log::error((LogModuleId)LogModuleIdValue::Core,
-                   "HA discovery failed: %s; boot continues, retry after restart", step);
-    }
-    return ok;
-}
-
 void applyAnalogDefaultsForDomainSlot(DomainSlotId domainSlot, IOAnalogDefinition& def)
 {
     const FlowIoLayout::AnalogRoleDefault* spec = FlowIoLayout::analogDefaultForDomainSlot(domainSlot);
@@ -311,7 +299,7 @@ void buildAnalogValueTemplate(const IOModule& ioModule, uint8_t analogIdx, char*
 void syncAnalogSensors(ModuleInstances& modules)
 {
     if (!modules.haService || !modules.haService->addSensor) return;
-    if (!reportDiscoveryResult(ensureDiscoveryHeap(), "discovery heap")) return;
+    requireSetup(ensureDiscoveryHeap(), "ha discovery heap");
     static constexpr const char* kAvailabilityTpl = "{{ 'online' if value_json.available else 'offline' }}";
 
     for (uint8_t i = 0; i < kFlowIoAnalogHaSlots; ++i) {
@@ -372,14 +360,14 @@ void syncAnalogSensors(ModuleInstances& modules)
             false,
             kAvailabilityTpl
         };
-        reportDiscoveryResult(modules.haService->addSensor(modules.haService->ctx, &entry), entry.objectSuffix);
+        (void)modules.haService->addSensor(modules.haService->ctx, &entry);
     }
 }
 
 void syncDigitalInputBinarySensors(ModuleInstances& modules)
 {
     if (!modules.haService || !modules.haService->addBinarySensor || !modules.haService->addSensor) return;
-    if (!reportDiscoveryResult(ensureDiscoveryHeap(), "discovery heap")) return;
+    requireSetup(ensureDiscoveryHeap(), "ha discovery heap");
     static constexpr const char* kBoolTpl = "{{ 'True' if value_json.value else 'False' }}";
     static constexpr const char* kAvailabilityTpl = "{{ 'online' if value_json.available else 'offline' }}";
     static constexpr const char* kNumericTpl =
@@ -408,7 +396,7 @@ void syncDigitalInputBinarySensors(ModuleInstances& modules)
                 false,
                 kAvailabilityTpl
             };
-            reportDiscoveryResult(modules.haService->addSensor(modules.haService->ctx, &entry), entry.objectSuffix);
+            (void)modules.haService->addSensor(modules.haService->ctx, &entry);
             continue;
         }
 
@@ -422,21 +410,28 @@ void syncDigitalInputBinarySensors(ModuleInstances& modules)
             nullptr,
             spec.icon
         };
-        reportDiscoveryResult(modules.haService->addBinarySensor(modules.haService->ctx, &entry), entry.objectSuffix);
+        (void)modules.haService->addBinarySensor(modules.haService->ctx, &entry);
     }
 }
 
 void syncSwitches(const DomainSpec& domain, ModuleInstances& modules)
 {
     if (!modules.haService || !modules.haService->addSwitch) return;
-    if (!reportDiscoveryResult(ensureDiscoveryHeap(), "discovery heap")) return;
+    requireSetup(ensureDiscoveryHeap(), "ha discovery heap");
 
     for (uint8_t i = 0; i < domain.poolDeviceCount; ++i) {
         const PoolDevicePreset& device = domain.poolDevices[i];
         const DomainSlotPreset* commandSlot = findDomainSlotById(domain, device.commandSlot);
         if (!commandSlot) continue;
-        if (!reportDiscoveryResult(device.id < PoolIds::DeviceCount, "pool role index")) continue;
+        requireSetup(device.id < PoolIds::DeviceCount, "HA pool role index");
         const auto& role = gDiscoveryHeap->poolRoles.roles[device.id];
+        if (role.slot == POOL_DEVICE_INVALID) {
+            const HADiscoveryRemovalEntry removal{"switch", device.objectSuffix};
+            requireSetup(modules.haService->addDiscoveryRemoval &&
+                         modules.haService->addDiscoveryRemoval(modules.haService->ctx, &removal),
+                         "HA disabled pool role removal");
+            continue;
+        }
 
         const HASwitchEntry entry{
             "io",
@@ -450,7 +445,7 @@ void syncSwitches(const DomainSpec& domain, ModuleInstances& modules)
             device.haIcon,
             nullptr
         };
-        reportDiscoveryResult(modules.haService->addSwitch(modules.haService->ctx, &entry), entry.objectSuffix);
+        requireSetup(modules.haService->addSwitch(modules.haService->ctx, &entry), "HA pool role switch");
     }
 }
 
@@ -463,7 +458,7 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
 {
     requireSetup(ctx.domain != nullptr, "missing domain spec");
 
-    modules.ioModule.setOneWireBuses(&modules.oneWireWater, &modules.oneWireAir);
+    modules.ioModule.useSelectableTemperatureBuses(0x18, 0, 1, &modules.oneWireWater, &modules.oneWireAir);
     modules.ioModule.setBindingPorts(
         FlowIoLayout::kBindingPorts,
         (uint8_t)(sizeof(FlowIoLayout::kBindingPorts) / sizeof(FlowIoLayout::kBindingPorts[0]))
@@ -606,19 +601,14 @@ void registerIoHomeAssistant(AppContext& ctx, ModuleInstances& modules)
     // All onConfigLoaded callbacks have completed; capture effective assignments once.
     const auto* poolConfig = ctx.services.get<PoolConfigurationService>(ServiceId::PoolConfiguration);
     PoolDeviceAssignments assignments{};
-    const bool assignmentsReady = reportDiscoveryResult(
-        poolConfig && poolConfig->getDeviceAssignments &&
-        poolConfig->getDeviceAssignments(poolConfig->ctx, &assignments),
-        "PoolLogic device assignments");
-    if (!reportDiscoveryResult(ensureDiscoveryHeap(), "discovery heap")) return;
-    const bool rolesReady = assignmentsReady && reportDiscoveryResult(
-        PoolRoleHaDiscovery::prepare(gDiscoveryHeap->poolRoles, assignments,
-                                     Limits::Io::MaxPoolDevices), "pool role topics");
-    if (rolesReady) {
-        reportDiscoveryResult(
-            PoolRoleHaDiscovery::registerEntries(*modules.haService, gDiscoveryHeap->poolRoles),
-            "pool role entities");
-    }
+    requireSetup(poolConfig && poolConfig->getDeviceAssignments &&
+                 poolConfig->getDeviceAssignments(poolConfig->ctx, &assignments),
+                 "HA PoolLogic device assignments");
+    requireSetup(ensureDiscoveryHeap(), "ha discovery heap");
+    requireSetup(PoolRoleHaDiscovery::prepare(gDiscoveryHeap->poolRoles, assignments,
+                                             Limits::Io::MaxPoolDevices), "HA pool role topics");
+    requireSetup(PoolRoleHaDiscovery::registerEntries(*modules.haService, gDiscoveryHeap->poolRoles),
+                 "HA pool role entities");
     Board::SerialMap::logSerial().printf(
         "[waveshare] HA boot roles filtration=pd%u ph=pd%u disinfection=pd%u robot=pd%u "
         "fill=pd%u swg=pd%u heater=pd%u discovery_bytes=%u\r\n",
@@ -627,15 +617,9 @@ void registerIoHomeAssistant(AppContext& ctx, ModuleInstances& modules)
         unsigned(assignments.filling), unsigned(assignments.chlorineGenerator),
         unsigned(assignments.heater), unsigned(sizeof(FlowIoDiscoveryHeap)));
 
-    for (uint8_t slot = 0; slot < ValueIds::DerivedCapacity; ++slot) {
-        reportDiscoveryResult(DerivedValueHaDiscovery::registerEntry(
-            *modules.haService, gDiscoveryHeap->derivedValues, slot,
-            modules.ioModule.derivedValuePublished(slot), modules.ioModule.derivedValueName(slot)),
-            gDiscoveryHeap->derivedValues.slots[slot].objectSuffix);
-    }
     syncAnalogSensors(modules);
     syncDigitalInputBinarySensors(modules);
-    if (rolesReady && ctx.domain) syncSwitches(*ctx.domain, modules);
+    if (ctx.domain) syncSwitches(*ctx.domain, modules);
 
     if (modules.haService->requestRefresh) {
         (void)modules.haService->requestRefresh(modules.haService->ctx);

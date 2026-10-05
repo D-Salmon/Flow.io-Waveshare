@@ -3,7 +3,7 @@
 #include <string>
 #include <iostream>
 int main() {
-    DynamicJsonDocument doc(4096);
+    JsonDocument doc;
     PoolHistoryDaySummary day{};
     day.valid = true; day.localDate = 20260925;
     day.filtration.valid = true; day.filtration.runningSec = 0;
@@ -24,7 +24,7 @@ int main() {
     ValueHistoryRecord record{};
     record.valid = true; record.period = 1000; record.rawDelta = UINT64_MAX;
     record.discontinuities = 1; record.boundaryUncertain = true;
-    DynamicJsonDocument value(768);
+    JsonDocument value;
     HistoryJson::record(value.to<JsonObject>(), record, false);
     assert(!value.overflowed());
     assert(value["start_utc"].as<uint64_t>() == 3600000);

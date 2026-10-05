@@ -12,7 +12,7 @@
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::AiInsightModule)
 #include "Core/ModuleLog.h"
 
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <HTTPClient.h>
 #include <Network.h>
 #include <NetworkClientSecure.h>
@@ -238,8 +238,8 @@ bool OpenMeteoWeatherClient::fetch(double latitude,
     }
     responseBuffer[payloadLength] = '\0';
 
-    SpiRamJsonDocument document(kJsonCapacity);
-    if (document.capacity() < kJsonCapacity) {
+    JsonDocument document(psramOnlyJsonAllocator());
+    if (document.overflowed()) {
         writeError_(errOut, errOutLen, "weather JSON storage unavailable");
         return false;
     }

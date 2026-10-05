@@ -1,3 +1,4 @@
+#include <initializer_list>
 #include "Core/Values/ValueRegistry.h"
 #include "Core/DataStore/PendingDataKeys.h"
 #include "Core/Values/PulseRuntime.h"

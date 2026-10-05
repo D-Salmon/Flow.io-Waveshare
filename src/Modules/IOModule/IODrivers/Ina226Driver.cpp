@@ -10,35 +10,6 @@
 
 namespace {
 constexpr float kIna226FullScaleShuntVoltage = 0.0819f;
-constexpr uint8_t kManufacturerRegister = 0xFE;
-constexpr uint8_t kDeviceRegister = 0xFF;
-constexpr uint8_t kMaskEnableRegister = 0x06;
-constexpr uint16_t kManufacturerId = 0x5449;
-constexpr uint16_t kDeviceId = 0x2260;
-constexpr uint16_t kDeviceIdMask = 0xFFF0; // Low nibble is the silicon revision.
-constexpr uint16_t kConversionReady = 0x0008;
-constexpr uint32_t kConversionTimeoutMs = 150; // 16 * (1.1 + 1.1) ms nominal.
-
-bool readWord(I2CBus& bus, uint8_t address, uint8_t reg, uint16_t& value)
-{
-    uint8_t bytes[2]{};
-    if (!bus.readReg(address, reg, bytes, sizeof(bytes))) return false;
-    value = (static_cast<uint16_t>(bytes[0]) << 8) | bytes[1];
-    return true;
-}
-
-bool waitForConversion(I2CBus& bus, uint8_t address)
-{
-    uint16_t flags = 0;
-    if (!readWord(bus, address, kMaskEnableRegister, flags)) return false;
-    const uint32_t start = millis();
-    do {
-        if (!readWord(bus, address, kMaskEnableRegister, flags)) return false;
-        if (flags & kConversionReady) return true;
-        delay(1);
-    } while (static_cast<uint32_t>(millis() - start) < kConversionTimeoutMs);
-    return false;
-}
 }
 
 Ina226Driver::Ina226Driver(const char* driverId, I2CBus* bus, const Ina226DriverConfig& cfg)
@@ -48,8 +19,6 @@ Ina226Driver::Ina226Driver(const char* driverId, I2CBus* bus, const Ina226Driver
 
 bool Ina226Driver::begin()
 {
-    ready_ = false;
-    valid_ = false;
     if (!bus_) return false;
     if (cfg_.shuntOhms <= 0.0f) {
         LOGW("INA226 %s invalid shunt %.6f Ohm", driverId_ ? driverId_ : "sensor", (double)cfg_.shuntOhms);
@@ -57,21 +26,14 @@ bool Ina226Driver::begin()
     }
     if (!bus_->lock(50)) return false;
 
-    // Allocation follows configuration priority; identity verification must
-    // precede reset/calibration writes to a potentially unrelated responder.
-    uint16_t manufacturer = 0;
-    uint16_t device = 0;
-    bool ok = readWord(*bus_, cfg_.address, kManufacturerRegister, manufacturer) &&
-              readWord(*bus_, cfg_.address, kDeviceRegister, device) &&
-              manufacturer == kManufacturerId && (device & kDeviceIdMask) == kDeviceId;
-    if (ok) ok = ina_.init();
+    const bool ok = ina_.init();
     if (ok) {
         const float maxCurrentA = kIna226FullScaleShuntVoltage / cfg_.shuntOhms;
         ina_.setAverage(INA226_AVERAGE_16);
         ina_.setConversionTime(INA226_CONV_TIME_1100, INA226_CONV_TIME_1100);
         ina_.setMeasureMode(INA226_CONTINUOUS);
         ina_.setResistorRange(cfg_.shuntOhms, maxCurrentA);
-        ok = ina_.getI2cErrorCode() == 0 && waitForConversion(*bus_, cfg_.address);
+        ina_.waitUntilConversionCompleted();
     }
     if (ok) {
         ready_ = true;

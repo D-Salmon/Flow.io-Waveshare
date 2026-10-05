@@ -1,6 +1,6 @@
 #include "PoolDeviceModule.h"
 #include "Core/ErrorCodes.h"
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include "Core/NvsKeys.h"
 #include <esp_timer.h>
 
@@ -206,7 +206,7 @@ bool PoolDeviceModule::svcOverrideCommandImpl_(const CommandRequest& req, char* 
 {
     if (!lockState_()) { writeErrorJson(reply, replyLen, ErrorCode::NotReady, "pooldevice.override"); return false; }
     auto fail = [&](ErrorCode code) { unlockState_(); writeErrorJson(reply, replyLen, code, "pooldevice.override"); return false; };
-    SpiRamJsonDocument doc(768);
+    JsonDocument doc(psramOnlyJsonAllocator());
     const char* json = req.args ? req.args : req.json;
     if (json && deserializeJson(doc, json)) return fail(ErrorCode::BadCmdJson);
     JsonObjectConst args = doc["args"].is<JsonObjectConst>() ? doc["args"].as<JsonObjectConst>() : doc.as<JsonObjectConst>();
@@ -216,7 +216,7 @@ bool PoolDeviceModule::svcOverrideCommandImpl_(const CommandRequest& req, char* 
         if (!overrideDuration_.set(args["minutes"].as<uint16_t>(), this, saveOverrideDuration_)) return fail(ErrorCode::Failed);
     } else {
         uint8_t slot = overrideSelection_;
-        const bool explicitSlot = args.containsKey("slot");
+        const bool explicitSlot = !args["slot"].isUnbound();
         if (explicitSlot) {
             if (!args["slot"].is<uint8_t>()) return fail(ErrorCode::BadSlot);
             slot = args["slot"].as<uint8_t>();
@@ -245,7 +245,7 @@ bool PoolDeviceModule::svcOverrideCommandImpl_(const CommandRequest& req, char* 
                 value = args["value"].as<bool>();
             }
             uint32_t duration = overrideDuration_.seconds();
-            if (args.containsKey("duration_s")) {
+            if (!args["duration_s"].isUnbound()) {
                 if (!args["duration_s"].is<uint32_t>()) return fail(ErrorCode::BadCmdJson);
                 duration = args["duration_s"].as<uint32_t>();
             } else if (explicitSlot) return fail(ErrorCode::BadCmdJson);
@@ -283,7 +283,7 @@ bool PoolDeviceModule::svcOverrideCommandImpl_(const CommandRequest& req, char* 
 bool PoolDeviceModule::buildOverrideSnapshot_(bool all, char* out, size_t len, uint32_t& maxTsOut) const
 {
     if (!lockState_()) return false;
-    SpiRamJsonDocument doc(all ? 12288 : 1536);
+    JsonDocument doc(psramOnlyJsonAllocator());
     const auto now = monotonicMs();
     auto writeDevice = [&](JsonObject object, uint8_t slot) {
         const auto& s = slots_[slot];
@@ -298,11 +298,11 @@ bool PoolDeviceModule::buildOverrideSnapshot_(bool all, char* out, size_t len, u
         object["guided_on"] = s.desiredOn;
     };
     if (all) {
-        auto actuators = doc.createNestedObject("actuators");
+        auto actuators = doc["actuators"].to<JsonObject>();
         unsigned count = 0;
         for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
             if (!overrideSupported_(i)) continue;
-            writeDevice(actuators.createNestedObject(slots_[i].id), i);
+            writeDevice(actuators[slots_[i].id].to<JsonObject>(), i);
             if (slots_[i].overrideTimer.active()) ++count;
         }
         doc["active_count"] = count;

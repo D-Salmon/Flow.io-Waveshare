@@ -1,3 +1,4 @@
+#include "Core/PsramJsonAllocator.h"
 /**
  * @file HMIModule.cpp
  * @brief Implementation file.
@@ -2642,8 +2643,8 @@ const char* HMIModule::alarmLabelShortForId_(AlarmId id) const
         case AlarmId::PoolPsiHigh: return en ? "High PSI" : "PSI haut";
         case AlarmId::PoolPhTankLow: return en ? "pH empty" : "pH vide";
         case AlarmId::PoolChlorineTankLow: return en ? "Chlorine empty" : "Chlore vide";
-        case AlarmId::PoolPhPumpMaxUptime: return en ? "pH uptime" : "pH uptime";
-        case AlarmId::PoolChlorinePumpMaxUptime: return en ? "ORP uptime" : "ORP uptime";
+        case AlarmId::PoolPhPumpMaxUptime: return en ? "pH runtime limit" : "Durée maximale pompe pH";
+        case AlarmId::PoolChlorinePumpMaxUptime: return en ? "Chlorine runtime limit" : "Durée maximale pompe chlore";
         case AlarmId::PoolWaterLevelLow: return en ? "Low water" : "Eau basse";
         default: return "";
     }
@@ -2918,7 +2919,7 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen)
 
 #if !FLOW_HMI_CONFIG_MENU_ENABLED
     {
-        DynamicJsonDocument doc(256);
+        JsonDocument doc(psramPreferredJsonAllocator());
         JsonObject root = doc.to<JsonObject>();
         root["ok"] = true;
         root["disabled"] = true;
@@ -2939,7 +2940,7 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen)
     menu_.buildView(view);
     view.contextRef = cacheCurrentConfigContext_();
 
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc(psramPreferredJsonAllocator());
     JsonObject root = doc.to<JsonObject>();
     root["ok"] = true;
     root["driver"] = driver_ ? driver_->driverId() : "";
@@ -2953,11 +2954,11 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen)
     root["can_back"] = view.canBack;
     root["can_validate"] = view.canValidate;
 
-    JsonArray arr = root.createNestedArray("items");
+    JsonArray arr = root["items"].to<JsonArray>();
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
         const ConfigMenuRowView& row = view.rows[i];
         if (!row.visible) continue;
-        JsonObject it = arr.createNestedObject();
+        JsonObject it = arr.add<JsonObject>();
         it["i"] = i;
         it["key"] = row.key;
         it["label"] = row.label;

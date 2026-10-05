@@ -59,7 +59,7 @@ async function testLiveUpdates() {
   await f.tick(80); assert.equal(f.reads.at(-1), 6, 'Equipment and alarm changes coalesce');
   const before = f.reads.length;
   s.event(3, 0); await f.tick(80); assert.equal(f.reads.length, before, 'Heartbeat does not reread cards');
-  c.poll(); await f.tick(80); assert.equal(f.reads.at(-1), 8, 'Connected polling reads sensors only');
+  c.poll(); await f.tick(80); assert.equal(f.reads.at(-1), 15, 'Connected polling reconciles all dashboard domains');
   s.event(5, 2); await f.tick(80); assert.equal(f.reads.at(-1), 15, 'Missing revision resynchronizes all cards');
   s.event(6, 0); await f.tick(80); assert.equal(f.reads.at(-1), 15, 'Heartbeat catches missed final notification');
   const read = deferred(); f.state.read = () => read.promise;

@@ -1,6 +1,18 @@
 {
   "translations": {
     "cfgdocs.ethernet.enabled.help": "Active ou désactive l'interface Ethernet W5500. Quand Ethernet est actif, il est prioritaire; le WiFi station puis le portail AP servent de fallback si Ethernet n'obtient pas d'IP.",
-    "cfgdocs.ethernet.enabled.label": "Ethernet activé"
+    "cfgdocs.ethernet.enabled.label": "Ethernet activé",
+    "cfgdocs.ethernet.dhcp.label": "Configuration automatique (DHCP)",
+    "cfgdocs.ethernet.dhcp.help": "Activé : l'adresse réseau est fournie automatiquement par le routeur. Désactivé : les paramètres IPv4 fixes ci-dessous sont utilisés.",
+    "cfgdocs.ethernet.ip.label": "Adresse IP Ethernet",
+    "cfgdocs.ethernet.ip.help": "Adresse IPv4 fixe du Waveshare, utilisée uniquement quand DHCP est désactivé.",
+    "cfgdocs.ethernet.subnet.label": "Masque de sous-réseau Ethernet",
+    "cfgdocs.ethernet.subnet.help": "Masque IPv4 associé à l'adresse fixe, par exemple 255.255.255.0.",
+    "cfgdocs.ethernet.gateway.label": "Passerelle Ethernet",
+    "cfgdocs.ethernet.gateway.help": "Adresse IPv4 du routeur utilisée comme passerelle.",
+    "cfgdocs.ethernet.dns1.label": "DNS Ethernet principal",
+    "cfgdocs.ethernet.dns1.help": "Serveur DNS principal. Vide : la passerelle est utilisée.",
+    "cfgdocs.ethernet.dns2.label": "DNS Ethernet secondaire",
+    "cfgdocs.ethernet.dns2.help": "Serveur DNS secondaire facultatif."
   }
 }

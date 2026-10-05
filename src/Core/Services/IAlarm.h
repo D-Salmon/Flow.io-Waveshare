@@ -62,4 +62,6 @@ struct AlarmService {
     bool (*buildPacked)(void* ctx, char* out, size_t len, uint8_t slotCount);
     void* ctx;
     bool (*readState)(void* ctx, AlarmId id, AlarmState* out);
+    /** Whether condition evaluation and alarm notifications are enabled. */
+    bool (*isEnabled)(void* ctx) = nullptr;
 };

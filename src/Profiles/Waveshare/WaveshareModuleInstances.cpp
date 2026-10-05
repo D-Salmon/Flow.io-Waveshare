@@ -1,7 +1,6 @@
 #include "Profiles/Waveshare/WaveshareProfile.h"
 
 #include "Board/BoardCatalog.h"
-#include "Board/BoardSerialMap.h"
 #include "Board/BoardSpec.h"
 
 namespace Profiles {
@@ -13,12 +12,7 @@ namespace {
 int oneWirePinForSignal(const BoardSpec& board, BoardSignal signal, int fallbackPin)
 {
     const OneWireBusSpec* spec = boardFindOneWire(board, signal);
-    const int pin = spec ? spec->pin : fallbackPin;
-    if (Board::SerialMap::isNativeUsbCdcConsole() &&
-        Board::SerialMap::isNativeUsbPin(static_cast<int8_t>(pin))) {
-        return -1;
-    }
-    return pin;
+    return spec ? spec->pin : fallbackPin;
 }
 
 }  // namespace

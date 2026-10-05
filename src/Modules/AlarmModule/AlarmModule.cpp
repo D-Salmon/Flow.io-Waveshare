@@ -10,7 +10,7 @@
 #include "Core/ModuleId.h"
 #include "Core/MqttTopics.h"
 #include <Arduino.h>
-#include "Core/SpiRamJsonDocument.h"
+#include "Core/PsramJsonAllocator.h"
 #include <new>
 #include <string.h>
 
@@ -41,7 +41,7 @@ static uint32_t clampEvalPeriodMs_(int32_t inMs)
 
 static bool parseCmdArgsObject_(const CommandRequest& req, JsonDocument& doc, JsonObjectConst& outObj)
 {
-    if (doc.capacity() == 0U) return false;
+    if (doc.overflowed()) return false;
 
     doc.clear();
     const char* json = req.args ? req.args : req.json;
@@ -595,7 +595,7 @@ bool AlarmModule::cmdList_(void* userCtx, const CommandRequest&, char* reply, si
 
 bool AlarmModule::handleCmdReset_(const CommandRequest& req, char* reply, size_t replyLen)
 {
-    SpiRamJsonDocument argsDoc(Limits::Alarm::JsonCmdBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         if (!writeErrorJson(reply, replyLen, ErrorCode::MissingArgs, "alarms.reset")) {
@@ -603,7 +603,7 @@ bool AlarmModule::handleCmdReset_(const CommandRequest& req, char* reply, size_t
         }
         return false;
     }
-    if (!args.containsKey("id")) {
+    if (args["id"].isUnbound()) {
         if (!writeErrorJson(reply, replyLen, ErrorCode::MissingValue, "alarms.reset.id")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
@@ -631,7 +631,7 @@ bool AlarmModule::handleCmdReset_(const CommandRequest& req, char* reply, size_t
 
 bool AlarmModule::handleCmdResetSlot_(const CommandRequest& req, char* reply, size_t replyLen)
 {
-    SpiRamJsonDocument argsDoc(Limits::Alarm::JsonCmdBuf);
+    JsonDocument argsDoc(psramOnlyJsonAllocator());
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, argsDoc, args)) {
         if (!writeErrorJson(reply, replyLen, ErrorCode::MissingArgs, "alarms.reset_slot")) {
@@ -639,7 +639,7 @@ bool AlarmModule::handleCmdResetSlot_(const CommandRequest& req, char* reply, si
         }
         return false;
     }
-    if (!args.containsKey("slot")) {
+    if (args["slot"].isUnbound()) {
         if (!writeErrorJson(reply, replyLen, ErrorCode::MissingSlot, "alarms.reset_slot.slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }

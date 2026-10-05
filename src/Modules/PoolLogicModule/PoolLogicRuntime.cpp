@@ -158,7 +158,7 @@ bool PoolLogicModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& wri
         case RuntimeUiPhAutoMode:
             return writer.writeBool(runtimeId, phAutoMode_);
         case RuntimeUiOrpAutoMode:
-            return writer.writeBool(runtimeId, orpAutoMode_);
+            return writer.writeBool(runtimeId, disinfectionAutoMode_());
         default:
             return false;
     }

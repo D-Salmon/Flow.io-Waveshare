@@ -34,6 +34,7 @@ public:
     void play(BuzzerPattern pattern);
     void tick(uint32_t nowMs);
     void stop();
+    void stopAlarm();
     bool ready() const { return attached_; }
 
 private:
@@ -112,6 +113,7 @@ private:
     void onEvent_(const Event& e);
     void configureHardware_();
     void requestPattern_(BuzzerPattern pattern);
+    bool alarmNotificationsEnabled_() const;
     void playPending_(uint32_t nowMs);
     void handlePoolDeviceStateChanged_(const DataChangedPayload& payload);
     void handleAlarmRaised_();

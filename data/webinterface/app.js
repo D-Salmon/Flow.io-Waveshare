@@ -10704,14 +10704,16 @@
       const matchIo = cleanPath.match(/^io\/input\/(?:analog\/)?(a\d{2})$/i)
         || cleanPath.match(/^io\/input\/(?:digital\/)?(i\d{2})$/i)
         || cleanPath.match(/^io\/output\/(d\d{2})$/i);
-      if (matchIo) {
-        const ref = String(matchIo[1] || '').toLowerCase();
+      const matchValue = cleanPath.match(/^io\/value\/(v\d{2})$/i);
+      const match = matchIo || matchValue;
+      if (match) {
+        const ref = String(match[1] || '').toLowerCase();
         if (!ref) return null;
         return {
           type: 'io',
           ref: ref,
           modulePath: cleanPath,
-          nameKey: ref + '_name'
+          nameKey: matchValue ? 'name' : ref + '_name'
         };
       }
       return null;

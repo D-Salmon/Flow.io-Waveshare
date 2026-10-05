@@ -209,6 +209,14 @@ bool ConfigStore::putString_(const char* key, const char* value)
     return (wrote > 0U) || (value[0] == '\0');
 }
 
+bool ConfigStore::containsPersistentKey(const char* key, bool* exists)
+{
+    if (!key || !exists || !lockPrefs_()) return false;
+    *exists = _prefs->isKey(key);
+    unlockPrefs_();
+    return true;
+}
+
 bool ConfigStore::readRuntimeBlob(const char* key, void* out, size_t outLen, size_t* actualLen)
 {
     if (!_prefs || !key || !out || outLen == 0) return false;

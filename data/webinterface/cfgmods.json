@@ -224,8 +224,8 @@
         "children": [
           "ethernet",
           "wifi",
-          "time",
-          "mqtt"
+          "mqtt",
+          "time"
         ]
       },
       {
@@ -799,6 +799,26 @@
         {
           "value": 255,
           "label": "Transport global"
+        }
+      ],
+      "flowio_aggregation_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label",
+          "label": "Jauge [0]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label",
+          "label": "Taux [1]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label",
+          "label": "Compteur [2]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label"
         }
       ],
       "log_levels": [
@@ -2233,7 +2253,7 @@
     },
     "network": {
       "label_t": "cfgmods.network.label",
-      "label": "network",
+      "label": "réseau",
       "label_i18n": "cfgmods.network.label"
     },
     "network/ethernet": {

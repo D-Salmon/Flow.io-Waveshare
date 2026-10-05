@@ -3,7 +3,7 @@
     "generated": true,
     "locale": "fr",
     "source": "text",
-    "total": 652
+    "total": 765
   },
   "meta": {
     "generated": true,
@@ -224,8 +224,8 @@
         "children": [
           "ethernet",
           "wifi",
-          "time",
-          "mqtt"
+          "mqtt",
+          "time"
         ]
       },
       {
@@ -799,6 +799,26 @@
         {
           "value": 255,
           "label": "Transport global"
+        }
+      ],
+      "flowio_aggregation_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label",
+          "label": "Jauge [0]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label",
+          "label": "Taux [1]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label",
+          "label": "Compteur [2]",
+          "label_i18n": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label"
         }
       ],
       "log_levels": [
@@ -5566,6 +5586,971 @@
       "help": "Choisit si D15 applique son état initial au démarrage ou tente de conserver le latch matériel lors d'un reboot chaud. Sur MCP23017, la conservation est ignorée et l'état initial est appliqué.",
       "help_i18n": "cfgdocs.io.output.d15.retain_on_warm_reboot.help"
     },
+    "io/value": {
+      "label_t": "cfgdocs.io.value.label",
+      "label": "Valeurs dérivées",
+      "label_i18n": "cfgdocs.io.value.label"
+    },
+    "io/value/v00": {
+      "label_t": "cfgdocs.io.value.v00.label",
+      "label": "Valeur dérivée V00",
+      "label_i18n": "cfgdocs.io.value.v00.label"
+    },
+    "io/value/v00/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v00.aggregation.label",
+      "help_t": "cfgdocs.io.value.v00.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v00.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v00.aggregation.help"
+    },
+    "io/value/v00/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v00.enabled.label",
+      "help_t": "cfgdocs.io.value.v00.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v00.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v00.enabled.help"
+    },
+    "io/value/v00/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v00.name.label",
+      "help_t": "cfgdocs.io.value.v00.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v00.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V00. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v00.name.help"
+    },
+    "io/value/v00/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v00.offset.label",
+      "help_t": "cfgdocs.io.value.v00.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v00.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v00.offset.help"
+    },
+    "io/value/v00/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v00.scale.label",
+      "help_t": "cfgdocs.io.value.v00.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v00.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v00.scale.help"
+    },
+    "io/value/v00/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v00.source.label",
+      "help_t": "cfgdocs.io.value.v00.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v00.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v00.source.help"
+    },
+    "io/value/v01": {
+      "label_t": "cfgdocs.io.value.v01.label",
+      "label": "Valeur dérivée V01",
+      "label_i18n": "cfgdocs.io.value.v01.label"
+    },
+    "io/value/v01/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v01.aggregation.label",
+      "help_t": "cfgdocs.io.value.v01.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v01.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v01.aggregation.help"
+    },
+    "io/value/v01/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v01.enabled.label",
+      "help_t": "cfgdocs.io.value.v01.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v01.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v01.enabled.help"
+    },
+    "io/value/v01/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v01.name.label",
+      "help_t": "cfgdocs.io.value.v01.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v01.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V01. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v01.name.help"
+    },
+    "io/value/v01/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v01.offset.label",
+      "help_t": "cfgdocs.io.value.v01.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v01.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v01.offset.help"
+    },
+    "io/value/v01/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v01.scale.label",
+      "help_t": "cfgdocs.io.value.v01.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v01.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v01.scale.help"
+    },
+    "io/value/v01/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v01.source.label",
+      "help_t": "cfgdocs.io.value.v01.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v01.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v01.source.help"
+    },
+    "io/value/v02": {
+      "label_t": "cfgdocs.io.value.v02.label",
+      "label": "Valeur dérivée V02",
+      "label_i18n": "cfgdocs.io.value.v02.label"
+    },
+    "io/value/v02/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v02.aggregation.label",
+      "help_t": "cfgdocs.io.value.v02.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v02.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v02.aggregation.help"
+    },
+    "io/value/v02/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v02.enabled.label",
+      "help_t": "cfgdocs.io.value.v02.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v02.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v02.enabled.help"
+    },
+    "io/value/v02/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v02.name.label",
+      "help_t": "cfgdocs.io.value.v02.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v02.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V02. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v02.name.help"
+    },
+    "io/value/v02/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v02.offset.label",
+      "help_t": "cfgdocs.io.value.v02.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v02.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v02.offset.help"
+    },
+    "io/value/v02/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v02.scale.label",
+      "help_t": "cfgdocs.io.value.v02.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v02.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v02.scale.help"
+    },
+    "io/value/v02/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v02.source.label",
+      "help_t": "cfgdocs.io.value.v02.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v02.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v02.source.help"
+    },
+    "io/value/v03": {
+      "label_t": "cfgdocs.io.value.v03.label",
+      "label": "Valeur dérivée V03",
+      "label_i18n": "cfgdocs.io.value.v03.label"
+    },
+    "io/value/v03/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v03.aggregation.label",
+      "help_t": "cfgdocs.io.value.v03.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v03.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v03.aggregation.help"
+    },
+    "io/value/v03/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v03.enabled.label",
+      "help_t": "cfgdocs.io.value.v03.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v03.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v03.enabled.help"
+    },
+    "io/value/v03/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v03.name.label",
+      "help_t": "cfgdocs.io.value.v03.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v03.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V03. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v03.name.help"
+    },
+    "io/value/v03/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v03.offset.label",
+      "help_t": "cfgdocs.io.value.v03.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v03.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v03.offset.help"
+    },
+    "io/value/v03/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v03.scale.label",
+      "help_t": "cfgdocs.io.value.v03.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v03.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v03.scale.help"
+    },
+    "io/value/v03/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v03.source.label",
+      "help_t": "cfgdocs.io.value.v03.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v03.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v03.source.help"
+    },
+    "io/value/v04": {
+      "label_t": "cfgdocs.io.value.v04.label",
+      "label": "Valeur dérivée V04",
+      "label_i18n": "cfgdocs.io.value.v04.label"
+    },
+    "io/value/v04/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v04.aggregation.label",
+      "help_t": "cfgdocs.io.value.v04.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v04.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v04.aggregation.help"
+    },
+    "io/value/v04/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v04.enabled.label",
+      "help_t": "cfgdocs.io.value.v04.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v04.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v04.enabled.help"
+    },
+    "io/value/v04/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v04.name.label",
+      "help_t": "cfgdocs.io.value.v04.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v04.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V04. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v04.name.help"
+    },
+    "io/value/v04/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v04.offset.label",
+      "help_t": "cfgdocs.io.value.v04.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v04.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v04.offset.help"
+    },
+    "io/value/v04/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v04.scale.label",
+      "help_t": "cfgdocs.io.value.v04.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v04.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v04.scale.help"
+    },
+    "io/value/v04/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v04.source.label",
+      "help_t": "cfgdocs.io.value.v04.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v04.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v04.source.help"
+    },
+    "io/value/v05": {
+      "label_t": "cfgdocs.io.value.v05.label",
+      "label": "Valeur dérivée V05",
+      "label_i18n": "cfgdocs.io.value.v05.label"
+    },
+    "io/value/v05/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v05.aggregation.label",
+      "help_t": "cfgdocs.io.value.v05.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v05.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v05.aggregation.help"
+    },
+    "io/value/v05/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v05.enabled.label",
+      "help_t": "cfgdocs.io.value.v05.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v05.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v05.enabled.help"
+    },
+    "io/value/v05/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v05.name.label",
+      "help_t": "cfgdocs.io.value.v05.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v05.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V05. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v05.name.help"
+    },
+    "io/value/v05/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v05.offset.label",
+      "help_t": "cfgdocs.io.value.v05.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v05.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v05.offset.help"
+    },
+    "io/value/v05/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v05.scale.label",
+      "help_t": "cfgdocs.io.value.v05.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v05.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v05.scale.help"
+    },
+    "io/value/v05/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v05.source.label",
+      "help_t": "cfgdocs.io.value.v05.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v05.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v05.source.help"
+    },
+    "io/value/v06": {
+      "label_t": "cfgdocs.io.value.v06.label",
+      "label": "Valeur dérivée V06",
+      "label_i18n": "cfgdocs.io.value.v06.label"
+    },
+    "io/value/v06/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v06.aggregation.label",
+      "help_t": "cfgdocs.io.value.v06.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v06.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v06.aggregation.help"
+    },
+    "io/value/v06/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v06.enabled.label",
+      "help_t": "cfgdocs.io.value.v06.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v06.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v06.enabled.help"
+    },
+    "io/value/v06/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v06.name.label",
+      "help_t": "cfgdocs.io.value.v06.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v06.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V06. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v06.name.help"
+    },
+    "io/value/v06/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v06.offset.label",
+      "help_t": "cfgdocs.io.value.v06.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v06.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v06.offset.help"
+    },
+    "io/value/v06/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v06.scale.label",
+      "help_t": "cfgdocs.io.value.v06.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v06.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v06.scale.help"
+    },
+    "io/value/v06/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v06.source.label",
+      "help_t": "cfgdocs.io.value.v06.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v06.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v06.source.help"
+    },
+    "io/value/v07": {
+      "label_t": "cfgdocs.io.value.v07.label",
+      "label": "Valeur dérivée V07",
+      "label_i18n": "cfgdocs.io.value.v07.label"
+    },
+    "io/value/v07/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v07.aggregation.label",
+      "help_t": "cfgdocs.io.value.v07.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v07.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v07.aggregation.help"
+    },
+    "io/value/v07/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v07.enabled.label",
+      "help_t": "cfgdocs.io.value.v07.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v07.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v07.enabled.help"
+    },
+    "io/value/v07/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v07.name.label",
+      "help_t": "cfgdocs.io.value.v07.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v07.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V07. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v07.name.help"
+    },
+    "io/value/v07/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v07.offset.label",
+      "help_t": "cfgdocs.io.value.v07.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v07.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v07.offset.help"
+    },
+    "io/value/v07/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v07.scale.label",
+      "help_t": "cfgdocs.io.value.v07.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v07.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v07.scale.help"
+    },
+    "io/value/v07/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v07.source.label",
+      "help_t": "cfgdocs.io.value.v07.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v07.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v07.source.help"
+    },
+    "io/value/v08": {
+      "label_t": "cfgdocs.io.value.v08.label",
+      "label": "Valeur dérivée V08",
+      "label_i18n": "cfgdocs.io.value.v08.label"
+    },
+    "io/value/v08/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v08.aggregation.label",
+      "help_t": "cfgdocs.io.value.v08.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v08.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v08.aggregation.help"
+    },
+    "io/value/v08/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v08.enabled.label",
+      "help_t": "cfgdocs.io.value.v08.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v08.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v08.enabled.help"
+    },
+    "io/value/v08/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v08.name.label",
+      "help_t": "cfgdocs.io.value.v08.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v08.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V08. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v08.name.help"
+    },
+    "io/value/v08/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v08.offset.label",
+      "help_t": "cfgdocs.io.value.v08.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v08.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v08.offset.help"
+    },
+    "io/value/v08/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v08.scale.label",
+      "help_t": "cfgdocs.io.value.v08.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v08.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v08.scale.help"
+    },
+    "io/value/v08/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v08.source.label",
+      "help_t": "cfgdocs.io.value.v08.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v08.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v08.source.help"
+    },
+    "io/value/v09": {
+      "label_t": "cfgdocs.io.value.v09.label",
+      "label": "Valeur dérivée V09",
+      "label_i18n": "cfgdocs.io.value.v09.label"
+    },
+    "io/value/v09/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v09.aggregation.label",
+      "help_t": "cfgdocs.io.value.v09.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v09.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v09.aggregation.help"
+    },
+    "io/value/v09/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v09.enabled.label",
+      "help_t": "cfgdocs.io.value.v09.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v09.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v09.enabled.help"
+    },
+    "io/value/v09/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v09.name.label",
+      "help_t": "cfgdocs.io.value.v09.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v09.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V09. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v09.name.help"
+    },
+    "io/value/v09/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v09.offset.label",
+      "help_t": "cfgdocs.io.value.v09.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v09.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v09.offset.help"
+    },
+    "io/value/v09/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v09.scale.label",
+      "help_t": "cfgdocs.io.value.v09.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v09.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v09.scale.help"
+    },
+    "io/value/v09/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v09.source.label",
+      "help_t": "cfgdocs.io.value.v09.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v09.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v09.source.help"
+    },
+    "io/value/v10": {
+      "label_t": "cfgdocs.io.value.v10.label",
+      "label": "Valeur dérivée V10",
+      "label_i18n": "cfgdocs.io.value.v10.label"
+    },
+    "io/value/v10/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v10.aggregation.label",
+      "help_t": "cfgdocs.io.value.v10.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v10.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v10.aggregation.help"
+    },
+    "io/value/v10/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v10.enabled.label",
+      "help_t": "cfgdocs.io.value.v10.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v10.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v10.enabled.help"
+    },
+    "io/value/v10/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v10.name.label",
+      "help_t": "cfgdocs.io.value.v10.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v10.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V10. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v10.name.help"
+    },
+    "io/value/v10/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v10.offset.label",
+      "help_t": "cfgdocs.io.value.v10.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v10.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v10.offset.help"
+    },
+    "io/value/v10/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v10.scale.label",
+      "help_t": "cfgdocs.io.value.v10.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v10.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v10.scale.help"
+    },
+    "io/value/v10/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v10.source.label",
+      "help_t": "cfgdocs.io.value.v10.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v10.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v10.source.help"
+    },
+    "io/value/v11": {
+      "label_t": "cfgdocs.io.value.v11.label",
+      "label": "Valeur dérivée V11",
+      "label_i18n": "cfgdocs.io.value.v11.label"
+    },
+    "io/value/v11/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v11.aggregation.label",
+      "help_t": "cfgdocs.io.value.v11.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v11.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v11.aggregation.help"
+    },
+    "io/value/v11/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v11.enabled.label",
+      "help_t": "cfgdocs.io.value.v11.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v11.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v11.enabled.help"
+    },
+    "io/value/v11/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v11.name.label",
+      "help_t": "cfgdocs.io.value.v11.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v11.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V11. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v11.name.help"
+    },
+    "io/value/v11/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v11.offset.label",
+      "help_t": "cfgdocs.io.value.v11.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v11.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v11.offset.help"
+    },
+    "io/value/v11/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v11.scale.label",
+      "help_t": "cfgdocs.io.value.v11.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v11.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v11.scale.help"
+    },
+    "io/value/v11/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v11.source.label",
+      "help_t": "cfgdocs.io.value.v11.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v11.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v11.source.help"
+    },
+    "io/value/v12": {
+      "label_t": "cfgdocs.io.value.v12.label",
+      "label": "Valeur dérivée V12",
+      "label_i18n": "cfgdocs.io.value.v12.label"
+    },
+    "io/value/v12/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v12.aggregation.label",
+      "help_t": "cfgdocs.io.value.v12.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v12.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v12.aggregation.help"
+    },
+    "io/value/v12/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v12.enabled.label",
+      "help_t": "cfgdocs.io.value.v12.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v12.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v12.enabled.help"
+    },
+    "io/value/v12/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v12.name.label",
+      "help_t": "cfgdocs.io.value.v12.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v12.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V12. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v12.name.help"
+    },
+    "io/value/v12/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v12.offset.label",
+      "help_t": "cfgdocs.io.value.v12.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v12.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v12.offset.help"
+    },
+    "io/value/v12/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v12.scale.label",
+      "help_t": "cfgdocs.io.value.v12.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v12.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v12.scale.help"
+    },
+    "io/value/v12/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v12.source.label",
+      "help_t": "cfgdocs.io.value.v12.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v12.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v12.source.help"
+    },
+    "io/value/v13": {
+      "label_t": "cfgdocs.io.value.v13.label",
+      "label": "Valeur dérivée V13",
+      "label_i18n": "cfgdocs.io.value.v13.label"
+    },
+    "io/value/v13/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v13.aggregation.label",
+      "help_t": "cfgdocs.io.value.v13.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v13.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v13.aggregation.help"
+    },
+    "io/value/v13/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v13.enabled.label",
+      "help_t": "cfgdocs.io.value.v13.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v13.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v13.enabled.help"
+    },
+    "io/value/v13/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v13.name.label",
+      "help_t": "cfgdocs.io.value.v13.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v13.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V13. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v13.name.help"
+    },
+    "io/value/v13/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v13.offset.label",
+      "help_t": "cfgdocs.io.value.v13.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v13.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v13.offset.help"
+    },
+    "io/value/v13/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v13.scale.label",
+      "help_t": "cfgdocs.io.value.v13.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v13.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v13.scale.help"
+    },
+    "io/value/v13/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v13.source.label",
+      "help_t": "cfgdocs.io.value.v13.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v13.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v13.source.help"
+    },
+    "io/value/v14": {
+      "label_t": "cfgdocs.io.value.v14.label",
+      "label": "Valeur dérivée V14",
+      "label_i18n": "cfgdocs.io.value.v14.label"
+    },
+    "io/value/v14/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v14.aggregation.label",
+      "help_t": "cfgdocs.io.value.v14.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v14.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v14.aggregation.help"
+    },
+    "io/value/v14/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v14.enabled.label",
+      "help_t": "cfgdocs.io.value.v14.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v14.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v14.enabled.help"
+    },
+    "io/value/v14/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v14.name.label",
+      "help_t": "cfgdocs.io.value.v14.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v14.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V14. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v14.name.help"
+    },
+    "io/value/v14/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v14.offset.label",
+      "help_t": "cfgdocs.io.value.v14.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v14.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v14.offset.help"
+    },
+    "io/value/v14/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v14.scale.label",
+      "help_t": "cfgdocs.io.value.v14.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v14.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v14.scale.help"
+    },
+    "io/value/v14/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v14.source.label",
+      "help_t": "cfgdocs.io.value.v14.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v14.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v14.source.help"
+    },
+    "io/value/v15": {
+      "label_t": "cfgdocs.io.value.v15.label",
+      "label": "Valeur dérivée V15",
+      "label_i18n": "cfgdocs.io.value.v15.label"
+    },
+    "io/value/v15/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v15.aggregation.label",
+      "help_t": "cfgdocs.io.value.v15.aggregation.help",
+      "enum_set": "flowio_aggregation_mode",
+      "label": "Mode d'agrégation",
+      "label_i18n": "cfgdocs.io.value.v15.aggregation.label",
+      "help": "Détermine l'accumulation dans l'historique. Jauge et Taux intègrent valeur x durée ; Compteur soustrait les deltas entiers avant conversion.",
+      "help_i18n": "cfgdocs.io.value.v15.aggregation.help"
+    },
+    "io/value/v15/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v15.enabled.label",
+      "help_t": "cfgdocs.io.value.v15.enabled.help",
+      "label": "Activée",
+      "label_i18n": "cfgdocs.io.value.v15.enabled.label",
+      "help": "Active le calcul, la publication MQTT et le capteur Home Assistant de cette valeur après redémarrage. Désactivé par défaut ; une activation déjà enregistrée est conservée. Une source valide est nécessaire. Désactiver aussi les valeurs qui dépendent de celle-ci : une dépendance désactivée rend la configuration IO invalide.",
+      "help_i18n": "cfgdocs.io.value.v15.enabled.help"
+    },
+    "io/value/v15/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v15.name.label",
+      "help_t": "cfgdocs.io.value.v15.name.help",
+      "label": "Nom",
+      "label_i18n": "cfgdocs.io.value.v15.name.label",
+      "help": "Nom facultatif du capteur Home Assistant (63 octets UTF-8 maximum). Vide : Value V15. Appliqué après redémarrage, sans changer l’identité du capteur.",
+      "help_i18n": "cfgdocs.io.value.v15.name.help"
+    },
+    "io/value/v15/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v15.offset.label",
+      "help_t": "cfgdocs.io.value.v15.offset.help",
+      "label": "Décalage",
+      "label_i18n": "cfgdocs.io.value.v15.offset.label",
+      "help": "Constante additive de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v15.offset.help"
+    },
+    "io/value/v15/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v15.scale.label",
+      "help_t": "cfgdocs.io.value.v15.scale.help",
+      "label": "Facteur d'échelle",
+      "label_i18n": "cfgdocs.io.value.v15.scale.label",
+      "help": "Coefficient multiplicateur de la transformation affine. Valeur publiée = source x échelle + décalage.",
+      "help_i18n": "cfgdocs.io.value.v15.scale.help"
+    },
+    "io/value/v15/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v15.source.label",
+      "help_t": "cfgdocs.io.value.v15.source.help",
+      "label": "Source",
+      "label_i18n": "cfgdocs.io.value.v15.source.label",
+      "help": "Identifiant ValueId de la valeur amont, sur 16 bits. La valeur 65535 (0xFFFF) désactive la valeur dérivée. Encodage : base de famille + index (0..15) — Analogique 0, Digital 32, Taux impulsions 48, Total 64, Taux converti 80, Dérivée 96. Exemples : A01 = 1, compteur I01 = 33, total I01 = 65, première dérivée = 96.",
+      "help_i18n": "cfgdocs.io.value.v15.source.help"
+    },
     "log/levels/m26_lvl": {
       "label_t": "cfgmods.log.levels.m26_lvl.label",
       "help_t": "cfgmods.log.levels.m26_lvl.help",
@@ -5579,6 +6564,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.basetopic.label",
       "help_t": "cfgdocs.mqtt.basetopic.help",
+      "order": 6,
       "label": "Topic de base",
       "label_i18n": "cfgdocs.mqtt.basetopic.label",
       "help": "Préfixe MQTT utilisé pour les topics de publication et commande.",
@@ -5588,6 +6574,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.devicename.label",
       "help_t": "cfgdocs.mqtt.devicename.help",
+      "order": 5,
       "label": "Nom d'appareil MQTT",
       "label_i18n": "cfgdocs.mqtt.devicename.label",
       "help": "Nom d'appareil utilisé pour Home Assistant Discovery (device.name).",
@@ -5597,6 +6584,7 @@
       "type": "Bool",
       "label_t": "cfgdocs.mqtt.enabled.label",
       "help_t": "cfgdocs.mqtt.enabled.help",
+      "order": 0,
       "label": "MQTT activé",
       "label_i18n": "cfgdocs.mqtt.enabled.label",
       "help": "Active ou désactive le client MQTT.",
@@ -5606,7 +6594,8 @@
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.host.label",
       "help_t": "cfgdocs.mqtt.host.help",
-      "label": "Hôte MQTT",
+      "order": 1,
+      "label": "Broker MQTT",
       "label_i18n": "cfgdocs.mqtt.host.label",
       "help": "Adresse du broker MQTT (DNS ou IP).",
       "help_i18n": "cfgdocs.mqtt.host.help"
@@ -5615,6 +6604,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.pass.label",
       "help_t": "cfgdocs.mqtt.pass.help",
+      "order": 4,
       "label": "Mot de passe MQTT",
       "label_i18n": "cfgdocs.mqtt.pass.label",
       "help": "Mot de passe utilisé pour l'authentification MQTT.",
@@ -5624,6 +6614,7 @@
       "type": "Int32",
       "label_t": "cfgdocs.mqtt.port.label",
       "help_t": "cfgdocs.mqtt.port.help",
+      "order": 2,
       "label": "Port MQTT",
       "label_i18n": "cfgdocs.mqtt.port.label",
       "help": "Port de connexion TCP vers le broker MQTT.",
@@ -5633,6 +6624,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.topicdeviceid.label",
       "help_t": "cfgdocs.mqtt.topicdeviceid.help",
+      "order": 7,
       "label": "ID device MQTT topic",
       "label_i18n": "cfgdocs.mqtt.topicdeviceid.label",
       "help": "Segment <deviceId> des topics MQTT. Vide = auto (MAC).",
@@ -5642,6 +6634,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.user.label",
       "help_t": "cfgdocs.mqtt.user.help",
+      "order": 3,
       "label": "Utilisateur MQTT",
       "label_i18n": "cfgdocs.mqtt.user.label",
       "help": "Nom d'utilisateur utilisé pour l'authentification MQTT.",
@@ -7786,6 +8779,7 @@
       "type": "Bool",
       "label_t": "cfgdocs.wifi.enabled.label",
       "help_t": "cfgdocs.wifi.enabled.help",
+      "order": 0,
       "label": "Réseau activé",
       "label_i18n": "cfgdocs.wifi.enabled.label",
       "help": "Active ou désactive la connexion réseau en mode station.",
@@ -7795,6 +8789,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.wifi.pass.label",
       "help_t": "cfgdocs.wifi.pass.help",
+      "order": 2,
       "label": "Mot de passe réseau",
       "label_i18n": "cfgdocs.wifi.pass.label",
       "help": "Mot de passe WPA/WPA2 du réseau.",
@@ -7804,6 +8799,7 @@
       "type": "CharArray",
       "label_t": "cfgdocs.wifi.ssid.label",
       "help_t": "cfgdocs.wifi.ssid.help",
+      "order": 1,
       "label": "SSID",
       "label_i18n": "cfgdocs.wifi.ssid.label",
       "help": "Nom du réseau auquel se connecter.",

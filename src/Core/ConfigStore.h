@@ -74,6 +74,8 @@ public:
     void savePersistent();
     /** @brief Erase all persistent keys in the active Preferences namespace. */
     bool erasePersistent();
+    /** @brief Query key presence under the NVS lock; false means the query failed. */
+    bool containsPersistentKey(const char* key, bool* exists);
     /** @brief Read a small runtime blob guarded by the ConfigStore NVS exclusion. */
     bool readRuntimeBlob(const char* key, void* out, size_t outLen, size_t* actualLen = nullptr);
     /** @brief Write a small runtime blob guarded by the ConfigStore NVS exclusion. */

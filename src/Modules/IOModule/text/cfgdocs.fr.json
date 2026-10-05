@@ -2122,6 +2122,43 @@
       "label": "Raccordement température air",
       "help": "Choix indépendant pour cette sonde. Redémarrage requis.",
       "enum_set": "ds18b20_transport_per_probe"
+    },
+    "io/value": {
+      "label_t": "cfgdocs.io.value.label"
+    },
+    "io/value/v00": {
+      "label_t": "cfgdocs.io.value.v00.label"
+    },
+    "io/value/v00/aggregation": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.io.value.v00.aggregation.label",
+      "help_t": "cfgdocs.io.value.v00.aggregation.help",
+      "enum_set": "flowio_aggregation_mode"
+    },
+    "io/value/v00/offset": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v00.offset.label",
+      "help_t": "cfgdocs.io.value.v00.offset.help"
+    },
+    "io/value/v00/scale": {
+      "type": "Double",
+      "label_t": "cfgdocs.io.value.v00.scale.label",
+      "help_t": "cfgdocs.io.value.v00.scale.help"
+    },
+    "io/value/v00/source": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.io.value.v00.source.label",
+      "help_t": "cfgdocs.io.value.v00.source.help"
+    },
+    "io/value/v00/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.io.value.v00.enabled.label",
+      "help_t": "cfgdocs.io.value.v00.enabled.help"
+    },
+    "io/value/v00/name": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.io.value.v00.name.label",
+      "help_t": "cfgdocs.io.value.v00.name.help"
     }
   }
 }

@@ -926,6 +926,20 @@
           "value": 255,
           "label": "Transport global"
         }
+      ],
+      "flowio_aggregation_mode": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.0.label"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.1.label"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_aggregation_mode.2.label"
+        }
       ]
     },
     "cfg_tree_hidden_paths": [

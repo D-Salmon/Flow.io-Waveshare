@@ -829,6 +829,21 @@ int32_t IOModule::analogPrecision(uint8_t idx) const
     return sanitizeAnalogPrecision_(analogCfg_[idx].precision);
 }
 
+const char* IOModule::derivedValueName(uint8_t slot) const
+{
+    return valueConfig_ && slot < ValueIds::DerivedCapacity ? valueConfig_->definitions[slot].name : "";
+}
+
+bool IOModule::derivedValuePublished(uint8_t slot) const
+{
+    if (!runtimeReady_ || slot >= ValueIds::DerivedCapacity) return false;
+    const ValueId id = ValueIds::Derived + slot;
+    for (uint8_t i = 0; i < valueRouteCount_; ++i) {
+        if (valueRoutes_[i] == id) return true;
+    }
+    return false;
+}
+
 uint32_t IOModule::takeAnalogConfigDirtyMask()
 {
     const uint32_t mask = analogConfigDirtyMask_;
@@ -3977,6 +3992,9 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
 void IOModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services)
 {
     cfgStore_ = &cfg;
+    if (valueConfig_ && !valueConfig_->migrateLegacyActivation(cfg)) {
+        LOGE("Derived value activation migration failed");
+    }
     if (cfgData_.adsInternalAddr != 0x48U && cfgData_.adsInternalAddr != 0x49U) {
         cfgData_.adsInternalAddr = 0x48U;
     }

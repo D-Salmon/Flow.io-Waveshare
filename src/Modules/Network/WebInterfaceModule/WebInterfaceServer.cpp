@@ -27,6 +27,7 @@
 #include "Core/Services/IPoolConfiguration.h"
 #include "Modules/IOModule/IORuntime.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
+#include "Modules/PoolDeviceModule/PoolDeviceRuntimeUi.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
 #include "Profiles/Waveshare/WaveshareIoLayout.h"
 
@@ -2201,19 +2202,12 @@ bool appendWaveshareLocalRuntimeValue_(Print& out,
         case 2301:
         case 2302:
         case 2303:
-        case 2304: {
-            uint8_t slot = PoolIds::DeviceFiltrationPump;
-            const char* key = "pool.filtration_on";
-            if (id == 2302) {
-                slot = PoolIds::DevicePhPump;
-                key = "pool.ph_pump_on";
-            } else if (id == 2303) {
-                slot = PoolIds::DeviceChlorinePump;
-                key = "pool.chlorine_pump_on";
-            } else if (id == 2304) {
-                slot = PoolIds::DeviceRobot;
-                key = "pool.robot_on";
-            }
+        case 2304:
+        case 2306: {
+            const uint8_t slot = PoolDeviceRuntimeUi::deviceSlot(runtimeUiValueId(id));
+            const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(id);
+            if (!item) return false;
+            const char* key = item->key;
 
             PoolDeviceRuntimeStateEntry state{};
             if (!poolDeviceRuntimeState(*dataStore, slot, state)) {
@@ -2969,18 +2963,14 @@ bool waveshareReadDashboardRuntimeValue_(DataStore* dataStore,
 
         case ModuleId::PoolDevice: {
             if (!dataStore) return false;
-            if (valueId == 5U) {
+            if (valueId == PoolDeviceRuntimeUi::DeviceCount) {
                 out.available = true;
                 out.wireType = RuntimeUiWireType::UInt32;
                 out.u32Value = poolDeviceRuntimeCount(*dataStore);
                 return true;
             }
-            uint8_t deviceSlot = 0xFFU;
-            if (valueId == 1U) deviceSlot = PoolIds::DeviceFiltrationPump;
-            else if (valueId == 2U) deviceSlot = PoolIds::DevicePhPump;
-            else if (valueId == 3U) deviceSlot = PoolIds::DeviceChlorinePump;
-            else if (valueId == 4U) deviceSlot = PoolIds::DeviceRobot;
-            else return false;
+            const uint8_t deviceSlot = PoolDeviceRuntimeUi::deviceSlot(valueId);
+            if (deviceSlot == POOL_DEVICE_INVALID) return false;
 
             PoolDeviceRuntimeStateEntry state{};
             if (!poolDeviceRuntimeState(*dataStore, deviceSlot, state)) return false;

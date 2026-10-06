@@ -115,26 +115,8 @@ bool PoolDeviceModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& wr
         return writer.writeU32(makeRuntimeUiId(moduleId(), valueId), poolDeviceRuntimeCount(*dataStore_));
     }
 
-    uint8_t slotIdx = 0xFF;
-    switch (valueId) {
-        case RuntimeUiFiltrationOn:
-            slotIdx = PoolIds::DeviceFiltrationPump;
-            break;
-        case RuntimeUiPhPumpOn:
-            slotIdx = PoolIds::DevicePhPump;
-            break;
-        case RuntimeUiChlorinePumpOn:
-            slotIdx = PoolIds::DeviceChlorinePump;
-            break;
-        case RuntimeUiRobotOn:
-            slotIdx = PoolIds::DeviceRobot;
-            break;
-        case RuntimeUiHeaterOn:
-            slotIdx = PoolIds::DeviceWaterHeater;
-            break;
-        default:
-            return false;
-    }
+    const uint8_t slotIdx = PoolDeviceRuntimeUi::deviceSlot(valueId);
+    if (slotIdx == POOL_DEVICE_INVALID) return false;
 
     const RuntimeUiId runtimeId = makeRuntimeUiId(moduleId(), valueId);
     PoolDeviceRuntimeStateEntry state{};

@@ -9,6 +9,7 @@
 
 #include "Core/Module.h"
 #include "Core/RuntimeUi.h"
+#include "PoolDeviceRuntimeUi.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/RuntimeSnapshotProvider.h"
 #include "Core/ServiceBinding.h"
@@ -90,12 +91,12 @@ public:
 
 private:
     enum RuntimeUiValueId : uint8_t {
-        RuntimeUiFiltrationOn = 1,
-        RuntimeUiPhPumpOn = 2,
-        RuntimeUiChlorinePumpOn = 3,
-        RuntimeUiRobotOn = 4,
-        RuntimeUiDeviceCount = 5,
-        RuntimeUiHeaterOn = 6,
+        RuntimeUiFiltrationOn = PoolDeviceRuntimeUi::FiltrationOn,
+        RuntimeUiPhPumpOn = PoolDeviceRuntimeUi::PhPumpOn,
+        RuntimeUiChlorinePumpOn = PoolDeviceRuntimeUi::ChlorinePumpOn,
+        RuntimeUiRobotOn = PoolDeviceRuntimeUi::RobotOn,
+        RuntimeUiDeviceCount = PoolDeviceRuntimeUi::DeviceCount,
+        RuntimeUiHeaterOn = PoolDeviceRuntimeUi::HeaterOn,
     };
 
     static constexpr uint8_t RESET_PENDING_DAY = (1u << 0);

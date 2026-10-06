@@ -30,10 +30,10 @@ La carte Équipements affiche l'état réel du chauffage. La carte Chauffage con
 
 Passer à Inactif retire la demande guidée précédente du chauffage et désactive les cycles de filtration nécessaires aux prises de température pour la régulation. La filtration conserve ses autres règles, notamment sa plage horaire et la protection contre le gel. Le rafraîchissement du tableau de bord reprend les changements de configuration sans interrompre une saisie en cours ni remplacer un réglage récent par une ancienne lecture.
 
-Les tests du chauffage exécutent la sérialisation du véritable état du relais, l'arrêt de la demande guidée lors d'un changement de régulation, ainsi que les commandes web, la validation, les droits d'accès, les échecs d'enregistrement et les lectures concurrentes.
+Les tests du chauffage exécutent la sérialisation du véritable état du relais dans le module, les réponses HTTP et les comparaisons utilisées par les notifications, l'arrêt de la demande guidée lors d'un changement de régulation, ainsi que les commandes web, la validation, les droits d'accès, les échecs d'enregistrement et les lectures concurrentes.
 
 ## Capacité et vérifications
 
 La table de configuration passe de 768 à 832 entrées, toujours en PSRAM, pour accueillir les champs supplémentaires avec une marge. Les tests couvrent les permutations du plan de bus, les deux affectations pH/ORP-pression, les adresses fixes, le pont partagé, les extensions et l'indisponibilité du verrou. Les anciens réglages, l'historique et les entrées directes sont conservés.
 
-Cette évolution du chauffage est vérifiée par 18 tests Python/compilations hôtes et sept tests JavaScript du tableau de bord et des commandes d’équipements. Les 14 ressources web minifiées sont contrôlées. Les compilations du firmware et du système de fichiers réussissent : RAM statique 97 068 octets, occupation Flash du programme 2 370 947 octets.
+Cette évolution du chauffage est vérifiée par 18 tests Python/compilations hôtes et sept tests JavaScript du tableau de bord et des commandes d’équipements. Les 14 ressources web minifiées sont contrôlées. Les compilations du firmware et du système de fichiers réussissent : RAM statique 97 068 octets, occupation Flash du programme 2 370 911 octets.

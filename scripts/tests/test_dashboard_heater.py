@@ -18,15 +18,24 @@ class DashboardHeaterTests(unittest.TestCase):
         lifecycle = (ROOT / 'src/Modules/PoolLogicModule/PoolLogicLifecycle.cpp').read_text(encoding='utf-8')
         start = lifecycle.index('        if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&\n            p->localBranchId == kCfgBranchHeater')
         change = lifecycle[start:lifecycle.index('        if (p->moduleId', start + 10)]
+        web = (ROOT / 'src/Modules/Network/WebInterfaceModule/WebInterfaceServer.cpp').read_text(encoding='utf-8')
+        start = web.index('        case 2301:')
+        http = web[start:web.index('        case 2101:', start)]
+        start = web.index('        case ModuleId::PoolDevice: {')
+        live = web[start:web.index('        case ModuleId::Mqtt:', start)]
+        protocol = (ROOT / 'src/Core/RuntimeUi.h').read_text(encoding='utf-8')
+        start = protocol.index('constexpr uint8_t runtimeUiValueId(')
+        decode = protocol[start:protocol.index('\n}', start) + 2]
         code = r'''
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-namespace PoolIds { enum {DeviceFiltrationPump=0,DevicePhPump=1,DeviceChlorinePump=2,DeviceRobot=3,DeviceWaterHeater=7}; }
+#include "Modules/PoolDeviceModule/PoolDeviceRuntimeUi.h"
 using RuntimeUiId=uint16_t;
-RuntimeUiId makeRuntimeUiId(uint8_t module,uint8_t value){return module*256+value;}
+constexpr RuntimeUiId kRuntimeUiModuleStride=100U;
+RuntimeUiId makeRuntimeUiId(uint8_t module,uint8_t value){return module*kRuntimeUiModuleStride+value;}
 struct Store {bool actualOn=false,desiredOn=true,available=true;uint8_t lastSlot=255;};
-struct PoolDeviceRuntimeStateEntry {bool actualOn=false;};
+struct PoolDeviceRuntimeStateEntry {bool actualOn=false;uint32_t actualOnSinceMs=0;int control=0;};
 bool poolDeviceRuntimeState(Store& store,uint8_t slot,PoolDeviceRuntimeStateEntry& state){
  store.lastSlot=slot;state.actualOn=store.actualOn;return store.available;
 }
@@ -42,6 +51,22 @@ struct PoolDeviceModule {
  bool writeRuntimeUiValue(uint8_t,IRuntimeUiWriter&)const;
 };
 ''' + writer + r'''
+enum class RuntimeUiWireType {Bool,UInt32};
+enum class ModuleId {PoolDevice};
+struct LiveValue {bool available=false,boolValue=false;uint32_t u32Value=0;RuntimeUiWireType wireType=RuntimeUiWireType::Bool;};
+bool liveValue(Store* dataStore,uint8_t valueId,LiveValue& out){switch(ModuleId::PoolDevice){
+''' + live + r'''
+}return false;}
+struct Print {bool unavailable=false,value=false;uint16_t id=0;const char* key=nullptr;};
+struct RuntimeUiManifestItem {const char* key;};
+const RuntimeUiManifestItem* findRuntimeUiManifestItem(uint16_t id){static RuntimeUiManifestItem item{"pool.heater_on"};return id==2306?&item:nullptr;}
+''' + decode + r'''
+uint32_t millis(){return 100;}
+void wavesharePrintUnavailableByManifestType_(Print& out,bool&,uint16_t){out.unavailable=true;}
+void printRuntimeBoolWithSince_(Print& out,bool&,uint16_t id,const char* key,bool value,bool,uint32_t,int*){out.value=value;out.key=key;out.id=id;}
+bool httpValue(Store* dataStore,uint16_t id,Print& out){bool firstValue=true;switch(id){
+''' + http + r'''
+}return false;}
 enum class ConfigModuleId:uint8_t {PoolLogic=8};
 constexpr uint8_t kCfgBranchHeater=11;
 namespace NvsKeys {namespace PoolLogic {constexpr const char* HeaterAutoMode="pl_hta";}}
@@ -57,10 +82,18 @@ int main(){
  PoolDeviceModule module;Store store;IRuntimeUiWriter out;
  module.dataStore_=&store;
  assert(module.writeRuntimeUiValue(module.RuntimeUiHeaterOn,out));
- assert(store.lastSlot==7&&out.id==6*256+6&&!out.value&&!out.unavailable);
+ assert(store.lastSlot==7&&out.id==6*kRuntimeUiModuleStride+6&&!out.value&&!out.unavailable);
  store.actualOn=true;store.desiredOn=false;
  assert(module.writeRuntimeUiValue(module.RuntimeUiHeaterOn,out)&&out.value);
+ for(bool actual:{false,true}){
+   store.actualOn=actual;store.desiredOn=!actual;store.available=true;
+   LiveValue live;assert(liveValue(&store,6,live)&&live.available&&live.boolValue==actual);
+   Print http;assert(httpValue(&store,2306,http)&&http.value==actual&&http.id==2306);
+   assert(std::strcmp(http.key,"pool.heater_on")==0&&store.lastSlot==7);
+ }
  store.available=false;out={};
+ LiveValue missing;assert(!liveValue(&store,6,missing)&&!missing.available);
+ Print missingHttp;assert(httpValue(&store,2306,missingHttp)&&missingHttp.unavailable);
  assert(module.writeRuntimeUiValue(module.RuntimeUiHeaterOn,out)&&out.unavailable);
  module.dataStore_=nullptr;out={};
  assert(module.writeRuntimeUiValue(module.RuntimeUiHeaterOn,out)&&out.unavailable);
@@ -78,7 +111,7 @@ int main(){
             exe = Path(directory) / 'heater.exe'
             cpp.write_text(code, encoding='utf-8')
             subprocess.run(['C:/msys64/ucrt64/bin/g++.exe', '-std=c++17', '-include', 'initializer_list',
-                            str(cpp), '-o', str(exe)], check=True)
+                            '-I'+str(ROOT/'src'), '-I'+str(ROOT/'include'), str(cpp), '-o', str(exe)], check=True)
             subprocess.run([str(exe)], check=True)
 
 

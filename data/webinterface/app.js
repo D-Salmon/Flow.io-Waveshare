@@ -2503,6 +2503,7 @@
     let poolConfigLoadedOnce = false;
     let poolConfigReqSeq = 0;
     let poolConfigModulesCache = null;
+    let poolConfigEditRevision = 0;
     let poolAiPreviewLoadedOnce = false;
     let poolAiPreviewReqSeq = 0;
     let poolAiPreviewPollTimer = null;
@@ -2510,7 +2511,10 @@
     const poolConfigModuleDefs = Object.freeze([
       Object.freeze({ module: 'poollogic/modes', titleKey: 'pool.card.modes.title', title: 'Pilotage général', icon: 'tune', noteKey: 'pool.card.modes.note', note: 'Ces interrupteurs définissent si PoolLogic pilote la piscine et quelle stratégie de traitement est retenue.' }),
       Object.freeze({ module: 'poollogic/filtration', titleKey: 'pool.card.filtration.title', title: 'Filtration', icon: 'waves', noteKey: 'pool.card.filtration.note', note: 'La plage de filtration combine contraintes horaires et température d’eau pour protéger le bassin.' }),
-      Object.freeze({ module: 'poollogic/heater', titleKey: 'pool.card.heater.title', title: 'Chauffage', icon: 'thermostat', noteKey: 'pool.card.heater.note', note: 'Le chauffage suit sa consigne seulement quand le mode automatique le permet.' }),
+      Object.freeze({ module: 'poollogic/heater', titleKey: 'pool.card.heater.title', title: 'Chauffage', icon: 'thermostat', noteKey: 'pool.card.heater.note', note: 'Le chauffage suit sa consigne seulement quand le mode automatique le permet.', editableFields: {
+        heater_auto_mode: { type: 'boolean' },
+        heater_setpoint: { type: 'number', step: 0.5, enabledBy: 'heater_auto_mode' }
+      } }),
       Object.freeze({ module: 'poollogic/refill', titleKey: 'pool.card.refill.title', title: 'Remplissage', icon: 'water_drop', noteKey: 'pool.card.refill.note', note: 'Le remplissage garde une durée minimale pour éviter les cycles trop courts.' }),
       Object.freeze({ module: 'poollogic/safety', titleKey: 'pool.card.safety.title', title: 'Protections', icon: 'health_and_safety', noteKey: 'pool.card.safety.note', note: 'Seuils de pression, hors gel et bascule hiver utilisés par les automatismes.' }),
       Object.freeze({ module: 'poollogic/regulation', titleKey: 'pool.card.regulation.title', title: 'Régulation', icon: 'speed', noteKey: 'pool.card.regulation.note', note: 'Temporisations communes aux régulateurs pH et désinfection.' }),
@@ -9167,15 +9171,102 @@
       }));
     }
 
+    async function poolConfigApplyPatch(patch) {
+      ++poolConfigEditRevision;
+      try {
+        const result = await fetchJsonResponse('/api/flowcfg/apply',
+          createFormPostOptions({ patch: JSON.stringify(patch) }), fetchWithBusyRetry);
+        if (!result.res.ok || !result.data || result.data.ok !== true) {
+          throw new Error(formatFlowCfgApplyError(result.data));
+        }
+        poolConfigModulesCache = poolConfigModulesCache || {};
+        Object.entries(patch).forEach(([module, values]) => {
+          Object.assign(poolConfigModulesCache[module] || (poolConfigModulesCache[module] = {}), values);
+          if (flowCfgCurrentModule === module) {
+            Object.assign(flowCfgCurrentData, values);
+            renderFlowCfgFieldsWithExtensions(flowCfgCurrentData);
+          }
+        });
+        flowCfgChildrenCache = {};
+        invalidatePoolDashboardSlots();
+      } finally { ++poolConfigEditRevision; }
+    }
+
+    function poolConfigUpdateFieldEditors(list, data) {
+      if (list.dataset.saving === '1') return;
+      list.poolFieldData = data;
+      (list.poolFieldEditors || []).forEach(({ key, definition, input }) => {
+        input.disabled = !isAdminSession() || !(key in data) ||
+          (!!definition.enabledBy && !toBool(data[definition.enabledBy]));
+        if (document.activeElement !== input) {
+          input.value = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
+        }
+      });
+    }
+
     function poolConfigBuildFieldList(moduleName, data, options) {
       const list = document.createElement('div');
       list.className = 'pool-field-list';
+      list.dataset.module = moduleName;
+      list.poolFieldEditors = [];
+      const editableFields = (options && options.editableFields) || {};
+      const status = document.createElement('p');
+      status.className = 'pool-field-save-status';
+      status.setAttribute('role', 'status');
+      status.hidden = true;
       poolConfigFields(moduleName, data, options).forEach((field) => {
         const row = document.createElement('div');
         row.className = 'pool-field-row';
         const label = document.createElement('span');
         label.className = 'pool-field-label';
         label.textContent = field.label;
+        const definition = editableFields[field.key];
+        if (definition) {
+          const input = document.createElement(definition.type === 'boolean' ? 'select' : 'input');
+          input.className = 'pool-field-control control-input';
+          input.setAttribute('aria-label', field.label);
+          input.dataset.key = field.key;
+          if (definition.type === 'boolean') {
+            [[true, tr('pool.state.active', 'Actif')], [false, tr('pool.state.inactive', 'Inactif')]].forEach(([value, text]) => {
+              const option = document.createElement('option');
+              option.value = String(value); option.textContent = text;
+              input.appendChild(option);
+            });
+          } else {
+            input.type = 'number'; input.required = true; input.step = String(definition.step || 'any');
+            const doc = poolConfigDoc(moduleName, field.key);
+            for (const constraint of ['min', 'max']) {
+              if (doc && doc[constraint] != null) input[constraint] = String(doc[constraint]);
+            }
+          }
+          list.poolFieldEditors.push({ key: field.key, definition, input });
+          input.addEventListener('change', async () => {
+            if (input.disabled || list.dataset.saving === '1' || !isAdminSession()) return;
+            if (!input.reportValidity()) return;
+            const value = definition.type === 'boolean' ? input.value === 'true' : Number(input.value);
+            if (definition.type === 'number' && !Number.isFinite(value)) return;
+            list.dataset.saving = '1';
+            const currentData = list.poolFieldData;
+            list.poolFieldEditors.forEach(editor => { editor.input.disabled = true; });
+            status.hidden = false;
+            status.textContent = tr('cfg.apply.busy', 'Application de la configuration en cours...');
+            try {
+              await poolConfigApplyPatch({ [moduleName]: { [field.key]: value } });
+              Object.assign(currentData, poolConfigModulesCache[moduleName]);
+              status.textContent = tr('pool.settings.saved', 'Enregistré.');
+            } catch (error) {
+              status.textContent = error.message || String(error);
+              input.value = definition.type === 'boolean' ? String(toBool(currentData[field.key])) : String(currentData[field.key]);
+            } finally {
+              delete list.dataset.saving;
+              poolConfigUpdateFieldEditors(list, currentData);
+            }
+            refreshPoolMeasures(false);
+          });
+          row.append(label, input);
+          list.appendChild(row);
+          return;
+        }
         const value = document.createElement('b');
         const activeText = tr('pool.state.active', 'Actif').trim().toLowerCase();
         const cleanValue = String(field.value || '').trim().toLowerCase();
@@ -9194,6 +9285,8 @@
         row.appendChild(value);
         list.appendChild(row);
       });
+      poolConfigUpdateFieldEditors(list, data);
+      if (list.poolFieldEditors.length) list.appendChild(status);
       if (!list.childNodes.length) {
         const empty = document.createElement('div');
         empty.className = 'pool-field-empty';
@@ -9301,19 +9394,31 @@
 
     async function refreshPoolOverview(forceRefresh) {
       if (forceRefresh) invalidatePoolDashboardSlots();
+      const editRevision = poolConfigEditRevision;
 
       const results = await Promise.allSettled([
         poolConfigFetchModule('poollogic/modes'),
+        poolConfigFetchModule('poollogic/heater'),
         fetchPoolAlarmSlots()
       ]);
       const modesResult = results[0];
-      const alarmsResult = results[1];
+      const heaterResult = results[1];
+      const alarmsResult = results[2];
 
       if (modesResult.status === 'fulfilled') {
         const payload = modesResult.value;
         poolConfigModulesCache = Object.assign({}, poolConfigModulesCache || {}, {
           [payload.module]: payload.data
         });
+      }
+
+      if (heaterResult.status === 'fulfilled' && editRevision === poolConfigEditRevision) {
+        const payload = heaterResult.value;
+        const list = poolConfigGrid && poolConfigGrid.querySelector('.pool-field-list[data-module="poollogic/heater"]');
+        if (!list || list.dataset.saving !== '1') {
+          poolConfigModulesCache = Object.assign({}, poolConfigModulesCache || {}, { [payload.module]: payload.data });
+          if (list) poolConfigUpdateFieldEditors(list, payload.data);
+        }
       }
 
       if (poolConfigModulesCache && alarmsResult.status === 'fulfilled') {
@@ -9357,8 +9462,7 @@
         choice.addEventListener('click', async () => {
           choice.disabled = true;
           try {
-            const result = await fetchJsonResponse('/api/flowcfg/apply', createFormPostOptions({patch: JSON.stringify({'poollogic/modes': {disinfection_type: def.typeValue}})}), fetchWithBusyRetry);
-            if (!result.res.ok || !result.data || !result.data.ok) throw new Error(formatFlowCfgApplyError(result.data));
+            await poolConfigApplyPatch({'poollogic/modes': {disinfection_type: def.typeValue}});
             await loadPoolConfig(true);
           } catch (error) { poolConfigRenderError(error); }
           finally { choice.disabled = !isAdminSession(); }
@@ -9426,8 +9530,7 @@
           try {
             const value = readConfigFieldValueStrict(input);
             const patch = {[selectedDef.module]: {[input.dataset.key]: value}};
-            const result = await fetchJsonResponse('/api/flowcfg/apply', createFormPostOptions({patch: JSON.stringify(patch)}), fetchWithBusyRetry);
-            if (!result.res.ok || !result.data || !result.data.ok) throw new Error(formatFlowCfgApplyError(result.data));
+            await poolConfigApplyPatch(patch);
             await loadPoolConfig(true);
           } catch (error) { status.textContent = error.message || String(error); button.disabled = false; }
         }});
@@ -9724,7 +9827,7 @@
         head.appendChild(icon);
         head.appendChild(copy);
         card.appendChild(head);
-        card.appendChild(poolConfigBuildFieldList(def.module, data));
+        card.appendChild(poolConfigBuildFieldList(def.module, data, { editableFields: def.editableFields }));
         poolConfigGrid.appendChild(card);
       });
     }

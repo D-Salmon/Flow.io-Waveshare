@@ -7460,6 +7460,7 @@
       "label_t": "cfgdocs.poollogic.heater.heater_setpoint.label",
       "help_t": "cfgdocs.poollogic.heater.heater_setpoint.help",
       "unit": "C",
+      "step": 0.5,
       "label": "Consigne chauffage (C)",
       "label_i18n": "cfgdocs.poollogic.heater.heater_setpoint.label",
       "help": "Température cible eau pour la régulation du chauffage.",

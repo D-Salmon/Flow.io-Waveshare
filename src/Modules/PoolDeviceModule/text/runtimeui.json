@@ -285,6 +285,16 @@
       "order": 110,
       "label_t": "runtimeui.pooldev.v05.label",
       "group_t": "runtimeui.pooldev.v01.group"
+    },
+    {
+      "valueId": 6,
+      "key": "pool.heater_on",
+      "type": "bool",
+      "domain": "equipements",
+      "display": "boolean",
+      "order": 105,
+      "label_t": "runtimeui.pooldev.v06.label",
+      "group_t": "runtimeui.pooldev.v01.group"
     }
   ]
 }

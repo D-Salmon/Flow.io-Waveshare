@@ -408,6 +408,25 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       ]
     },
     {
+      "id": 2306,
+      "runtimeId": 2306,
+      "moduleId": 23,
+      "module": "pooldev",
+      "valueId": 6,
+      "key": "pool.heater_on",
+      "label": "Chauffage",
+      "type": "bool",
+      "domain": "equipements",
+      "group": "Equipements",
+      "unit": null,
+      "decimals": null,
+      "order": 105,
+      "enum": null,
+      "flags": null,
+      "display": "boolean",
+      "displayConfig": null
+    },
+    {
       "id": 2305,
       "runtimeId": 2305,
       "moduleId": 23,

@@ -129,6 +129,9 @@ bool PoolDeviceModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& wr
         case RuntimeUiRobotOn:
             slotIdx = PoolIds::DeviceRobot;
             break;
+        case RuntimeUiHeaterOn:
+            slotIdx = PoolIds::DeviceWaterHeater;
+            break;
         default:
             return false;
     }

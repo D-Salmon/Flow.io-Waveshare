@@ -1633,10 +1633,11 @@ void PoolLogicModule::onEvent_(const Event& e)
         if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
             p->localBranchId == kCfgBranchHeater &&
             p->nvsKey) {
-            if (strcmp(p->nvsKey, NvsKeys::PoolLogic::HeaterAutoMode) == 0 && heaterAutoMode_) {
-                // Entering heater auto starts from a safe stopped heater relay.
+            if (strcmp(p->nvsKey, NvsKeys::PoolLogic::HeaterAutoMode) == 0) {
+                // Both enabling regulation and disabling it clear the previous
+                // guided request. An inactive heater must not retain an automatic ON.
                 if (!writeDeviceDesired_(heaterDeviceSlot_, false)) {
-                    LOGW("PoolLogic failed to stop heater on heater_auto_mode enable (slot=%u)",
+                    LOGW("PoolLogic failed to stop heater on heater_auto_mode change (slot=%u)",
                          (unsigned)heaterDeviceSlot_);
                 }
             }

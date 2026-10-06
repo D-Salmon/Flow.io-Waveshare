@@ -672,6 +672,8 @@
     "io.name.Fill Pump": "Pompe de remplissage",
     "pool.alarm.ph.duration": "Durée maximale pompe pH",
     "pool.alarm.chlorine.duration": "Durée maximale pompe chlore",
-    "pool.alarm.flow.absent": "Débit de filtration absent"
+    "pool.alarm.flow.absent": "Débit de filtration absent",
+    "pool.state.inactive": "Inactif",
+    "pool.settings.saved": "Enregistré."
   }
 }

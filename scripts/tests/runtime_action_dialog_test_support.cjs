@@ -34,10 +34,12 @@ async function installDialog(page, entry) {
     window.refreshPoolOverview = async () => { testState.refreshes.push('overview'); };
     window.extractApiErrorMessage = data => data.error;
     const script = document.createElement('script');
-    script.textContent = 'let runtimeActionBusyKey = ""; let runtimeActionDialog = null; let runtimeActionDialogRefresh = null; const runtimeActionFeedback = new Map();\n'
+    script.textContent = 'let runtimeActionBusyKey = ""; let runtimeActionDialog = null; let runtimeActionDialogRefresh = null; const runtimeActionFeedback = new Map(); const poolConfigModulesCache = {};\n'
       + runtimeActions + '\ndocument.querySelector(".status-card").appendChild(buildRuntimeActionDialogButton(testEntry));';
     document.body.appendChild(script);
-  }, { runtimeActions: app.slice(app.indexOf('    function poolAlarmLabel('), app.indexOf('    async function fetchPoolAlarmSlots(')) + app.slice(start, end), entry });
+  }, { runtimeActions: app.slice(app.indexOf('    function ioSummaryText('), app.indexOf('    function ioSummarySlotLabel(')) +
+    app.slice(app.indexOf('    function poolConfigDisinfectionLabel('), app.indexOf('    function poolConfigBoolLabel(')) +
+    app.slice(app.indexOf('    function poolAlarmLabel('), app.indexOf('    async function fetchPoolAlarmSlots(')) + app.slice(start, end), entry });
 }
 
 module.exports = { project, loadDialog, installDialog };

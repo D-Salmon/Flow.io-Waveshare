@@ -120,7 +120,8 @@
       "type": "Float",
       "label_t": "cfgdocs.poollogic.heater.heater_setpoint.label",
       "help_t": "cfgdocs.poollogic.heater.heater_setpoint.help",
-      "unit": "C"
+      "unit": "C",
+      "step": 0.5
     },
     "poollogic/modes/auto_mode": {
       "type": "Bool",

@@ -616,6 +616,8 @@
     "pool.alarm.pressure.high": "High pressure threshold",
     "pool.alarm.ph.duration": "pH pump runtime limit",
     "pool.alarm.chlorine.duration": "Chlorine pump runtime limit",
-    "pool.alarm.flow.absent": "No filtration flow"
+    "pool.alarm.flow.absent": "No filtration flow",
+    "pool.state.inactive": "Inactive",
+    "pool.settings.saved": "Saved."
   }
 }

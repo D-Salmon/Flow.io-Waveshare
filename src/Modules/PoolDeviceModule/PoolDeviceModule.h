@@ -95,6 +95,7 @@ private:
         RuntimeUiChlorinePumpOn = 3,
         RuntimeUiRobotOn = 4,
         RuntimeUiDeviceCount = 5,
+        RuntimeUiHeaterOn = 6,
     };
 
     static constexpr uint8_t RESET_PENDING_DAY = (1u << 0);

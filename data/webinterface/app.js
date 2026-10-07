@@ -2528,7 +2528,10 @@
           freeze_hold_t: { type: 'number' }
         }
       }),
-      Object.freeze({ module: 'poollogic/regulation', titleKey: 'pool.card.regulation.title', title: 'Régulation', icon: 'speed', noteKey: 'pool.card.regulation.note', note: 'Pilotage et temporisations des dosages automatiques pH et chlore.',
+      Object.freeze({ module: 'poollogic/regulation', titleKey: 'pool.card.regulation.title', title: 'Régulation', icon: 'speed', noteKey: 'pool.card.regulation.note', note: 'Pilotage et temporisations du dosage automatique pH.',
+        notesByDisinfectionType: Object.freeze({
+          0: Object.freeze({ noteKey: 'pool.card.regulation.note.chlorine', note: 'Pilotage et temporisations des dosages automatiques pH et chlore/brome.' })
+        }),
         fieldOrder: ['enabled', 'dly_pid_min', 'pid_min_on_ms', 'pid_sample_ms'], editableFields: {
           enabled: { type: 'boolean' },
           dly_pid_min: { type: 'number', enabledBy: 'enabled' },
@@ -9930,7 +9933,8 @@
         const title = document.createElement('h3');
         title.textContent = tr(def.titleKey, def.title);
         const note = document.createElement('p');
-        note.textContent = tr(def.noteKey, def.note);
+        const noteDef = def.notesByDisinfectionType?.[Number(modules['poollogic/modes']?.disinfection_type)] || def;
+        note.textContent = tr(noteDef.noteKey, noteDef.note);
         copy.appendChild(title);
         copy.appendChild(note);
         head.appendChild(icon);

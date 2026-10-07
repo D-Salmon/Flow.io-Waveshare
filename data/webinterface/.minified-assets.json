@@ -17,11 +17,11 @@
       "gzip_bytes": 9475
     },
     "app.js": {
-      "source_sha256": "a067d9c0079c2208b2764b58b8e8622448b2db99278f5fd7d0d6e4f25caca89c",
-      "gzip_sha256": "0223fbe67f714ca0c0c4a203e6c8cf5702bf67373b453f416617ad7673d7575e",
-      "original_bytes": 647116,
-      "minified_bytes": 480730,
-      "gzip_bytes": 114119
+      "source_sha256": "1c7f58ae26a734a666a7608cb7eaa21bdf8be78e20208fd6c85a035abc9607ec",
+      "gzip_sha256": "9f16b68ce4632b78ca75d113210601b9ac19bebf4c9af6125e77961cffbb2206",
+      "original_bytes": 647452,
+      "minified_bytes": 481013,
+      "gzip_bytes": 114192
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -31,18 +31,18 @@
       "gzip_bytes": 6363
     },
     "i18n/fr.json": {
-      "source_sha256": "6b6276c94723bbcf9457adf912053c0db79301094529806871e32ebab42f6d87",
-      "gzip_sha256": "626bcb238e80fcb9e9a152e8157438069d5f7813ac14479fd1e88b5fa1132960",
-      "original_bytes": 37926,
-      "minified_bytes": 33169,
-      "gzip_bytes": 9774
+      "source_sha256": "68e06ca487ffdb78f9ca23a448339b0d426f6effd6e7b5e89a04fb9415472781",
+      "gzip_sha256": "51cbc768472751e2bc195c452948f61d7bcc18c3612ce470df63d2b012197821",
+      "original_bytes": 38031,
+      "minified_bytes": 33267,
+      "gzip_bytes": 9792
     },
     "i18n/en.json": {
-      "source_sha256": "112c4913a9dc716513baa68ea3f4eb8193a1e361f79ffa7291d740f9b9264574",
-      "gzip_sha256": "9e2192a3ef3bb4ad7fa2c19593b2ed1ff2b1c92629d3531bf26b747016e00d13",
-      "original_bytes": 32843,
-      "minified_bytes": 28478,
-      "gzip_bytes": 8207
+      "source_sha256": "108d9f7ce0c8f77dc78d346f1e958deb08f8460b9dba851b47ea5b15046f9087",
+      "gzip_sha256": "b0627c315e46dcedb1e600501d599964d85183b8422264a0662c082a38c03a1e",
+      "original_bytes": 32939,
+      "minified_bytes": 28567,
+      "gzip_bytes": 8221
     },
     "app-core.css": {
       "source_sha256": "01ff1a232e69b27766b098d773bd26f51ab008944598b26f9b961ee599788e10",

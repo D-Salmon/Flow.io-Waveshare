@@ -96,11 +96,11 @@
     "cfgdocs.poollogic.ph.ph_window_ms.label": "Fenêtre pH (ms)",
     "cfgdocs.poollogic.refill.fill_min_on_s.help": "Duration minimale de marche de the pump de remplissage.",
     "cfgdocs.poollogic.refill.fill_min_on_s.label": "Temps mini remplissage (s)",
-    "cfgdocs.poollogic.regulation.dly_pid_min.help": "Wait before automatic dosing. During forced filtration, chlorine dosing can start without this delay.",
+    "cfgdocs.poollogic.regulation.dly_pid_min.help": "Wait before automatic regulation starts after filtration.",
     "cfgdocs.poollogic.regulation.dly_pid_min.label": "Delay after filtration starts (min)",
     "cfgdocs.poollogic.regulation.pid_min_on_ms.help": "Calculated injections shorter than this duration are skipped. 1,000 ms = 1 second.",
     "cfgdocs.poollogic.regulation.pid_min_on_ms.label": "Minimum injection duration (ms)",
-    "cfgdocs.poollogic.regulation.pid_sample_ms.help": "Time between pH or chlorine dosing calculations. Minimum: 100 ms. 1,000 ms = 1 second.",
+    "cfgdocs.poollogic.regulation.pid_sample_ms.help": "Time between automatic dosing calculations. Minimum: 100 ms. 1,000 ms = 1 second.",
     "cfgdocs.poollogic.regulation.pid_sample_ms.label": "Dosing calculation interval (ms)",
     "cfgdocs.poollogic.robot.robot_delay_min.help": "Délai avant lancement automatic of robot.",
     "cfgdocs.poollogic.robot.robot_delay_min.label": "Délai robot (min)",
@@ -235,6 +235,6 @@
     "pool.temperature.location.pipe": "Pipework",
     "pool.temperature.location.pool": "Pool",
     "cfgdocs.poollogic.regulation.enabled.label": "Automatic dosing regulation",
-    "cfgdocs.poollogic.regulation.enabled.help": "Enables or pauses automatic pH and chlorine pump dosing. Manual controls remain available."
+    "cfgdocs.poollogic.regulation.enabled.help": "Enables or pauses automatic dosing pump regulation. Manual controls remain available."
   }
 }

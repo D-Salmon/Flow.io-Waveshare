@@ -933,7 +933,7 @@ body.web-icons-disabled .control-field-apply{font-size:16.8px;font-weight:800;le
 .pool-treatment-panel{display:grid;grid-template-columns:minmax(260px,0.58fr) minmax(0,1fr);gap:18px;align-items:stretch;border:1px solid var(--border);border-radius:var(--radius);background:#FFFFFF;box-shadow:0 8px 22px rgba(7,26,53,0.045);padding:18px;}
 .pool-treatment-panel[hidden]{display:none;}
 .pool-treatment-selector,.pool-treatment-detail{min-width:0;display:grid;gap:14px;}
-.pool-treatment-selector{border-right:1px solid var(--border);padding-right:18px;}
+.pool-treatment-selector{align-content:start;border-right:1px solid var(--border);padding-right:18px;}
 .pool-treatment-title{display:flex;align-items:center;gap:10px;min-width:0;}
 .pool-treatment-title h3{margin:0;color:var(--text);font-size:20.2px;font-weight:850;line-height:1.2;}
 .pool-treatment-title-icon{font-size:24.6px;color:var(--primary);}

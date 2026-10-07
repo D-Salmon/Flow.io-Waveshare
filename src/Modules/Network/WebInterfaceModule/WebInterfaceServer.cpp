@@ -124,6 +124,35 @@ static void printJsonEscaped_(Print& out, const char* s)
     out.print('\"');
 }
 
+static void appendAiInsightResult_(Print& out, const AiPoolInsightStatus& status)
+{
+    out.print(",\"insight_state\":");
+    printJsonEscaped_(out, aiPoolInsightStateCode(status.state));
+    out.print(",\"insight_message\":");
+    printJsonEscaped_(out, status.message);
+    char number[24]{};
+    snprintf(number, sizeof(number), "%llu", (unsigned long long)status.generatedAtUtc);
+    out.print(",\"insight_generated_at_utc\":"); out.print(number);
+    out.print(",\"insight_text\":"); printJsonEscaped_(out, status.text);
+    out.print(",\"schedule\":{\"enabled\":"); out.print(status.schedule.enabled ? "true" : "false");
+    out.print(",\"state\":"); printJsonEscaped_(out, aiScheduleStateCode(status.schedule.state));
+    snprintf(number, sizeof(number), "%llu", (unsigned long long)status.schedule.lastGeneratedAtUtc);
+    out.print(",\"last_generated_at_utc\":"); out.print(number);
+    snprintf(number, sizeof(number), "%llu", (unsigned long long)status.schedule.nextAtUtc);
+    out.print(",\"next_at_utc\":"); out.print(number);
+    out.print(",\"last_local\":"); printJsonEscaped_(out, status.schedule.lastLocal);
+    out.print(",\"next_local\":"); printJsonEscaped_(out, status.schedule.nextLocal);
+    out.print('}');
+}
+
+static void appendAiWeatherState_(Print& out, AiWeatherState state, const char* message)
+{
+    out.print(",\"weather_state\":");
+    printJsonEscaped_(out, aiWeatherStateCode(state));
+    out.print(",\"weather_message\":");
+    printJsonEscaped_(out, message);
+}
+
 static bool parseBoolParam_(const char* in, bool fallback)
 {
     if (!in || in[0] == '\0') return fallback;
@@ -6287,6 +6316,50 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         request->send(response);
     });
+    server_.on("/api/ai/pool-status", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/ai/pool-status");
+        noteHttpActivity_();
+        const AiInsightService* aiInsight = services_
+            ? services_->get<AiInsightService>(ServiceId::AiInsight) : nullptr;
+        if (!aiInsight || !aiInsight->getPoolInsightStatus || !aiInsight->getWeatherStatus) {
+            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"ai.pool-status\"}}");
+            return;
+        }
+        auto* status = static_cast<AiPoolInsightStatus*>(heap_caps_calloc(
+            1U, sizeof(AiPoolInsightStatus), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (!status) {
+            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"LowMemory\",\"where\":\"ai.pool-status\"}}");
+            return;
+        }
+        AiWeatherStatus weather{};
+        const bool ready = aiInsight->getPoolInsightStatus(aiInsight->ctx, status) &&
+            aiInsight->getWeatherStatus(aiInsight->ctx, &weather);
+        auto responseState = std::make_shared<WebJsonBuffer>(32U * 1024U);
+        if (!ready || !responseState || !responseState->valid()) {
+            heap_caps_free(status);
+            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"Unavailable\",\"where\":\"ai.pool-status\"}}");
+            return;
+        }
+        responseState->print("{\"ok\":true,\"enabled\":");
+        responseState->print(status->enabled ? "true" : "false");
+        responseState->print(",\"api_key_configured\":");
+        responseState->print(status->apiKeyConfigured ? "true" : "false");
+        appendAiWeatherState_(*responseState, weather.state, weather.message);
+        appendAiInsightResult_(*responseState, *status);
+        responseState->print('}');
+        heap_caps_free(status);
+        if (!responseState->finish()) {
+            request->send(500, "application/json", "{\"ok\":false,\"err\":{\"code\":\"Overflow\",\"where\":\"ai.pool-status\"}}");
+            return;
+        }
+        AsyncWebServerResponse* response = request->beginResponse(
+            "application/json", responseState->length(),
+            [responseState](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+                return responseState->fillAt(buffer, maxLen, index);
+            });
+        addNoCacheHeaders_(response);
+        request->send(response);
+    });
     server_.on("/api/ai/pool-preview", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/ai/pool-preview");
         noteHttpActivity_();
@@ -6353,23 +6426,8 @@ void WebInterfaceModule::startServer_()
         responseState->print(preview->apiKeyConfigured ? "true" : "false");
         responseState->print(",\"history_available\":");
         responseState->print(preview->historyAvailable ? "true" : "false");
-        responseState->print(",\"weather_state\":");
-        printJsonEscaped_(*responseState, aiWeatherStateCode(preview->weatherState));
-        responseState->print(",\"weather_message\":");
-        printJsonEscaped_(*responseState, preview->weatherMessage);
-        responseState->print(",\"insight_state\":");
-        printJsonEscaped_(*responseState, aiPoolInsightStateCode(preview->insightState));
-        responseState->print(",\"insight_message\":");
-        printJsonEscaped_(*responseState, preview->insightMessage);
-        responseState->print(",\"insight_generated_at_utc\":");
-        char generatedAtUtc[24]{};
-        snprintf(generatedAtUtc,
-                 sizeof(generatedAtUtc),
-                 "%llu",
-                 (unsigned long long)preview->insightGeneratedAtUtc);
-        responseState->print(generatedAtUtc);
-        responseState->print(",\"insight_text\":");
-        printJsonEscaped_(*responseState, preview->insightText);
+        appendAiWeatherState_(*responseState, preview->weatherState, preview->weatherMessage);
+        appendAiInsightResult_(*responseState, preview->insight);
         responseState->print(",\"refresh_requested\":");
         responseState->print(refreshRequested ? "true" : "false");
         responseState->print(",\"refresh_accepted\":");

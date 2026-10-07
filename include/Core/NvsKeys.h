@@ -530,6 +530,9 @@ constexpr char DayEndHour[] = "ph_day_end";
 
 namespace AiInsight {
 constexpr char Enabled[] = "ai_enabled";
+constexpr char AutomaticEnabled[] = "ai_auto";
+constexpr char DailyTime[] = "ai_day_time";
+constexpr char ScheduleCheckpoint[] = "ai_day_state";
 constexpr char ApiKey[] = "ai_api_key";
 constexpr char Model[] = "ai_model";
 constexpr char Latitude[] = "inst_lat";

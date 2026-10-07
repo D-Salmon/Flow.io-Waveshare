@@ -3,7 +3,7 @@
     "generated": true,
     "locale": "fr",
     "source": "text",
-    "total": 775
+    "total": 778
   },
   "meta": {
     "generated": true,
@@ -1249,6 +1249,20 @@
           "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.1.label"
         }
       ],
+      "poollogic_temperature_location": [
+        {
+          "value": true,
+          "label_t": "pool.temperature.location.pipe",
+          "label": "Tuyauterie",
+          "label_i18n": "pool.temperature.location.pipe"
+        },
+        {
+          "value": false,
+          "label_t": "pool.temperature.location.pool",
+          "label": "Bassin",
+          "label_i18n": "pool.temperature.location.pool"
+        }
+      ],
       "i18n_languages": [
         {
           "value": "fr",
@@ -1740,24 +1754,49 @@
       "type": "CharArray",
       "label_t": "cfgdocs.ai.openai.api_key.label",
       "help_t": "cfgdocs.ai.openai.api_key.help",
+      "order": 1,
       "label": "Clé API OpenAI",
       "label_i18n": "cfgdocs.ai.openai.api_key.label",
-      "help": "Clé utilisée ultérieurement pour appeler l’API OpenAI.",
+      "help": "Clé utilisée pour appeler l’API OpenAI. Les analyses sont facturées par OpenAI.",
       "help_i18n": "cfgdocs.ai.openai.api_key.help"
+    },
+    "ai/openai/automatic_enabled": {
+      "type": "Bool",
+      "order": 3,
+      "label_t": "cfgdocs.ai.openai.automatic_enabled.label",
+      "help_t": "cfgdocs.ai.openai.automatic_enabled.help",
+      "label": "Analyse automatique",
+      "label_i18n": "cfgdocs.ai.openai.automatic_enabled.label",
+      "help": "Déclenche une analyse quotidienne à l’heure choisie, même si l’interface web est fermée.",
+      "help_i18n": "cfgdocs.ai.openai.automatic_enabled.help"
+    },
+    "ai/openai/daily_time": {
+      "type": "CharArray",
+      "order": 4,
+      "label_t": "cfgdocs.ai.openai.daily_time.label",
+      "help_t": "cfgdocs.ai.openai.daily_time.help",
+      "input_type": "time",
+      "enabled_by": "automatic_enabled",
+      "label": "Heure de l’analyse quotidienne",
+      "label_i18n": "cfgdocs.ai.openai.daily_time.label",
+      "help": "Heure locale de la carte au format HH:MM. Une seule tentative automatique par jour. En cas d’échec, une nouvelle analyse peut être lancée manuellement.",
+      "help_i18n": "cfgdocs.ai.openai.daily_time.help"
     },
     "ai/openai/enabled": {
       "type": "Bool",
       "label_t": "cfgdocs.ai.openai.enabled.label",
       "help_t": "cfgdocs.ai.openai.enabled.help",
+      "order": 0,
       "label": "Analyse IA active",
       "label_i18n": "cfgdocs.ai.openai.enabled.label",
-      "help": "Active la préparation des analyses IA et autorise la récupération du contexte météo.",
+      "help": "Autorise les analyses OpenAI. La récupération météo reste disponible lorsque les coordonnées sont configurées.",
       "help_i18n": "cfgdocs.ai.openai.enabled.help"
     },
     "ai/openai/model": {
       "type": "CharArray",
       "label_t": "cfgdocs.ai.openai.model.label",
       "help_t": "cfgdocs.ai.openai.model.help",
+      "order": 2,
       "label": "Modèle OpenAI",
       "label_i18n": "cfgdocs.ai.openai.model.label",
       "help": "Identifiant du modèle OpenAI à utiliser pour l’analyse.",
@@ -7741,19 +7780,34 @@
       "label_t": "cfgdocs.poollogic.regulation.dly_pid_min.label",
       "help_t": "cfgdocs.poollogic.regulation.dly_pid_min.help",
       "unit": "min",
-      "label": "Délai PID après filtration (min)",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1,
+      "label": "Délai après démarrage filtration (min)",
       "label_i18n": "cfgdocs.poollogic.regulation.dly_pid_min.label",
-      "help": "Délai avant activation des PID après début filtration.",
+      "help": "Temps d’attente avant le démarrage de la régulation automatique après la filtration.",
       "help_i18n": "cfgdocs.poollogic.regulation.dly_pid_min.help"
+    },
+    "poollogic/regulation/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.regulation.enabled.label",
+      "help_t": "cfgdocs.poollogic.regulation.enabled.help",
+      "label": "Régulation automatique",
+      "label_i18n": "cfgdocs.poollogic.regulation.enabled.label",
+      "help": "Active ou suspend la régulation automatique des pompes de dosage. Les commandes manuelles restent disponibles.",
+      "help_i18n": "cfgdocs.poollogic.regulation.enabled.help"
     },
     "poollogic/regulation/pid_min_on_ms": {
       "type": "Int32",
       "label_t": "cfgdocs.poollogic.regulation.pid_min_on_ms.label",
       "help_t": "cfgdocs.poollogic.regulation.pid_min_on_ms.help",
       "unit": "ms",
-      "label": "Temps min ON PID (ms)",
+      "minimum": 0,
+      "maximum": 2147483647,
+      "step": 1,
+      "label": "Durée minimale d’injection (ms)",
       "label_i18n": "cfgdocs.poollogic.regulation.pid_min_on_ms.label",
-      "help": "Durée minimale ON appliquée aux sorties PID.",
+      "help": "Les injections calculées plus courtes que cette durée sont ignorées. 1 000 ms = 1 seconde.",
       "help_i18n": "cfgdocs.poollogic.regulation.pid_min_on_ms.help"
     },
     "poollogic/regulation/pid_sample_ms": {
@@ -7761,9 +7815,12 @@
       "label_t": "cfgdocs.poollogic.regulation.pid_sample_ms.label",
       "help_t": "cfgdocs.poollogic.regulation.pid_sample_ms.help",
       "unit": "ms",
-      "label": "Période échantillonnage PID (ms)",
+      "minimum": 100,
+      "maximum": 2147483647,
+      "step": 1,
+      "label": "Intervalle de calcul de la régulation (ms)",
       "label_i18n": "cfgdocs.poollogic.regulation.pid_sample_ms.label",
-      "help": "Intervalle de calcul des régulateurs PID.",
+      "help": "Temps entre deux calculs des dosages automatiques. Minimum : 100 ms. 1 000 ms = 1 seconde.",
       "help_i18n": "cfgdocs.poollogic.regulation.pid_sample_ms.help"
     },
     "poollogic/robot/robot_delay_min": {
@@ -7771,6 +7828,9 @@
       "label_t": "cfgdocs.poollogic.robot.robot_delay_min.label",
       "help_t": "cfgdocs.poollogic.robot.robot_delay_min.help",
       "unit": "min",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1,
       "label": "Délai robot (min)",
       "label_i18n": "cfgdocs.poollogic.robot.robot_delay_min.label",
       "help": "Délai avant lancement automatique du robot.",
@@ -7781,6 +7841,9 @@
       "label_t": "cfgdocs.poollogic.robot.robot_dur_min.label",
       "help_t": "cfgdocs.poollogic.robot.robot_dur_min.help",
       "unit": "min",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1,
       "label": "Durée robot (min)",
       "label_i18n": "cfgdocs.poollogic.robot.robot_dur_min.label",
       "help": "Durée de fonctionnement du robot.",
@@ -7791,7 +7854,10 @@
       "label_t": "cfgdocs.poollogic.safety.flow_start_dly_s.label",
       "help_t": "cfgdocs.poollogic.safety.flow_start_dly_s.help",
       "unit": "s",
-      "label": "Délai de contrôle du débit (s)",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1,
+      "label": "Délai avant contrôle du débit (s)",
       "label_i18n": "cfgdocs.poollogic.safety.flow_start_dly_s.label",
       "help": "Temps laissé à la pompe pour établir le débit avant déclenchement de la sécurité DIN5.",
       "help_i18n": "cfgdocs.poollogic.safety.flow_start_dly_s.help"
@@ -7801,6 +7867,7 @@
       "label_t": "cfgdocs.poollogic.safety.freeze_hold_t.label",
       "help_t": "cfgdocs.poollogic.safety.freeze_hold_t.help",
       "unit": "C",
+      "step": 0.5,
       "label": "Seuil maintien hors gel (C)",
       "label_i18n": "cfgdocs.poollogic.safety.freeze_hold_t.label",
       "help": "Temperature de maintien pour la protection hors gel.",
@@ -7811,6 +7878,8 @@
       "label_t": "cfgdocs.poollogic.safety.psi_high_th.label",
       "help_t": "cfgdocs.poollogic.safety.psi_high_th.help",
       "unit": "bar",
+      "minimum": 0,
+      "step": 0.01,
       "label": "Seuil pression haute",
       "label_i18n": "cfgdocs.poollogic.safety.psi_high_th.label",
       "help": "Seuil de pression haute pour detection d'anomalie.",
@@ -7821,6 +7890,8 @@
       "label_t": "cfgdocs.poollogic.safety.psi_low_th.label",
       "help_t": "cfgdocs.poollogic.safety.psi_low_th.help",
       "unit": "bar",
+      "minimum": 0,
+      "step": 0.01,
       "label": "Seuil pression basse",
       "label_i18n": "cfgdocs.poollogic.safety.psi_low_th.label",
       "help": "Seuil de pression basse pour detection d'anomalie.",
@@ -7831,7 +7902,10 @@
       "label_t": "cfgdocs.poollogic.safety.psi_start_dly_s.label",
       "help_t": "cfgdocs.poollogic.safety.psi_start_dly_s.help",
       "unit": "s",
-      "label": "Délai démarrage pression (s)",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1,
+      "label": "Délai avant contrôle de pression (s)",
       "label_i18n": "cfgdocs.poollogic.safety.psi_start_dly_s.label",
       "help": "Temps d'attente avant vérification pression après démarrage.",
       "help_i18n": "cfgdocs.poollogic.safety.psi_start_dly_s.help"
@@ -7840,6 +7914,7 @@
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.safety.sensor_hold_wat.label",
       "help_t": "cfgdocs.poollogic.safety.sensor_hold_wat.help",
+      "enum_set": "poollogic_temperature_location",
       "label": "Sonde température d’eau",
       "label_i18n": "cfgdocs.poollogic.safety.sensor_hold_wat.label",
       "help": "Canalisation : la mesure est figée lorsque la filtration s'arrête. Bassin : la sonde reste immergée et la mesure continue.",
@@ -7850,6 +7925,7 @@
       "label_t": "cfgdocs.poollogic.safety.winter_start_t.label",
       "help_t": "cfgdocs.poollogic.safety.winter_start_t.help",
       "unit": "C",
+      "step": 0.5,
       "label": "Seuil entrée hiver (C)",
       "label_i18n": "cfgdocs.poollogic.safety.winter_start_t.label",
       "help": "Temperature de bascule vers la logique hiver.",

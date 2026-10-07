@@ -1441,3 +1441,8 @@ body.web-icons-disabled .control-field-apply{font-size:16.8px;font-weight:800;le
 
 .pool-treatment-choice-none { grid-column: 1 / -1; min-height: 3rem; flex-direction: row; gap: .6rem; padding: .65rem; }
 .pool-treatment-choice-none .pool-treatment-choice-icon { font-size: 1.4rem; }
+
+.pool-ai-schedule{display:flex;flex-wrap:wrap;gap:10px 24px;margin:0;color:var(--text);font-size:14.6px;line-height:1.4;}
+.pool-ai-schedule>div{flex:1 1 180px;min-width:0;}
+.pool-ai-schedule dt{color:var(--text-muted);font-weight:500;}
+.pool-ai-schedule dd{margin:3px 0 0;font-weight:700;overflow-wrap:anywhere;}

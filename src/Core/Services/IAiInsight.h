@@ -104,10 +104,39 @@ inline bool aiPoolInsightIsReusable(AiPoolInsightState state,
            (nowUtc - generatedAtUtc) < (uint64_t)lifetimeSec;
 }
 
+enum class AiScheduleState : uint8_t {
+    Disabled, WaitingConfiguration, WaitingTime, WaitingNetwork, Ready, StorageError
+};
+
+inline const char* aiScheduleStateCode(AiScheduleState state)
+{
+    switch (state) {
+        case AiScheduleState::Disabled: return "disabled";
+        case AiScheduleState::WaitingConfiguration: return "waiting_configuration";
+        case AiScheduleState::WaitingTime: return "waiting_time";
+        case AiScheduleState::WaitingNetwork: return "waiting_network";
+        case AiScheduleState::Ready: return "ready";
+        case AiScheduleState::StorageError: return "storage_error";
+    }
+    return "disabled";
+}
+
+struct AiPoolInsightSchedule {
+    bool enabled = false;
+    AiScheduleState state = AiScheduleState::Disabled;
+    uint64_t lastGeneratedAtUtc = 0U;
+    uint64_t nextAtUtc = 0U;
+    char lastLocal[24]{};
+    char nextLocal[24]{};
+};
+
 struct AiPoolInsightStatus {
     static constexpr size_t TextCapacity = 4096U;
 
     AiPoolInsightState state = AiPoolInsightState::Idle;
+    bool enabled = false;
+    bool apiKeyConfigured = false;
+    AiPoolInsightSchedule schedule{};
     uint32_t updatedAtMs = 0U;
     uint64_t generatedAtUtc = 0U;
     char message[256]{};
@@ -132,12 +161,9 @@ struct AiPoolInsightPreview {
     bool historyAvailable = false;
     PoolHistorySnapshot history{};
     AiWeatherState weatherState = AiWeatherState::Idle;
-    AiPoolInsightState insightState = AiPoolInsightState::Idle;
-    uint64_t insightGeneratedAtUtc = 0U;
+    AiPoolInsightStatus insight{};
     char model[48]{};
     char weatherMessage[96]{};
-    char insightMessage[256]{};
-    char insightText[AiPoolInsightStatus::TextCapacity]{};
     char instructions[InstructionsCapacity]{};
     char weatherText[WeatherTextCapacity]{};
     char prompt[PromptCapacity]{};

@@ -1,9 +1,9 @@
 {
   "locale": "en",
   "translations": {
-    "cfgdocs.ai.openai.enabled.help": "Enables AI insight preparation and permits weather context retrieval.",
+    "cfgdocs.ai.openai.enabled.help": "Allows OpenAI analyses. Weather retrieval remains available when location coordinates are configured.",
     "cfgdocs.ai.openai.enabled.label": "AI insights enabled",
-    "cfgdocs.ai.openai.api_key.help": "Key that will later be used to call the OpenAI API.",
+    "cfgdocs.ai.openai.api_key.help": "Key used to call the OpenAI API. Analyses are billed by OpenAI.",
     "cfgdocs.ai.openai.api_key.label": "OpenAI API key",
     "cfgdocs.ai.openai.model.help": "OpenAI model identifier to use for insights.",
     "cfgdocs.ai.openai.model.label": "OpenAI model",
@@ -12,6 +12,10 @@
     "cfgdocs.system.location.longitude.help": "Installation longitude in decimal degrees, between -180 and 180.",
     "cfgdocs.system.location.longitude.label": "Longitude (decimal degrees)",
     "cfgmods.ai.openai.label": "OpenAI",
-    "cfgmods.system.location.label": "Location"
+    "cfgmods.system.location.label": "Location",
+    "cfgdocs.ai.openai.automatic_enabled.label": "Automatic analysis",
+    "cfgdocs.ai.openai.automatic_enabled.help": "Runs a daily analysis at the selected time, even when the web interface is closed.",
+    "cfgdocs.ai.openai.daily_time.label": "Daily analysis time",
+    "cfgdocs.ai.openai.daily_time.help": "Board local time in HH:MM format. One automatic attempt per day. After a failure, you can request another analysis manually."
   }
 }

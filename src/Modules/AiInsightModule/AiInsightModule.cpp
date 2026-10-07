@@ -81,10 +81,6 @@ bool AiInsightModule::requestWeatherRefresh_(bool force,
         writeError_(errOut, errOutLen, "weather storage unavailable");
         return false;
     }
-    if (!cfgData_.enabled) {
-        writeError_(errOut, errOutLen, "AI insight is disabled");
-        return false;
-    }
     if (!locationIsValid_(cfgData_.latitude, cfgData_.longitude)) {
         writeError_(errOut, errOutLen, "installation location is invalid");
         return false;
@@ -210,6 +206,9 @@ bool AiInsightModule::getPoolInsightStatus_(AiPoolInsightStatus* outStatus) cons
     portENTER_CRITICAL(&lock_);
     *outStatus = storage_->insightStatus;
     portEXIT_CRITICAL(&lock_);
+    outStatus->enabled = cfgData_.enabled;
+    outStatus->apiKeyConfigured = cfgData_.apiKey[0] != '\0';
+    buildScheduleStatus_(outStatus->schedule);
     return true;
 }
 
@@ -238,16 +237,10 @@ bool AiInsightModule::buildPoolPreview_(AiPoolInsightPreview* outPreview,
              "%s",
              weather.message);
 
-    portENTER_CRITICAL(&lock_);
-    outPreview->insightState = storage_->insightStatus.state;
-    outPreview->insightGeneratedAtUtc = storage_->insightStatus.generatedAtUtc;
-    memcpy(outPreview->insightMessage,
-           storage_->insightStatus.message,
-           sizeof(outPreview->insightMessage));
-    memcpy(outPreview->insightText,
-           storage_->insightStatus.text,
-           sizeof(outPreview->insightText));
-    portEXIT_CRITICAL(&lock_);
+    if (!getPoolInsightStatus_(&outPreview->insight)) {
+        writeError_(errOut, errOutLen, "insight status is unavailable");
+        return false;
+    }
 
     const bool historyAvailable = poolHistoryService_ && poolHistoryService_->getSnapshot &&
                                   poolHistoryService_->getSnapshot(poolHistoryService_->ctx,
@@ -290,6 +283,81 @@ bool AiInsightModule::networkReady_() const
 {
     return networkAccessService_ && networkAccessService_->isWebReachable &&
            networkAccessService_->isWebReachable(networkAccessService_->ctx);
+}
+
+void AiInsightModule::buildScheduleStatus_(AiPoolInsightSchedule& out) const
+{
+    out = {};
+    AiDailySchedule::Checkpoint checkpoint{};
+    portENTER_CRITICAL(&lock_);
+    checkpoint = scheduleCheckpoint_;
+    const bool persistenceReady = schedulePersistenceReady_;
+    portEXIT_CRITICAL(&lock_);
+    out.enabled = cfgData_.automaticEnabled;
+    out.lastGeneratedAtUtc = checkpoint.lastSuccessUtc;
+    AiDailySchedule::formatLocal(checkpoint.lastSuccessUtc, out.lastLocal, sizeof(out.lastLocal));
+    if (!out.enabled) return;
+    if (!cfgData_.enabled || cfgData_.apiKey[0] == '\0' || cfgData_.model[0] == '\0' ||
+        !locationIsValid_(cfgData_.latitude, cfgData_.longitude) || !AiDailySchedule::validTime(cfgData_.dailyTime)) {
+        out.state = AiScheduleState::WaitingConfiguration;
+        return;
+    }
+    if (!persistenceReady) {
+        out.state = AiScheduleState::StorageError;
+        return;
+    }
+    TimeState time{};
+    if (!timeService_ || !timeService_->currentState ||
+        !timeService_->currentState(timeService_->ctx, &time) || !time.valid) {
+        out.state = AiScheduleState::WaitingTime;
+        return;
+    }
+    const auto plan = AiDailySchedule::plan(time.currentTimeUtc, cfgData_.dailyTime, checkpoint.lastAttemptLocalDate);
+    if (!plan.valid) {
+        out.state = AiScheduleState::WaitingTime;
+        return;
+    }
+    out.nextAtUtc = plan.nextUtc;
+    AiDailySchedule::formatLocal(plan.nextUtc, out.nextLocal, sizeof(out.nextLocal));
+    out.state = networkReady_() ? AiScheduleState::Ready : AiScheduleState::WaitingNetwork;
+}
+
+bool AiInsightModule::persistScheduleCheckpoint_(const AiDailySchedule::Checkpoint& checkpoint)
+{
+    const bool saved = cfgStore_ && cfgStore_->writeRuntimeBlob(
+        NVS_KEY(NvsKeys::AiInsight::ScheduleCheckpoint), &checkpoint, sizeof(checkpoint));
+    portENTER_CRITICAL(&lock_);
+    scheduleCheckpoint_ = checkpoint;
+    schedulePersistenceReady_ = saved;
+    portEXIT_CRITICAL(&lock_);
+    if (!saved) LOGE("Daily insight checkpoint could not be persisted; automatic requests suspended");
+    return saved;
+}
+
+void AiInsightModule::processDailySchedule_()
+{
+    if (!storage_) return;
+    AiPoolInsightSchedule status{};
+    buildScheduleStatus_(status);
+    if (status.state != AiScheduleState::Ready || currentEpoch_() < status.nextAtUtc) return;
+    AiDailySchedule::Checkpoint checkpoint{};
+    portENTER_CRITICAL(&lock_);
+    const bool running = storage_->insightPending || storage_->insightStatus.state == AiPoolInsightState::Loading;
+    checkpoint = scheduleCheckpoint_;
+    portEXIT_CRITICAL(&lock_);
+    if (running) return;
+    const auto plan = AiDailySchedule::plan(currentEpoch_(), cfgData_.dailyTime, checkpoint.lastAttemptLocalDate);
+    if (!plan.valid || !plan.due) return;
+    // Reserve before queueing: a reset or failed request cannot duplicate daily API traffic.
+    checkpoint.lastAttemptLocalDate = plan.localDate;
+    if (!persistScheduleCheckpoint_(checkpoint)) return;
+    char error[96]{};
+    bool reused = false;
+    if (!requestPoolInsight_(&reused, error, sizeof(error))) {
+        LOGW("Daily insight request failed date=%lu detail=%s", (unsigned long)plan.localDate, error);
+    } else {
+        LOGI("Daily insight requested date=%lu reused=%u", (unsigned long)plan.localDate, reused ? 1U : 0U);
+    }
 }
 
 void AiInsightModule::finishWeatherRequest_(AiWeatherState state,
@@ -354,6 +422,15 @@ void AiInsightModule::finishPoolInsightRequest_(
         storage_->insightStatus.text[textLength] = '\0';
     }
     portEXIT_CRITICAL(&lock_);
+    if (state == AiPoolInsightState::Ready && generatedAtUtc > 0U) {
+        AiDailySchedule::Checkpoint checkpoint{};
+        portENTER_CRITICAL(&lock_);
+        checkpoint = scheduleCheckpoint_;
+        const bool persistenceReady = schedulePersistenceReady_;
+        portEXIT_CRITICAL(&lock_);
+        checkpoint.lastSuccessUtc = generatedAtUtc;
+        if (persistenceReady) (void)persistScheduleCheckpoint_(checkpoint);
+    }
 }
 
 void AiInsightModule::processWeatherRequest_()
@@ -602,6 +679,9 @@ void AiInsightModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
     constexpr uint8_t kConfigModuleId = (uint8_t)ConfigModuleId::AiInsight;
     cfg.registerVar(enabledVar_, kConfigModuleId, kOpenAiConfigBranch);
+    dailyTimeVar_.validateText = &AiDailySchedule::validTime;
+    cfg.registerVar(automaticEnabledVar_, kConfigModuleId, kOpenAiConfigBranch);
+    cfg.registerVar(dailyTimeVar_, kConfigModuleId, kOpenAiConfigBranch);
     cfg.registerVar(apiKeyVar_, kConfigModuleId, kOpenAiConfigBranch);
     cfg.registerVar(modelVar_, kConfigModuleId, kOpenAiConfigBranch);
     cfg.registerVar(latitudeVar_, kConfigModuleId, kLocationConfigBranch);
@@ -646,8 +726,23 @@ void AiInsightModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
 }
 
-void AiInsightModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
+void AiInsightModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services)
 {
+    cfgStore_ = &cfg;
+    bool exists = false;
+    AiDailySchedule::Checkpoint checkpoint{};
+    bool ready = cfg.containsPersistentKey(NVS_KEY(NvsKeys::AiInsight::ScheduleCheckpoint), &exists);
+    if (ready && exists) {
+        size_t length = 0U;
+        ready = cfg.readRuntimeBlob(NVS_KEY(NvsKeys::AiInsight::ScheduleCheckpoint),
+                                    &checkpoint, sizeof(checkpoint), &length) &&
+                length == sizeof(checkpoint) && checkpoint.version == 1U;
+    }
+    portENTER_CRITICAL(&lock_);
+    if (ready) scheduleCheckpoint_ = checkpoint;
+    schedulePersistenceReady_ = ready;
+    portEXIT_CRITICAL(&lock_);
+    if (!ready) LOGE("Daily insight checkpoint unavailable; automatic requests suspended");
     // NetworkAccess is published by the selected network provider from its own
     // onConfigLoaded() callback, after all module init() calls have completed.
     networkAccessService_ = services.get<NetworkAccessService>(ServiceId::NetworkAccess);
@@ -663,6 +758,7 @@ void AiInsightModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 
 void AiInsightModule::loop()
 {
+    processDailySchedule_();
     processWeatherRequest_();
     processPoolInsightRequest_();
     vTaskDelay(pdMS_TO_TICKS(kLoopDelayMs));

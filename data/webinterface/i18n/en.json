@@ -622,6 +622,16 @@
     "pool.alarm.chlorine.duration": "Chlorine pump runtime limit",
     "pool.alarm.flow.absent": "No filtration flow",
     "pool.state.inactive": "Inactive",
-    "pool.settings.saved": "Saved."
+    "pool.settings.saved": "Saved.",
+    "pool.ai.lastAnalysis": "Last analysis",
+    "pool.ai.nextAnalysis": "Next analysis",
+    "pool.ai.never": "Never",
+    "pool.ai.scheduleDisabled": "Disabled",
+    "pool.ai.waitingConfiguration": "Complete AI configuration",
+    "pool.ai.waitingTime": "Board time unavailable",
+    "pool.ai.waitingNetwork": "Waiting for network",
+    "pool.ai.storageError": "Schedule suspended: storage error",
+    "pool.ai.invalidTime": "Enter a time in HH:MM format.",
+    "pool.ai.statusUnavailable": "Status refresh unavailable. Retrying in one minute."
   }
 }

@@ -1249,6 +1249,20 @@
           "label_i18n": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.1.label"
         }
       ],
+      "poollogic_temperature_location": [
+        {
+          "value": true,
+          "label_t": "pool.temperature.location.pipe",
+          "label": "Tuyauterie",
+          "label_i18n": "pool.temperature.location.pipe"
+        },
+        {
+          "value": false,
+          "label_t": "pool.temperature.location.pool",
+          "label": "Bassin",
+          "label_i18n": "pool.temperature.location.pool"
+        }
+      ],
       "i18n_languages": [
         {
           "value": "fr",

@@ -2234,6 +2234,8 @@
     const poolAiRefreshBtn = document.getElementById('poolAiRefresh');
     const poolAiResultTitle = document.getElementById('poolAiResultTitle');
     const poolAiStatus = document.getElementById('poolAiStatus');
+    const poolAiLastAnalysis = document.getElementById('poolAiLastAnalysis');
+    const poolAiNextAnalysis = document.getElementById('poolAiNextAnalysis');
     const poolAiInsightText = document.getElementById('poolAiInsightText');
     const poolAiWeatherText = document.getElementById('poolAiWeatherText');
     const poolAiPromptText = document.getElementById('poolAiPromptText');
@@ -2508,6 +2510,7 @@
     let poolAiPreviewReqSeq = 0;
     let poolAiPreviewPollTimer = null;
     let poolAiReady = false;
+    let poolAiPreviewWeatherState = 'idle';
     const poolPressureFieldVisibility = Object.freeze({ module: 'poollogic/sensors', enabled: 'psi_monitoring', input: 'psi_io_id' });
     const poolConfigModuleDefs = Object.freeze([
       Object.freeze({ module: 'poollogic/modes', titleKey: 'pool.card.modes.title', title: 'Pilotage général', icon: 'tune', noteKey: 'pool.card.modes.note', note: 'Ces interrupteurs définissent si PoolLogic pilote la piscine et quelle stratégie de traitement est retenue.' }),
@@ -10145,27 +10148,38 @@
       poolAiRefreshBtn.disabled = !!busy || !poolAiReady;
     }
 
-    function renderPoolAiPreview(payload) {
+    function renderPoolAiInsight(payload) {
       const insightText = String(payload && payload.insight_text ? payload.insight_text : '');
       if (poolAiInsightText) {
         poolAiInsightText.textContent = insightText || '—';
       }
       if (poolAiResultTitle) {
         const generatedAt = insightText
-          ? formatPoolAiInsightTimestamp(payload && payload.insight_generated_at_utc)
+          ? ((payload.schedule && payload.schedule.last_generated_at_utc === payload.insight_generated_at_utc && payload.schedule.last_local) || formatPoolAiInsightTimestamp(payload && payload.insight_generated_at_utc))
           : '';
         poolAiResultTitle.dataset.generatedAt = generatedAt;
         refreshPoolAiResultTitle();
       }
-      if (poolAiWeatherText) {
-        poolAiWeatherText.textContent = String(payload && payload.weather_text ? payload.weather_text : '—');
+      const schedule = payload && payload.schedule ? payload.schedule : {};
+      if (poolAiLastAnalysis) {
+        poolAiLastAnalysis.textContent = schedule.last_local || tr('pool.ai.never', 'Jamais');
       }
-      if (poolAiPromptText) {
-        const instructions = String(payload && payload.instructions ? payload.instructions : '');
-        const input = String(payload && payload.prompt ? payload.prompt : '');
-        poolAiPromptText.textContent = instructions && input
-          ? instructions + '\n\nDONNÉES DYNAMIQUES ENVOYÉES\n\n' + input
-          : (instructions || input || '—');
+      const scheduleLabels = {
+        disabled: ['pool.ai.scheduleDisabled', 'Désactivée'],
+        waiting_configuration: ['pool.ai.waitingConfiguration', 'Configuration IA à compléter'],
+        waiting_time: ['pool.ai.waitingTime', 'Heure de la carte indisponible'],
+        waiting_network: ['pool.ai.waitingNetwork', 'En attente du réseau'],
+        storage_error: ['pool.ai.storageError', 'Programmation suspendue : erreur de sauvegarde']
+      };
+      if (poolAiNextAnalysis) {
+        const state = String(schedule.state || 'disabled');
+        const label = scheduleLabels[state];
+        poolAiNextAnalysis.textContent = state === 'ready'
+          ? (schedule.next_local || '—')
+          : (label ? tr(label[0], label[1]) : '—');
+        if (state === 'waiting_network' && schedule.next_local) {
+          poolAiNextAnalysis.textContent += ' · ' + schedule.next_local;
+        }
       }
       const enabled = !!(payload && payload.enabled === true);
       const apiKeyConfigured = !!(payload && payload.api_key_configured === true);
@@ -10197,6 +10211,61 @@
         : tr('pool.ai.agentDisabled', 'Fonction IA désactivée.');
     }
 
+    function renderPoolAiPreview(payload) {
+      if (poolAiWeatherText) {
+        poolAiWeatherText.textContent = String(payload && payload.weather_text ? payload.weather_text : '—');
+      }
+      if (poolAiPromptText) {
+        const instructions = String(payload && payload.instructions ? payload.instructions : '');
+        const input = String(payload && payload.prompt ? payload.prompt : '');
+        poolAiPromptText.textContent = instructions && input
+          ? instructions + '\n\nDONNÉES DYNAMIQUES ENVOYÉES\n\n' + input
+          : (instructions || input || '—');
+      }
+      poolAiPreviewWeatherState = String(payload.weather_state || 'idle');
+      renderPoolAiInsight(payload);
+    }
+
+    function schedulePoolAiStatusPolling(payload, attempt) {
+      stopPoolAiPreviewPolling();
+      if (document.hidden || getActivePageId() !== 'page-dashboard') return;
+      const pending = ['queued', 'loading'].includes(String(payload && payload.insight_state || '')) ||
+        ['queued', 'loading'].includes(String(payload && payload.weather_state || ''));
+      const nextAttempt = pending ? Math.min(attempt + 1, 90) : 0;
+      const fastPoll = pending && attempt < 90;
+      poolAiPreviewPollTimer = setTimeout(() => {
+        poolAiPreviewPollTimer = null;
+        runAsyncTaskSafely(() => loadPoolAiStatus(nextAttempt));
+      }, fastPoll ? 1000 : 60000);
+    }
+
+    async function loadPoolAiStatus(pollAttempt) {
+      const attempt = Math.max(0, Number(pollAttempt) || 0);
+      const reqSeq = ++poolAiPreviewReqSeq;
+      stopPoolAiPreviewPolling();
+      let payload = null;
+      try {
+        payload = await fetchOkJson('/api/ai/pool-status', { cache: 'no-store' },
+          tr('pool.ai.error', 'Analyse IA indisponible.'));
+        if (reqSeq !== poolAiPreviewReqSeq) return;
+        renderPoolAiInsight(payload);
+        const weatherState = String(payload.weather_state || 'idle');
+        if (weatherState !== poolAiPreviewWeatherState &&
+            (weatherState === 'ready' || weatherState === 'failed')) {
+          await loadPoolAiPreview(false, 0);
+          return;
+        }
+      } catch (err) {
+        // Preserve the displayed analysis during a temporary connectivity failure.
+        if (reqSeq === poolAiPreviewReqSeq && poolAiStatus) {
+          poolAiStatus.textContent = tr('pool.ai.statusUnavailable', 'Actualisation de l’état indisponible. Nouvelle tentative dans une minute.');
+          poolAiStatus.classList.add('is-error');
+        }
+      } finally {
+        if (reqSeq === poolAiPreviewReqSeq) schedulePoolAiStatusPolling(payload, attempt);
+      }
+    }
+
     async function loadPoolAiPreview(refreshWeather, pollAttempt) {
       const attempt = Math.max(0, Number(pollAttempt) || 0);
       const reqSeq = ++poolAiPreviewReqSeq;
@@ -10215,16 +10284,7 @@
         renderPoolAiPreview(payload);
         poolAiPreviewLoadedOnce = true;
 
-        const weatherState = String(payload.weather_state || 'idle');
-        const insightState = String(payload.insight_state || 'idle');
-        const pending = weatherState === 'queued' || weatherState === 'loading' ||
-          insightState === 'queued' || insightState === 'loading';
-        if (pending && attempt < 90 && getActivePageId() === 'page-dashboard') {
-          poolAiPreviewPollTimer = setTimeout(() => {
-            poolAiPreviewPollTimer = null;
-            runAsyncTaskSafely(() => loadPoolAiPreview(false, attempt + 1));
-          }, 1000);
-        }
+        schedulePoolAiStatusPolling(payload, attempt);
       } catch (err) {
         if (reqSeq !== poolAiPreviewReqSeq) return;
         if (poolAiStatus) {
@@ -10235,6 +10295,7 @@
       } finally {
         if (reqSeq === poolAiPreviewReqSeq) {
           syncPoolAiRefreshButton(false);
+          if (!poolAiPreviewPollTimer) schedulePoolAiStatusPolling(null, 0);
         }
       }
     }
@@ -10275,7 +10336,7 @@
       await Promise.allSettled([
         refreshDashboardMeasureDomains(!!forceRefresh),
         loadPoolConfig(!!forceRefresh || !poolConfigLoadedOnce),
-        loadPoolAiPreview(false, 0)
+        loadPoolAiPreview(true, 0)
       ]);
     }
 
@@ -12291,7 +12352,14 @@
       if (!inputEl) return true;
       const kind = String(inputEl.dataset.kind || '').trim();
       const displayFormat = String(inputEl.dataset.format || '').trim();
-      if ((kind !== 'int' && kind !== 'float') || displayFormat !== 'hex') {
+      if (inputEl.type === 'time') {
+        const ok = setConfigFieldValidationState(inputEl,
+          /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(inputEl.value),
+          tr('pool.ai.invalidTime', 'Saisissez une heure au format HH:MM.'));
+        if (!ok && !opts.silent) inputEl.reportValidity();
+        return ok;
+      }
+      if ((kind !== 'int'  && kind !== 'float') || displayFormat !== 'hex') {
         return setConfigFieldValidationState(inputEl, true, '');
       }
       const parsed = parseConfigNumericValueDetailed(inputEl.value, kind, displayFormat);
@@ -12304,6 +12372,9 @@
 
     function readConfigFieldValueStrict(inputEl) {
       if (!inputEl) return null;
+      if (inputEl.type === 'time' && !validateConfigFieldValue(inputEl)) {
+        throw new Error(tr('pool.ai.invalidTime', 'Saisissez une heure au format HH:MM.'));
+      }
       const kind = String(inputEl.dataset.kind || '').trim();
       const displayFormat = String(inputEl.dataset.format || '').trim();
       if ((kind === 'int' || kind === 'float') && displayFormat === 'hex') {
@@ -12330,7 +12401,7 @@
       let hasInvalid = false;
       fields.forEach((el) => {
         if (!el || typeof el !== 'object') return;
-        if (el.dataset.runtimeHidden === '1') return;
+        if (el.dataset.runtimeHidden === '1' || el.dataset.runtimeDisabled === '1') return;
         if (!validateConfigFieldValue(el, { silent: true })) {
           hasInvalid = true;
         }
@@ -12943,7 +13014,8 @@
           const textValue = String(value ?? '');
           const input = document.createElement('input');
           input.className = 'control-input';
-          input.type = isSecret ? 'password' : 'text';
+          input.type = isSecret ? 'password' : (doc && doc.input_type === 'time' ? 'time' : 'text');
+          if (input.type === 'time') { input.required = true; input.step = '60'; }
           if (isSecret && textValue === '***') {
             input.value = '';
             input.placeholder = 'Conserver (masqué)';
@@ -12996,6 +13068,20 @@
         containerEl.appendChild(row);
         visibilityEntries.push({ row, inputEl, key, doc });
       }
+
+      visibilityEntries.forEach((entry) => {
+        if (!entry.inputEl || !entry.doc || !entry.doc.enabled_by) return;
+        const controller = visibilityEntries.find(candidate => candidate.key === entry.doc.enabled_by);
+        if (!controller || !controller.inputEl) return;
+        const updateEnabled = () => {
+          entry.inputEl.disabled = readConfigFieldValue(controller.inputEl) !== true;
+          entry.inputEl.dataset.runtimeDisabled = entry.inputEl.disabled ? '1' : '0';
+          if (controlsPrimaryPane && !perFieldApply) updatePrimaryCfgApplyState();
+        };
+        controller.inputEl.addEventListener('input', updateEnabled);
+        controller.inputEl.addEventListener('change', updateEnabled);
+        updateEnabled();
+      });
 
       if (isDigitalInputConfigModule(moduleName) && visibilityEntries.length > 0) {
         const readModeValue = () => {
@@ -13154,7 +13240,7 @@
       const patch = {};
       const fields = fieldsContainer.querySelectorAll('[data-key]');
       fields.forEach((el) => {
-        if (el.dataset.runtimeHidden === '1') return;
+        if (el.dataset.runtimeHidden === '1' || el.dataset.runtimeDisabled === '1') return;
         const targetModule = nettoyerNomFlowCfg(el.dataset.module || moduleName);
         if (!targetModule) return;
         const key = el.dataset.key;
@@ -13177,7 +13263,7 @@
         const masked = el.dataset.masked === '1';
         const raw = String(el.value ?? '');
         if (masked && raw.length === 0) return;
-        modulePatch[key] = raw;
+        modulePatch[key] = el.type === 'time' ? readConfigFieldValueStrict(el) : raw;
       });
       return JSON.stringify(patch);
     }
@@ -14165,6 +14251,7 @@
         } else {
           startPoolMeasuresTimer();
           refreshPoolMeasures(true).catch(() => {});
+          runAsyncTaskSafely(() => loadPoolAiStatus(0));
         }
         if (document.hidden || activePageId !== 'page-io-summary') {
           stopIoSummaryTimer();

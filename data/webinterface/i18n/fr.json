@@ -678,6 +678,16 @@
     "pool.alarm.chlorine.duration": "Durée maximale pompe chlore",
     "pool.alarm.flow.absent": "Débit de filtration absent",
     "pool.state.inactive": "Inactif",
-    "pool.settings.saved": "Enregistré."
+    "pool.settings.saved": "Enregistré.",
+    "pool.ai.lastAnalysis": "Dernière analyse",
+    "pool.ai.nextAnalysis": "Prochaine analyse",
+    "pool.ai.never": "Jamais",
+    "pool.ai.scheduleDisabled": "Désactivée",
+    "pool.ai.waitingConfiguration": "Configuration IA à compléter",
+    "pool.ai.waitingTime": "Heure de la carte indisponible",
+    "pool.ai.waitingNetwork": "En attente du réseau",
+    "pool.ai.storageError": "Programmation suspendue : erreur de sauvegarde",
+    "pool.ai.invalidTime": "Saisissez une heure au format HH:MM.",
+    "pool.ai.statusUnavailable": "Actualisation de l’état indisponible. Nouvelle tentative dans une minute."
   }
 }

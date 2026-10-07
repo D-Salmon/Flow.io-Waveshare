@@ -11,12 +11,15 @@
 #include "Core/Services/Services.h"
 #include "Modules/AiInsightModule/OpenAiResponsesClient.h"
 #include "Modules/AiInsightModule/OpenMeteoWeatherClient.h"
+#include "Modules/AiInsightModule/AiDailySchedule.h"
 
 struct AiInsightConfig {
     static constexpr size_t ApiKeyCapacity = 192U;
     static constexpr size_t ModelCapacity = 48U;
 
     bool enabled = false;
+    bool automaticEnabled = false;
+    char dailyTime[6] = "08:00";
     char apiKey[ApiKeyCapacity]{};
     char model[ModelCapacity]{};
     double latitude = 91.0;
@@ -82,6 +85,9 @@ private:
     bool buildWeatherStatusJson_(char* out, size_t outLen) const;
     void processWeatherRequest_();
     void processPoolInsightRequest_();
+    void processDailySchedule_();
+    void buildScheduleStatus_(AiPoolInsightSchedule& out) const;
+    bool persistScheduleCheckpoint_(const AiDailySchedule::Checkpoint& checkpoint);
     void finishWeatherRequest_(AiWeatherState state,
                                const PoolWeatherSnapshot* weather,
                                const char* message);
@@ -98,6 +104,14 @@ private:
     ConfigVariable<bool, 0> enabledVar_{
         NVS_KEY(NvsKeys::AiInsight::Enabled), "enabled", "ai/openai",
         ConfigType::Bool, &cfgData_.enabled, ConfigPersistence::Persistent, 0U
+    };
+    ConfigVariable<bool, 0> automaticEnabledVar_{
+        NVS_KEY(NvsKeys::AiInsight::AutomaticEnabled), "automatic_enabled", "ai/openai",
+        ConfigType::Bool, &cfgData_.automaticEnabled, ConfigPersistence::Persistent, 0U
+    };
+    ConfigVariable<char, 0> dailyTimeVar_{
+        NVS_KEY(NvsKeys::AiInsight::DailyTime), "daily_time", "ai/openai",
+        ConfigType::CharArray, cfgData_.dailyTime, ConfigPersistence::Persistent, sizeof(cfgData_.dailyTime)
     };
     ConfigVariable<char, 0> apiKeyVar_{
         NVS_KEY(NvsKeys::AiInsight::ApiKey), "api_key", "ai/openai",
@@ -126,6 +140,9 @@ private:
     const NetworkAccessService* networkAccessService_ = nullptr;
     const TimeService* timeService_ = nullptr;
     const PoolHistoryService* poolHistoryService_ = nullptr;
+    ConfigStore* cfgStore_ = nullptr;
+    AiDailySchedule::Checkpoint scheduleCheckpoint_{};
+    bool schedulePersistenceReady_ = false;
 
     AiInsightService service_{
         ServiceBinding::bind<&AiInsightModule::requestWeatherRefresh_>,

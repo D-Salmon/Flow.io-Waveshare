@@ -9418,9 +9418,24 @@
       const modules = poolConfigModuleDefs.map((def) => def.module)
         .concat(poolDisinfectionModeDefs.map((def) => def.module));
       await ensureCfgDocsForModule('');
-      for (const moduleName of modules) {
-        await ensureCfgDocsForModule(moduleName).catch(() => {});
+      for (let offset = 0; offset < modules.length; offset += 2) {
+        await Promise.allSettled(modules.slice(offset, offset + 2).map(ensureCfgDocsForModule));
       }
+    }
+
+    async function poolConfigFetchModules(moduleNames, requestSeq) {
+      const modules = {};
+      const names = Array.from(new Set(moduleNames));
+      // Keep at most three configuration responses in flight on the device.
+      for (let offset = 0; offset < names.length; offset += 3) {
+        if (requestSeq !== poolConfigReqSeq) return null;
+        const results = await Promise.allSettled(names.slice(offset, offset + 3).map(poolConfigFetchModule));
+        if (requestSeq !== poolConfigReqSeq) return null;
+        const failed = results.find(result => result.status === 'rejected');
+        if (failed) throw failed.reason;
+        results.forEach(({ value }) => { modules[value.module] = value.data; });
+      }
+      return modules;
     }
 
     function poolConfigHeroSummary(modules, start, stop) {
@@ -9926,12 +9941,32 @@
       });
     }
 
-    function poolConfigRender(modules, alarmSlots) {
+    function poolConfigRenderAssignmentsStatus(message, failed) {
+      if (!poolConfigGrid) return;
+      poolConfigGrid.querySelectorAll('[data-pool-assignments-status]').forEach(node => node.remove());
+      const card = document.createElement('article');
+      card.className = 'pool-config-card' + (failed ? ' pool-config-error-card' : ' pool-config-skeleton');
+      card.dataset.poolAssignmentsStatus = '1';
+      card.setAttribute('aria-busy', failed ? 'false' : 'true');
+      const heading = document.createElement('h3');
+      heading.textContent = tr('pool.assignments.title', 'Affectation des sondes et relais');
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      status.textContent = message;
+      card.append(heading, status);
+      poolConfigGrid.appendChild(card);
+    }
+
+    function poolConfigRender(modules, alarmSlots, options) {
       const source = modules && typeof modules === 'object' ? modules : {};
       poolConfigRenderHero(source, alarmSlots);
       poolConfigRenderDisinfection(source);
       poolConfigRenderGeneralCards(source);
-      poolConfigRenderAssignments(source);
+      if (options?.deferAssignments) {
+        poolConfigRenderAssignmentsStatus(tr('pool.assignments.loading', 'Chargement des affectations…'), false);
+      } else {
+        poolConfigRenderAssignments(source);
+      }
     }
 
     function poolConfigRenderSkeleton() {
@@ -10034,31 +10069,44 @@
 
     async function loadPoolConfig(forceRefresh) {
       const reqSeq = ++poolConfigReqSeq;
+      const startedAt = performance.now();
+      let primaryRendered = false;
       if (!poolConfigLoadedOnce || forceRefresh) poolConfigRenderSkeleton();
       if (forceRefresh) invalidatePoolDashboardSlots();
       try {
-        await poolConfigEnsureDocs().catch(() => {});
-        const modules = {};
-        const extraModules = ['poollogic/sensors', 'poollogic/devices', 'io/drivers/ds18b20',
+        const primaryNames = poolConfigModuleDefs.concat(poolDisinfectionModeDefs)
+          .map(def => def.module).concat('poollogic/sensors');
+        const [modules, alarmSlots] = await Promise.all([
+          poolConfigFetchModules(primaryNames, reqSeq),
+          fetchPoolAlarmSlots(),
+          poolConfigEnsureDocs().catch(() => {})
+        ]);
+        if (reqSeq !== poolConfigReqSeq || !modules) return;
+        poolConfigModulesCache = modules;
+        poolConfigRender(modules, alarmSlots, { deferAssignments: true });
+        primaryRendered = true;
+        poolConfigLoadedOnce = true;
+        console.debug('flow.io dashboard primary ready', { ms: Math.round(performance.now() - startedAt) });
+
+        const extraModules = ['poollogic/devices', 'io/drivers/ds18b20',
           'io/drivers/ads1115_int', 'io/drivers/ads1115_ext',
           'io/drivers/bme680', 'io/drivers/bmp280', 'io/input/i01',
           ...Array.from({ length: 16 }, (_, i) => 'io/input/a' + String(i).padStart(2, '0')),
           ...Array.from({ length: 8 }, (_, i) => 'io/output/d' + String(i).padStart(2, '0'))];
-        const allDefs = poolConfigModuleDefs.concat(poolDisinfectionModeDefs,
-          extraModules.map((module) => ({ module })));
-        for (const def of allDefs) {
-          const payload = await poolConfigFetchModule(def.module);
-          if (reqSeq !== poolConfigReqSeq) return;
-          modules[payload.module] = payload.data;
-        }
-        const alarmSlots = await fetchPoolAlarmSlots();
-        if (reqSeq !== poolConfigReqSeq) return;
-        poolConfigModulesCache = modules;
-        poolConfigRender(modules, alarmSlots);
-        poolConfigLoadedOnce = true;
+        const assignments = await poolConfigFetchModules(extraModules, reqSeq);
+        if (reqSeq !== poolConfigReqSeq || !assignments) return;
+        // Do not rebuild the editable cards: a user may already be typing or saving.
+        Object.assign(poolConfigModulesCache, assignments);
+        poolConfigGrid?.querySelectorAll('[data-pool-assignments-status]').forEach(node => node.remove());
+        poolConfigRenderAssignments(poolConfigModulesCache);
+        console.debug('flow.io dashboard assignments ready', { ms: Math.round(performance.now() - startedAt) });
       } catch (err) {
         if (reqSeq !== poolConfigReqSeq) return;
-        poolConfigRenderError(err);
+        if (primaryRendered) {
+          poolConfigRenderAssignmentsStatus(tr('pool.assignments.error', 'Chargement des affectations impossible : ') + String(err), true);
+        } else {
+          poolConfigRenderError(err);
+        }
       }
     }
 

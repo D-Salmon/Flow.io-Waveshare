@@ -9269,9 +9269,10 @@
         row.hidden = !poolConfigFieldVisible(definition, modules || poolConfigModulesCache);
         input.disabled = row.hidden || !isAdminSession() || !(key in data) ||
           (!!definition.enabledBy && !toBool(data[definition.enabledBy]));
-        if (document.activeElement !== input) {
-          input.value = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
-        }
+        const confirmed = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
+        const hasDraft = input.dataset.initialValue != null && input.value !== input.dataset.initialValue;
+        if (!hasDraft && document.activeElement !== input) input.value = confirmed;
+        input.dataset.initialValue = confirmed;
         syncApplyState();
       });
     }
@@ -9359,7 +9360,7 @@
             refreshPoolMeasures(false);
           };
           input.addEventListener('input', syncApplyState);
-          input.addEventListener('change', saveField);
+          input.addEventListener('change', syncApplyState);
           applyBtn.addEventListener('click', saveField);
           valueWrap.append(input, applyBtn);
           row.append(labelView.element, valueWrap);
@@ -9606,10 +9607,6 @@
           poolConfigAppendMetric(metrics, tr('pool.metric.autoOrp', 'Auto ORP'), poolConfigBoolLabel(data.dis_auto_mode));
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue(selectedDef.module, 'dis_setpoint', data.dis_setpoint), { featured: true });
           poolConfigAppendMetric(metrics, tr('pool.metric.window', 'Fenêtre'), poolConfigFormatValue(selectedDef.module, 'dis_window_ms', data.dis_window_ms));
-        } else if (selectedDef.key === 'swg') {
-          poolConfigAppendMetric(metrics, tr('pool.metric.control', 'Contrôle'), poolConfigFormatValue(selectedDef.module, 'swg_control_mode', data.swg_control_mode), { featured: true });
-          poolConfigAppendMetric(metrics, tr('pool.metric.delay', 'Délai'), poolConfigFormatValue(selectedDef.module, 'dly_electro_min', data.dly_electro_min));
-          poolConfigAppendMetric(metrics, tr('pool.metric.waterSafety', 'Sécurité eau'), poolConfigFormatValue(selectedDef.module, 'secure_elec_t', data.secure_elec_t));
         } else if (selectedDef.key === 'o2') {
           poolConfigAppendMetric(metrics, tr('pool.metric.poolVolume', 'Volume bassin'), poolConfigFormatValue(selectedDef.module, 'pool_volume_m3', data.pool_volume_m3), { featured: true });
           poolConfigAppendMetric(metrics, tr('pool.metric.weeklyDose', 'Dose hebdo'), poolConfigFormatValue(selectedDef.module, 'dose_ml_10m3_week', data.dose_ml_10m3_week));
@@ -9617,7 +9614,7 @@
           poolConfigAppendMetric(metrics, tr('pool.metric.pending', 'En attente'), poolConfigFormatValue(selectedDef.module, 'pending_ml', data.pending_ml));
         }
       }
-      detail.appendChild(metrics);
+      if (metrics.childNodes.length) detail.appendChild(metrics);
       if (selectedDef.key !== 'none' && selectedDef.module && isAdminSession()) {
         const fields = document.createElement('div');
         const status = document.createElement('p'); status.setAttribute('role', 'status');

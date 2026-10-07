@@ -1418,6 +1418,16 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     } else if (!autoMode_) {
         resetHeatAssistSession();
         setHeatAssistReason(HeatAssistReason::ManualMode);
+    } else if (waterTempIoId_ == IO_ID_INVALID) {
+        // Circulation cannot refresh a sensor explicitly declared not wired.
+        // Keep scheduled filtration, but do not start a heating measurement cycle.
+        resetHeatAssistSession();
+        setLastProbeEndSec(0U);
+        heatAssistValidatedWaterTempValid_ = false;
+        heatAssistAdaptiveInputsValid_ = false;
+        heaterDesired = false;
+        filtrationDesired = filtrationDesiredBase;
+        setHeatAssistReason(HeatAssistReason::TempUnavailable);
     } else if ((psiError_ || flowError_)) {
         resetHeatAssistSession();
         heaterDesired = false;

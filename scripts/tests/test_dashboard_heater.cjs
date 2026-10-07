@@ -85,6 +85,12 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
       };
       build();`);
     }, { functions, definitions, docs, translations, enumSets });
+    async function confirmField(input) {
+      const before = await page.evaluate(() => patches.length);
+      await input.press('Tab');
+      assert.equal(await page.evaluate(() => patches.length), before, 'A change or blur cannot send an unconfirmed value');
+      await input.locator('..').getByRole('button', { name: 'Appliquer ce changement', exact: true }).click();
+    }
     const activation = page.getByLabel('Mode auto chauffage');
     const setpoint = page.getByLabel('Consigne chauffage (C)');
     assert.equal(await activation.inputValue(), 'false');
@@ -92,7 +98,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     await setpoint.dispatchEvent('change');
     assert.equal(await page.evaluate(() => patches.length), 0);
     await page.evaluate(() => { window.waitForSave = true; });
-    await activation.selectOption('true');
+    await activation.selectOption('true'); await confirmField(activation);
     await page.waitForFunction(() => !!window.finishSave);
     assert.equal(await activation.isDisabled(), true);
     assert.equal(await setpoint.isDisabled(), true);
@@ -100,7 +106,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     await page.waitForFunction(() => configuration?.heater_auto_mode === true);
     assert.equal(await setpoint.isEnabled(), true);
     assert.deepEqual(await page.evaluate(() => patches[0]), { 'poollogic/heater': { heater_auto_mode: true } });
-    await setpoint.fill('26.5'); await setpoint.dispatchEvent('change');
+    await setpoint.fill('26.5'); await setpoint.dispatchEvent('change'); await confirmField(setpoint);
     await page.waitForFunction(() => configuration?.heater_setpoint === 26.5);
     assert.deepEqual(await page.evaluate(() => patches[1]), { 'poollogic/heater': { heater_setpoint: 26.5 } });
     await setpoint.fill('26.3'); await setpoint.dispatchEvent('change');
@@ -108,12 +114,12 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     await setpoint.fill(''); await setpoint.dispatchEvent('change');
     assert.equal(await page.evaluate(() => patches.length), 2, 'Empty setpoint must not become zero');
     await page.evaluate(() => { window.fail = true; });
-    await setpoint.fill('27'); await setpoint.dispatchEvent('change');
+    await setpoint.fill('27'); await setpoint.dispatchEvent('change'); await confirmField(setpoint);
     await page.waitForFunction(() => document.querySelector('[role=status]').textContent === 'Enregistrement refusé');
     assert.equal(await setpoint.inputValue(), '26.5');
     assert.equal(await page.evaluate(() => configuration.heater_setpoint), 26.5);
     await page.evaluate(() => { window.fail = false; });
-    await activation.selectOption('false');
+    await activation.selectOption('false'); await confirmField(activation);
     await page.waitForFunction(() => configuration.heater_auto_mode === false);
     assert.equal(await setpoint.isDisabled(), true);
     await page.evaluate(() => build());
@@ -123,8 +129,9 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     assert.equal(await activation.inputValue(), 'true', 'Configuration changes refresh the dashboard');
     assert.equal(await setpoint.inputValue(), '28');
     await setpoint.fill('29');
+    await setpoint.press('Tab');
     await page.evaluate(async () => { store.heater_setpoint = 28.5; await overview(false); });
-    assert.equal(await setpoint.inputValue(), '29', 'Polling preserves a focused edit');
+    assert.equal(await setpoint.inputValue(), '29', 'Polling preserves an unconfirmed edit after blur');
     await page.evaluate(() => {
       window.originalFetch = poolConfigFetchModule;
       window.poolConfigFetchModule = name => name === module
@@ -132,7 +139,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
         : originalFetch(name);
       window.oldRead = overview(false);
     });
-    await activation.selectOption('false');
+    await activation.selectOption('false'); await confirmField(activation);
     await page.waitForFunction(() => configuration.heater_auto_mode === false);
     await page.evaluate(async () => {
       store.heater_auto_mode = true; finishOldRead(); await oldRead;
@@ -161,12 +168,12 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     const robotDelay = page.getByLabel('Délai robot (min)');
     assert.equal(await robotAuto.inputValue(), 'false');
     assert.equal(await robotDelay.isDisabled(), true);
-    await robotAuto.selectOption('true');
+    await robotAuto.selectOption('true'); await confirmField(robotAuto);
     await page.waitForFunction(() => configuration.robot_auto_mode === true);
     assert.deepEqual(await page.evaluate(() => patches.at(-1)), { 'poollogic/modes': { robot_auto_mode: true } });
     assert.equal(await page.evaluate(() => 'robot_auto_mode' in stores['poollogic/robot']), false, 'Robot uses the existing modes key');
     assert.equal(await robotDelay.isEnabled(), true);
-    await robotDelay.fill('12'); await robotDelay.dispatchEvent('change');
+    await robotDelay.fill('12'); await robotDelay.dispatchEvent('change'); await confirmField(robotDelay);
     await page.waitForFunction(() => stores['poollogic/robot'].robot_delay_min === 12);
     let before = await page.evaluate(() => patches.length);
     await robotDelay.fill('256'); await robotDelay.dispatchEvent('change');
@@ -196,7 +203,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     await page.evaluate(() => {
       flowCfgCurrentModule = 'poollogic/safety'; flowCfgCurrentData = { ...stores[flowCfgCurrentModule] };
     });
-    await pressureMax.fill('2.05'); await pressureMax.dispatchEvent('change');
+    await pressureMax.fill('2.05'); await pressureMax.dispatchEvent('change'); await confirmField(pressureMax);
     await page.waitForFunction(() => configuration.psi_high_th === 2.05);
     assert.equal(await page.evaluate(() => stores['poollogic/safety'].psi_high_th), 2.05);
     await page.evaluate(() => {
@@ -208,7 +215,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     });
     const location = page.getByLabel('Sonde température d’eau');
     assert.deepEqual(await location.locator('option').allTextContents(), ['Tuyauterie', 'Bassin']);
-    await location.selectOption('false');
+    await location.selectOption('false'); await confirmField(location);
     await page.waitForFunction(() => configuration.sensor_hold_wat === false);
     assert.equal(await page.locator('#testLocation').inputValue(), '0', 'Probe assignment follows the dashboard edit');
     await page.evaluate(async () => {
@@ -235,12 +242,12 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     const minimumDose = page.getByLabel('Durée minimale d’injection (ms)', { exact: true });
     const sampling = page.getByLabel('Intervalle de calcul de la régulation (ms)', { exact: true });
     assert.deepEqual(await dosingEnabled.locator('option').allTextContents(), ['Actif', 'Inactif']);
-    await dosingEnabled.selectOption('false');
+    await dosingEnabled.selectOption('false'); await confirmField(dosingEnabled);
     await page.waitForFunction(() => configuration.enabled === false);
     assert.deepEqual(await page.evaluate(() => patches.at(-1)), { 'poollogic/regulation': { enabled: false } });
     assert.equal(await dosingDelay.isDisabled(), true); assert.equal(await minimumDose.isDisabled(), true);
     assert.equal(await sampling.isDisabled(), true);
-    await dosingEnabled.selectOption('true');
+    await dosingEnabled.selectOption('true'); await confirmField(dosingEnabled);
     await page.waitForFunction(() => configuration.enabled === true);
     assert.equal(await sampling.isEnabled(), true);
     before = await page.evaluate(() => patches.length);
@@ -248,17 +255,17 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     assert.equal(await page.evaluate(() => patches.length), before, 'Sampling cannot be shorter than the firmware minimum');
     await sampling.fill('2147483648'); await sampling.dispatchEvent('change');
     assert.equal(await page.evaluate(() => patches.length), before, 'Int32 overflow cannot be saved');
-    await sampling.fill('15000'); await sampling.dispatchEvent('change');
+    await sampling.fill('15000'); await sampling.dispatchEvent('change'); await confirmField(sampling);
     await page.waitForFunction(() => configuration.pid_sample_ms === 15000);
     assert.equal(await page.evaluate(() => stores['poollogic/regulation'].pid_sample_ms), 15000);
-    await minimumDose.fill('1000'); await minimumDose.dispatchEvent('change');
+    await minimumDose.fill('1000'); await minimumDose.dispatchEvent('change'); await confirmField(minimumDose);
     await page.waitForFunction(() => configuration.pid_min_on_ms === 1000);
-    await dosingDelay.fill('6'); await dosingDelay.dispatchEvent('change');
+    await dosingDelay.fill('6'); await dosingDelay.dispatchEvent('change'); await confirmField(dosingDelay);
     await page.waitForFunction(() => configuration.dly_pid_min === 6);
     await page.evaluate(async () => { stores['poollogic/regulation'].enabled = false; await overview(false); });
     assert.equal(await dosingEnabled.inputValue(), 'false'); assert.equal(await dosingDelay.isDisabled(), true);
     console.log('Regulation: persistent activation, shared timers, bounds, labels and inactive controls passed.');
-    console.log('Dashboard heater: persistent shared settings, validation, inactive controls, rollback and refresh races passed.');
+    console.log('Dashboard heater: persistent shared settings, explicit validation, inactive controls, rollback and refresh races passed.');
     console.log('Robot and protections: canonical modes key, editable values, sensor visibility, order, bounds and assignment synchronization passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

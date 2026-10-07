@@ -1118,7 +1118,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
     // PID regulation is armed only after filtration has been stable long enough
     // to avoid reacting to startup transients.
-    if (automationEnabled && filtrationFsm_.on && !winterMode_) {
+    if (automationEnabled && regulationEnabled_ && filtrationFsm_.on && !winterMode_) {
         const uint32_t runMin = stateUptimeSec_(filtrationFsm_, nowMs) / 60U;
 
         if (phAutoMode_ && !phPidEnabled_ && runMin >= delayPidsMin_) {
@@ -1598,7 +1598,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     if (automationEnabled && (phAutoMode_ || orpAutoMode_)) {
         if (filtrationDesired || filtrationForcedOn) {
             if (phAutoMode_) {
-                const bool phAllowed = phPidEnabled_ && phFresh && !(psiError_ || flowError_) && !phTankLowError_;
+                const bool phAllowed = regulationEnabled_ && phPidEnabled_ && phFresh && !(psiError_ || flowError_) && !phTankLowError_;
                 if (phAllowed) {
                     uint32_t outMs = 0;
                     (void)stepTemporalPid_(phPidState_,
@@ -1624,7 +1624,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
             if (orpAutoMode_) {
                 const bool orpAllowed =
-                    orpPidEnabled_ && orpFresh && isDisinfectionType_(DisinfectionChlorineBromine) &&
+                    regulationEnabled_ && orpPidEnabled_ && orpFresh && isDisinfectionType_(DisinfectionChlorineBromine) &&
                     !(psiError_ || flowError_) && !chlorineTankLowError_;
                 if (orpAllowed) {
                     uint32_t outMs = 0;

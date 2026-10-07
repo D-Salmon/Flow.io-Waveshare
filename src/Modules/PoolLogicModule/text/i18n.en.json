@@ -96,12 +96,12 @@
     "cfgdocs.poollogic.ph.ph_window_ms.label": "Fenêtre pH (ms)",
     "cfgdocs.poollogic.refill.fill_min_on_s.help": "Duration minimale de marche de the pump de remplissage.",
     "cfgdocs.poollogic.refill.fill_min_on_s.label": "Temps mini remplissage (s)",
-    "cfgdocs.poollogic.regulation.dly_pid_min.help": "Délai avant activation of PID après début filtration.",
-    "cfgdocs.poollogic.regulation.dly_pid_min.label": "Délai PID après filtration (min)",
-    "cfgdocs.poollogic.regulation.pid_min_on_ms.help": "Duration minimale ON appliquée aux outputs PID.",
-    "cfgdocs.poollogic.regulation.pid_min_on_ms.label": "Temps min ON PID (ms)",
-    "cfgdocs.poollogic.regulation.pid_sample_ms.help": "Intervalle de calcul of régulateurs PID.",
-    "cfgdocs.poollogic.regulation.pid_sample_ms.label": "Period échantillonnage PID (ms)",
+    "cfgdocs.poollogic.regulation.dly_pid_min.help": "Wait before automatic dosing. During forced filtration, chlorine dosing can start without this delay.",
+    "cfgdocs.poollogic.regulation.dly_pid_min.label": "Delay after filtration starts (min)",
+    "cfgdocs.poollogic.regulation.pid_min_on_ms.help": "Calculated injections shorter than this duration are skipped. 1,000 ms = 1 second.",
+    "cfgdocs.poollogic.regulation.pid_min_on_ms.label": "Minimum injection duration (ms)",
+    "cfgdocs.poollogic.regulation.pid_sample_ms.help": "Time between pH or chlorine dosing calculations. Minimum: 100 ms. 1,000 ms = 1 second.",
+    "cfgdocs.poollogic.regulation.pid_sample_ms.label": "Dosing calculation interval (ms)",
     "cfgdocs.poollogic.robot.robot_delay_min.help": "Délai avant lancement automatic of robot.",
     "cfgdocs.poollogic.robot.robot_delay_min.label": "Délai robot (min)",
     "cfgdocs.poollogic.robot.robot_dur_min.help": "Duration de fonctionnement of robot.",
@@ -233,6 +233,8 @@
     "cfgdocs.poollogic.sensors.swg_fb_io_id.label": "Electrolyser circuit-breaker monitoring",
     "runtimeui.poollogic.alarms.flag10.label": "No filtration flow",
     "pool.temperature.location.pipe": "Pipework",
-    "pool.temperature.location.pool": "Pool"
+    "pool.temperature.location.pool": "Pool",
+    "cfgdocs.poollogic.regulation.enabled.label": "Automatic dosing regulation",
+    "cfgdocs.poollogic.regulation.enabled.help": "Enables or pauses automatic pH and chlorine pump dosing. Manual controls remain available."
   }
 }

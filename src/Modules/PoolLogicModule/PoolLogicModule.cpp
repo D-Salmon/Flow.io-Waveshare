@@ -71,6 +71,7 @@ static void poolLogicCfgDocsAnchor_(PoolLogicModule& self)
     self.phWindowMsVar_.moduleName = kCfgModulePh;
     self.orpWindowMsVar_.moduleName = kCfgModuleChlorine;
     self.pidMinOnMsVar_.moduleName = kCfgModuleRegulation;
+    self.regulationEnabledVar_.moduleName = kCfgModuleRegulation;
     self.pidSampleMsVar_.moduleName = kCfgModuleRegulation;
 
     self.psiDelayVar_.moduleName = kCfgModuleSafety;

@@ -2528,7 +2528,14 @@
           freeze_hold_t: { type: 'number' }
         }
       }),
-      Object.freeze({ module: 'poollogic/regulation', titleKey: 'pool.card.regulation.title', title: 'Régulation', icon: 'speed', noteKey: 'pool.card.regulation.note', note: 'Temporisations communes aux régulateurs pH et désinfection.' }),
+      Object.freeze({ module: 'poollogic/regulation', titleKey: 'pool.card.regulation.title', title: 'Régulation', icon: 'speed', noteKey: 'pool.card.regulation.note', note: 'Pilotage et temporisations des dosages automatiques pH et chlore.',
+        fieldOrder: ['enabled', 'dly_pid_min', 'pid_min_on_ms', 'pid_sample_ms'], editableFields: {
+          enabled: { type: 'boolean' },
+          dly_pid_min: { type: 'number', enabledBy: 'enabled' },
+          pid_min_on_ms: { type: 'number', enabledBy: 'enabled' },
+          pid_sample_ms: { type: 'number', enabledBy: 'enabled' }
+        }
+      }),
       Object.freeze({ module: 'poollogic/robot', titleKey: 'pool.card.robot.title', title: 'Robot', icon: 'smart_toy', noteKey: 'pool.card.robot.note', note: 'Fenêtre de lancement et durée du nettoyage automatique.',
         fieldOrder: ['robot_auto_mode', 'robot_delay_min', 'robot_dur_min'], editableFields: {
           robot_auto_mode: { type: 'boolean', module: 'poollogic/modes' },
@@ -9330,6 +9337,7 @@
             if (!input.reportValidity()) return;
             const value = definition.type === 'boolean' ? input.value === 'true' : Number(input.value);
             if (definition.type === 'number' && !Number.isFinite(value)) return;
+            if (value === list.poolFieldData?.[field.key]) return;
             list.dataset.saving = '1';
             list.dataset.savingKey = field.key;
             const currentData = list.poolFieldData;

@@ -456,6 +456,7 @@ constexpr char OrpKd[] = "pl_okd"; // Pool logic module persisted key for field 
 constexpr char PhWindowMs[] = "pl_phwms"; // Pool logic module persisted key for field `pl_phwms`.
 constexpr char OrpWindowMs[] = "pl_owms"; // Pool logic module persisted key for field `pl_owms`.
 constexpr char PidMinOnMs[] = "pl_pmon"; // Pool logic module persisted key for field `pl_pmon`.
+constexpr char RegulationEnabled[] = "pl_rgen"; // Automatic pH/chlorine dosing master enable.
 constexpr char PidSampleMs[] = "pl_psamp"; // Pool logic module persisted key for field `pl_psamp`.
 constexpr char PsiDelay[] = "pl_psdt"; // Pool logic module persisted key for field `pl_psdt`.
 constexpr char DelayPids[] = "pl_dpds"; // Pool logic module persisted key for field `pl_dpds`.

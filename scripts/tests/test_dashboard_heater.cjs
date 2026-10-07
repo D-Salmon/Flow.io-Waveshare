@@ -220,6 +220,44 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     assert.equal(await page.getByLabel('Durée robot (min)').inputValue(), '35', 'Robot follows configuration polling');
     assert.equal(await pressureDelay.isHidden(), true);
     assert.equal(await flowDelay.isHidden(), true);
+    await page.evaluate(() => {
+      stores['poollogic/regulation'] = { enabled: true, dly_pid_min: 5, pid_min_on_ms: 30000, pid_sample_ms: 30000 };
+      poolConfigModulesCache['poollogic/regulation'] = { ...stores['poollogic/regulation'] };
+      flowCfgCurrentModule = 'poollogic/regulation'; flowCfgCurrentData = { ...stores[flowCfgCurrentModule] };
+      buildModule('poollogic/regulation');
+    });
+    const regulation = page.locator('.pool-field-editor-list[data-module="poollogic/regulation"]');
+    assert.deepEqual(await regulation.locator('.control-label').allTextContents(), [
+      'Régulation automatique', 'Délai après démarrage filtration (min)',
+      'Durée minimale d’injection (ms)', 'Intervalle de calcul de la régulation (ms)']);
+    const dosingEnabled = page.getByLabel('Régulation automatique', { exact: true });
+    const dosingDelay = page.getByLabel('Délai après démarrage filtration (min)', { exact: true });
+    const minimumDose = page.getByLabel('Durée minimale d’injection (ms)', { exact: true });
+    const sampling = page.getByLabel('Intervalle de calcul de la régulation (ms)', { exact: true });
+    assert.deepEqual(await dosingEnabled.locator('option').allTextContents(), ['Actif', 'Inactif']);
+    await dosingEnabled.selectOption('false');
+    await page.waitForFunction(() => configuration.enabled === false);
+    assert.deepEqual(await page.evaluate(() => patches.at(-1)), { 'poollogic/regulation': { enabled: false } });
+    assert.equal(await dosingDelay.isDisabled(), true); assert.equal(await minimumDose.isDisabled(), true);
+    assert.equal(await sampling.isDisabled(), true);
+    await dosingEnabled.selectOption('true');
+    await page.waitForFunction(() => configuration.enabled === true);
+    assert.equal(await sampling.isEnabled(), true);
+    before = await page.evaluate(() => patches.length);
+    await sampling.fill('99'); await sampling.dispatchEvent('change');
+    assert.equal(await page.evaluate(() => patches.length), before, 'Sampling cannot be shorter than the firmware minimum');
+    await sampling.fill('2147483648'); await sampling.dispatchEvent('change');
+    assert.equal(await page.evaluate(() => patches.length), before, 'Int32 overflow cannot be saved');
+    await sampling.fill('15000'); await sampling.dispatchEvent('change');
+    await page.waitForFunction(() => configuration.pid_sample_ms === 15000);
+    assert.equal(await page.evaluate(() => stores['poollogic/regulation'].pid_sample_ms), 15000);
+    await minimumDose.fill('1000'); await minimumDose.dispatchEvent('change');
+    await page.waitForFunction(() => configuration.pid_min_on_ms === 1000);
+    await dosingDelay.fill('6'); await dosingDelay.dispatchEvent('change');
+    await page.waitForFunction(() => configuration.dly_pid_min === 6);
+    await page.evaluate(async () => { stores['poollogic/regulation'].enabled = false; await overview(false); });
+    assert.equal(await dosingEnabled.inputValue(), 'false'); assert.equal(await dosingDelay.isDisabled(), true);
+    console.log('Regulation: persistent activation, shared timers, bounds, labels and inactive controls passed.');
     console.log('Dashboard heater: persistent shared settings, validation, inactive controls, rollback and refresh races passed.');
     console.log('Robot and protections: canonical modes key, editable values, sensor visibility, order, bounds and assignment synchronization passed.');
   } finally { await browser.close(); }

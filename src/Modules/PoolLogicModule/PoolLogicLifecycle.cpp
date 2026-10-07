@@ -331,6 +331,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     phWindowMsVar_.moduleName = kCfgModulePh;
     orpWindowMsVar_.moduleName = kCfgModuleChlorine;
     pidMinOnMsVar_.moduleName = kCfgModuleRegulation;
+    regulationEnabledVar_.moduleName = kCfgModuleRegulation;
     pidSampleMsVar_.moduleName = kCfgModuleRegulation;
 
     psiDelayVar_.moduleName = kCfgModuleSafety;
@@ -435,6 +436,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(phWindowMsVar_, kCfgModuleId, kCfgBranchPh);
     cfg.registerVar(orpWindowMsVar_, kCfgModuleId, kCfgBranchChlorine);
     cfg.registerVar(pidMinOnMsVar_, kCfgModuleId, kCfgBranchRegulation);
+    cfg.registerVar(regulationEnabledVar_, kCfgModuleId, kCfgBranchRegulation);
     cfg.registerVar(pidSampleMsVar_, kCfgModuleId, kCfgBranchRegulation);
 
     cfg.registerVar(psiDelayVar_, kCfgModuleId, kCfgBranchSafety);
@@ -547,6 +549,18 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:radiator",
             "config"
         };
+        const HASwitchEntry regulationEnabledSwitch{
+            "poollogic",
+            "pl_regulation_enabled",
+            "Automatic pH and chlorine dosing",
+            "cfg/poollogic/regulation",
+            "{% if value_json.enabled %}ON{% else %}OFF{% endif %}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/regulation\\\":{\\\"enabled\\\":true}}",
+            "{\\\"poollogic/regulation\\\":{\\\"enabled\\\":false}}",
+            "mdi:beaker-check-outline",
+            "config"
+        };
         const HASwitchEntry phDosePlusSwitch{
             "poollogic",
             "pl_ph_dose_plus",
@@ -576,6 +590,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc->addSwitch(haSvc->ctx, &phAutoModeSwitch);
         (void)haSvc->addSwitch(haSvc->ctx, &orpAutoModeSwitch);
         (void)haSvc->addSwitch(haSvc->ctx, &heaterAutoModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &regulationEnabledSwitch);
         (void)haSvc->addSwitch(haSvc->ctx, &phDosePlusSwitch);
         (void)haSvc->addSwitch(haSvc->ctx, &o2TempCompSwitch);
     }
@@ -1627,6 +1642,23 @@ void PoolLogicModule::onEvent_(const Event& e)
                          (unsigned)orpPumpDeviceSlot_);
                 }
                 resetTemporalPidState_(orpPidState_, millis());
+            }
+            return;
+        }
+        if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
+            p->localBranchId == kCfgBranchRegulation &&
+            p->nvsKey) {
+            if (strcmp(p->nvsKey, NvsKeys::PoolLogic::RegulationEnabled) == 0) {
+                const uint32_t nowMs = millis();
+                phPidEnabled_ = false;
+                orpPidEnabled_ = false;
+                resetTemporalPidState_(phPidState_, nowMs);
+                resetTemporalPidState_(orpPidState_, nowMs);
+                // Clear automatic requests without cancelling manual forcing or O2 dosing.
+                if (phAutoMode_) (void)writeDeviceDesired_(phPumpDeviceSlot_, false);
+                if (orpAutoMode_ && isDisinfectionType_(DisinfectionChlorineBromine)) {
+                    (void)writeDeviceDesired_(orpPumpDeviceSlot_, false);
+                }
             }
             return;
         }

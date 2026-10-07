@@ -62,7 +62,7 @@
     "pool.card.safety.title": "Protections",
     "pool.card.safety.note": "Seuils de pression, hors gel et bascule hiver utilisés par les automatismes.",
     "pool.card.regulation.title": "Régulation",
-    "pool.card.regulation.note": "Temporisations communes aux régulateurs pH et désinfection.",
+    "pool.card.regulation.note": "Pilotage et temporisations des dosages automatiques pH et chlore.",
     "pool.card.robot.title": "Robot",
     "pool.card.robot.note": "Fenêtre de lancement et durée du nettoyage automatique.",
     "pool.alarm.defaultLabel": "Alarme piscine",

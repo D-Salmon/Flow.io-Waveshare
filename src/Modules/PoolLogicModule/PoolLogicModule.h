@@ -240,6 +240,7 @@ private:
     int32_t phWindowMs_ = PoolDefaults::PidWindowMs;
     int32_t orpWindowMs_ = PoolDefaults::PidWindowMs;
     int32_t pidMinOnMs_ = PoolDefaults::PidMinOnMs;
+    bool regulationEnabled_ = true;
     int32_t pidSampleMs_ = PoolDefaults::PidSampleMs;
     uint8_t psiStartupDelaySec_ = 60;
     uint8_t delayPidsMin_ = 5;
@@ -434,6 +435,8 @@ private:
                                              &phWindowMs_, ConfigPersistence::Persistent, 0};
     ConfigVariable<int32_t,0> orpWindowMsVar_{NVS_KEY(NvsKeys::PoolLogic::OrpWindowMs), "dis_window_ms", "poollogic/chlorine", ConfigType::Int32,
                                               &orpWindowMs_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<bool,0> regulationEnabledVar_{NVS_KEY(NvsKeys::PoolLogic::RegulationEnabled), "enabled", "poollogic/regulation", ConfigType::Bool,
+                                                &regulationEnabled_, ConfigPersistence::Persistent, 0};
     ConfigVariable<int32_t,0> pidMinOnMsVar_{NVS_KEY(NvsKeys::PoolLogic::PidMinOnMs), "pid_min_on_ms", "poollogic/regulation", ConfigType::Int32,
                                              &pidMinOnMs_, ConfigPersistence::Persistent, 0};
     ConfigVariable<int32_t,0> pidSampleMsVar_{NVS_KEY(NvsKeys::PoolLogic::PidSampleMs), "pid_sample_ms", "poollogic/regulation", ConfigType::Int32,

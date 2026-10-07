@@ -251,19 +251,28 @@
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.regulation.dly_pid_min.label",
       "help_t": "cfgdocs.poollogic.regulation.dly_pid_min.help",
-      "unit": "min"
+      "unit": "min",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1
     },
     "poollogic/regulation/pid_min_on_ms": {
       "type": "Int32",
       "label_t": "cfgdocs.poollogic.regulation.pid_min_on_ms.label",
       "help_t": "cfgdocs.poollogic.regulation.pid_min_on_ms.help",
-      "unit": "ms"
+      "unit": "ms",
+      "minimum": 0,
+      "maximum": 2147483647,
+      "step": 1
     },
     "poollogic/regulation/pid_sample_ms": {
       "type": "Int32",
       "label_t": "cfgdocs.poollogic.regulation.pid_sample_ms.label",
       "help_t": "cfgdocs.poollogic.regulation.pid_sample_ms.help",
-      "unit": "ms"
+      "unit": "ms",
+      "minimum": 100,
+      "maximum": 2147483647,
+      "step": 1
     },
     "poollogic/robot/robot_delay_min": {
       "type": "UInt8",
@@ -491,6 +500,11 @@
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.help"
+    },
+    "poollogic/regulation/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.regulation.enabled.label",
+      "help_t": "cfgdocs.poollogic.regulation.enabled.help"
     }
   }
 }

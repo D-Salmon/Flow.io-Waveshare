@@ -977,6 +977,7 @@
     "cfgdocs.io.drivers.expander02.secondary_address.help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
     "cfgdocs.io.drivers.expander03.address.help": "Adresse I2C prioritaire, réservée tant que ce driver est activé. Modification appliquée au redémarrage.",
     "cfgdocs.io.drivers.expander03.secondary_address.label": "Adresse secondaire",
-    "cfgdocs.io.drivers.expander03.secondary_address.help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage."
+    "cfgdocs.io.drivers.expander03.secondary_address.help": "Adresse I2C de secours si la primaire ne répond pas et si cette adresse est libre. 0x00 désactive le secours. Modification appliquée au redémarrage.",
+    "io.input.disabled": "Désactivé / non câblé"
   }
 }

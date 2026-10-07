@@ -771,6 +771,10 @@
       ],
       "flowio_logical_input_analog": [
         {
+          "value": 65535,
+          "label_t": "io.input.disabled"
+        },
+        {
           "value": 192,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.0.label"
         },
@@ -900,6 +904,10 @@
         }
       ],
       "flowio_logical_input_digital": [
+        {
+          "value": 65535,
+          "label_t": "io.input.disabled"
+        },
         {
           "value": 64,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.0.label"

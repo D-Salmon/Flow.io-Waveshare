@@ -978,6 +978,7 @@
     "cfgdocs.io.drivers.expander02.secondary_address.help": "Fallback I2C address when the primary does not respond and this address is free. 0x00 disables fallback. Changes apply after restart.",
     "cfgdocs.io.drivers.expander03.address.help": "Preferred I2C address, reserved while this driver is enabled. Changes apply after restart.",
     "cfgdocs.io.drivers.expander03.secondary_address.label": "Secondary address",
-    "cfgdocs.io.drivers.expander03.secondary_address.help": "Fallback I2C address when the primary does not respond and this address is free. 0x00 disables fallback. Changes apply after restart."
+    "cfgdocs.io.drivers.expander03.secondary_address.help": "Fallback I2C address when the primary does not respond and this address is free. 0x00 disables fallback. Changes apply after restart.",
+    "io.input.disabled": "Disabled / not wired"
   }
 }

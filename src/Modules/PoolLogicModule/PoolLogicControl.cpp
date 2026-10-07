@@ -343,13 +343,13 @@ float PoolLogicModule::o2TemperatureFactor_(bool haveWaterTemp, float waterTemp)
 
 float PoolLogicModule::computeO2WeeklyDoseMl_(bool haveWaterTemp, float waterTemp) const
 {
-    if (!std::isfinite(o2PoolVolumeM3_) || o2PoolVolumeM3_ <= 0.0f ||
+    if (!std::isfinite(poolVolumeM3_) || poolVolumeM3_ <= 0.0f ||
         !std::isfinite(o2DoseMlPer10M3Week_) || o2DoseMlPer10M3Week_ <= 0.0f ||
         !std::isfinite(o2LoadFactor_) || o2LoadFactor_ <= 0.0f) {
         return 0.0f;
     }
 
-    const float base = (o2PoolVolumeM3_ / 10.0f) * o2DoseMlPer10M3Week_;
+    const float base = (poolVolumeM3_ / 10.0f) * o2DoseMlPer10M3Week_;
     const float dose = base * o2LoadFactor_ * o2TemperatureFactor_(haveWaterTemp, waterTemp);
     if (!std::isfinite(dose) || dose <= 0.0f) return 0.0f;
     return dose;

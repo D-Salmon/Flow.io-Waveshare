@@ -553,6 +553,12 @@
       ],
       "flowio_logical_input_analog": [
         {
+          "value": 65535,
+          "label_t": "io.input.disabled",
+          "label": "Désactivé / non câblé",
+          "label_i18n": "io.input.disabled"
+        },
+        {
           "value": 192,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.0.label",
           "label": "io/input/a00 [192]",
@@ -680,6 +686,12 @@
         }
       ],
       "flowio_logical_input_digital": [
+        {
+          "value": 65535,
+          "label_t": "io.input.disabled",
+          "label": "Désactivé / non câblé",
+          "label_i18n": "io.input.disabled"
+        },
         {
           "value": 64,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.0.label",
@@ -1261,6 +1273,20 @@
           "label_t": "pool.temperature.location.pool",
           "label": "Bassin",
           "label_i18n": "pool.temperature.location.pool"
+        }
+      ],
+      "poollogic_contact_active_level": [
+        {
+          "value": true,
+          "label_t": "pool.contact.active.high",
+          "label": "Contact actif au niveau haut",
+          "label_i18n": "pool.contact.active.high"
+        },
+        {
+          "value": false,
+          "label_t": "pool.contact.active.low",
+          "label": "Contact actif au niveau bas",
+          "label_i18n": "pool.contact.active.low"
         }
       ],
       "i18n_languages": [
@@ -7618,16 +7644,6 @@
       "help": "Volume O2 restant à injecter après interruption ou reboot.",
       "help_i18n": "cfgdocs.poollogic.o2.pending_ml.help"
     },
-    "poollogic/o2/pool_volume_m3": {
-      "type": "Float",
-      "label_t": "cfgdocs.poollogic.o2.pool_volume_m3.label",
-      "help_t": "cfgdocs.poollogic.o2.pool_volume_m3.help",
-      "unit": "m3",
-      "label": "Volume bassin",
-      "label_i18n": "cfgdocs.poollogic.o2.pool_volume_m3.label",
-      "help": "Volume du bassin utilisé pour calculer les doses O2.",
-      "help_i18n": "cfgdocs.poollogic.o2.pool_volume_m3.help"
-    },
     "poollogic/o2/protocol_state": {
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.o2.protocol_state.label",
@@ -7755,6 +7771,20 @@
       "label_i18n": "cfgdocs.poollogic.pool.indoor.label",
       "help": "Indique si le bassin est installé en intérieur.",
       "help_i18n": "cfgdocs.poollogic.pool.indoor.help"
+    },
+    "poollogic/pool/pool_volume_m3": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pool.pool_volume_m3.label",
+      "help_t": "cfgdocs.poollogic.pool.pool_volume_m3.help",
+      "unit": "m3",
+      "order": 0,
+      "minimum": 1,
+      "maximum": 200,
+      "step": 0.1,
+      "label": "Volume bassin",
+      "label_i18n": "cfgdocs.poollogic.pool.pool_volume_m3.label",
+      "help": "Volume du bassin utilisé pour les doses d’oxygène actif et le contexte de l’analyse IA.",
+      "help_i18n": "cfgdocs.poollogic.pool.pool_volume_m3.help"
     },
     "poollogic/refill/fill_enabled": {
       "type": "Bool",
@@ -7936,6 +7966,7 @@
       "label_t": "cfgdocs.poollogic.sensors.air_temp_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.air_temp_io_id.help",
       "enum_set": "flowio_logical_input_analog",
+      "order": 1,
       "label": "IO température air",
       "label_i18n": "cfgdocs.poollogic.sensors.air_temp_io_id.label",
       "help": "Identifiant IO de la sonde température air.",
@@ -7946,6 +7977,7 @@
       "label_t": "cfgdocs.poollogic.sensors.chl_lvl_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.chl_lvl_io_id.help",
       "enum_set": "flowio_logical_input_digital",
+      "order": 7,
       "label": "IO niveau cuve chlore",
       "label_i18n": "cfgdocs.poollogic.sensors.chl_lvl_io_id.label",
       "help": "Identifiant IO de l'entrée digitale niveau bas cuve chlore.",
@@ -7956,6 +7988,7 @@
       "label_t": "cfgdocs.poollogic.sensors.dis_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.dis_io_id.help",
       "enum_set": "flowio_logical_input_analog",
+      "order": 3,
       "label": "IO capteur ORP",
       "label_i18n": "cfgdocs.poollogic.sensors.dis_io_id.label",
       "help": "Identifiant IO de la mesure ORP.",
@@ -7965,15 +7998,23 @@
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.label",
       "help_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.help",
-      "label": "Type de contact de la surveillance disjoncteur filtration",
+      "enum_set": "poollogic_contact_active_level",
+      "visible_when": {
+        "field": "filtr_fb_io_id",
+        "not_equals": 65535
+      },
+      "order": 11,
+      "label": "Surveillance disjoncteur filtration — polarité du retour",
       "label_i18n": "cfgdocs.poollogic.sensors.filtr_fb_active_high.label",
-      "help": "Choisissez Normalement ouvert (NO) si le contact se ferme en marche, ou Normalement fermé (NF) s'il s'ouvre en marche.",
+      "help": "Niveau électrique indiquant que le disjoncteur autorise la marche.",
       "help_i18n": "cfgdocs.poollogic.sensors.filtr_fb_active_high.help"
     },
     "poollogic/sensors/filtr_fb_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.help",
+      "enum_set": "flowio_logical_input_digital",
+      "order": 10,
       "label": "Surveillance disjoncteur filtration",
       "label_i18n": "cfgdocs.poollogic.sensors.filtr_fb_io_id.label",
       "help": "Choisissez l'entrée numérique du contact auxiliaire, ou Désactivé / non câblé.",
@@ -7983,6 +8024,11 @@
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.label",
       "help_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.help",
+      "order": 9,
+      "visible_when": {
+        "field": "flow_switch_io_id",
+        "not_equals": 65535
+      },
       "label": "Surveillance débit",
       "label_i18n": "cfgdocs.poollogic.sensors.flow_switch_enabled.label",
       "help": "Active la surveillance du débit par le contact sec sélectionné. Une absence de débit confirmée arrête la filtration et impose l'acquittement de l'alarme.",
@@ -7993,6 +8039,7 @@
       "label_t": "cfgdocs.poollogic.sensors.flow_switch_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.flow_switch_io_id.help",
       "enum_set": "flowio_logical_input_digital",
+      "order": 8,
       "label": "Entrée détecteur de débit",
       "label_i18n": "cfgdocs.poollogic.sensors.flow_switch_io_id.label",
       "help": "Choisissez l'entrée numérique du contact sec du détecteur de débit. Désactivé / non câblé coupe la surveillance du débit.",
@@ -8003,6 +8050,7 @@
       "label_t": "cfgdocs.poollogic.sensors.ph_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.ph_io_id.help",
       "enum_set": "flowio_logical_input_analog",
+      "order": 2,
       "label": "IO capteur pH",
       "label_i18n": "cfgdocs.poollogic.sensors.ph_io_id.label",
       "help": "Identifiant IO de la mesure pH.",
@@ -8013,6 +8061,7 @@
       "label_t": "cfgdocs.poollogic.sensors.ph_lvl_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.ph_lvl_io_id.help",
       "enum_set": "flowio_logical_input_digital",
+      "order": 6,
       "label": "IO niveau cuve pH",
       "label_i18n": "cfgdocs.poollogic.sensors.ph_lvl_io_id.label",
       "help": "Identifiant IO de l'entrée digitale niveau bas cuve pH.",
@@ -8023,9 +8072,10 @@
       "label_t": "cfgdocs.poollogic.sensors.pool_lvl_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.pool_lvl_io_id.help",
       "enum_set": "flowio_logical_input_digital",
+      "order": 5,
       "label": "IO niveau bassin",
       "label_i18n": "cfgdocs.poollogic.sensors.pool_lvl_io_id.label",
-      "help": "Identifiant IO de la mesure de niveau bassin.",
+      "help": "Entrée numérique du contact de niveau bas du bassin. Désactivé / non câblé sans capteur.",
       "help_i18n": "cfgdocs.poollogic.sensors.pool_lvl_io_id.help"
     },
     "poollogic/sensors/psi_io_id": {
@@ -8033,6 +8083,7 @@
       "label_t": "cfgdocs.poollogic.sensors.psi_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.psi_io_id.help",
       "enum_set": "flowio_logical_input_analog",
+      "order": 4,
       "label": "IO pression",
       "label_i18n": "cfgdocs.poollogic.sensors.psi_io_id.label",
       "help": "Identifiant IO du capteur de pression.",
@@ -8042,6 +8093,7 @@
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.psi_monitoring.label",
       "help_t": "cfgdocs.poollogic.sensors.psi_monitoring.help",
+      "hidden": true,
       "label": "Surveillance pression",
       "label_i18n": "cfgdocs.poollogic.sensors.psi_monitoring.label",
       "help": "Active les alarmes de pression basse et haute ainsi que l'arrêt de sécurité de la filtration. Désactivez si aucun capteur de pression n'est installé.",
@@ -8051,15 +8103,23 @@
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.label",
       "help_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.help",
-      "label": "Type de contact de la surveillance disjoncteur électrolyseur",
+      "enum_set": "poollogic_contact_active_level",
+      "visible_when": {
+        "field": "swg_fb_io_id",
+        "not_equals": 65535
+      },
+      "order": 13,
+      "label": "Surveillance disjoncteur électrolyseur — polarité du retour",
       "label_i18n": "cfgdocs.poollogic.sensors.swg_fb_active_high.label",
-      "help": "Choisissez Normalement ouvert (NO) si le contact se ferme en marche, ou Normalement fermé (NF) s'il s'ouvre en marche.",
+      "help": "Niveau électrique indiquant que le disjoncteur autorise la marche.",
       "help_i18n": "cfgdocs.poollogic.sensors.swg_fb_active_high.help"
     },
     "poollogic/sensors/swg_fb_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.help",
+      "enum_set": "flowio_logical_input_digital",
+      "order": 12,
       "label": "Surveillance disjoncteur électrolyseur",
       "label_i18n": "cfgdocs.poollogic.sensors.swg_fb_io_id.label",
       "help": "Choisissez l'entrée numérique du contact auxiliaire, ou Désactivé / non câblé.",
@@ -8070,6 +8130,7 @@
       "label_t": "cfgdocs.poollogic.sensors.wat_temp_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.wat_temp_io_id.help",
       "enum_set": "flowio_logical_input_analog",
+      "order": 0,
       "label": "IO température eau",
       "label_i18n": "cfgdocs.poollogic.sensors.wat_temp_io_id.label",
       "help": "Identifiant IO de la sonde température eau.",

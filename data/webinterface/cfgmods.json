@@ -553,6 +553,12 @@
       ],
       "flowio_logical_input_analog": [
         {
+          "value": 65535,
+          "label_t": "io.input.disabled",
+          "label": "Désactivé / non câblé",
+          "label_i18n": "io.input.disabled"
+        },
+        {
           "value": 192,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_analog.0.label",
           "label": "io/input/a00 [192]",
@@ -680,6 +686,12 @@
         }
       ],
       "flowio_logical_input_digital": [
+        {
+          "value": 65535,
+          "label_t": "io.input.disabled",
+          "label": "Désactivé / non câblé",
+          "label_i18n": "io.input.disabled"
+        },
         {
           "value": 64,
           "label_t": "cfgmods_meta.iomodule.enum_sets.flowio_logical_input_digital.0.label",
@@ -1261,6 +1273,20 @@
           "label_t": "pool.temperature.location.pool",
           "label": "Bassin",
           "label_i18n": "pool.temperature.location.pool"
+        }
+      ],
+      "poollogic_contact_active_level": [
+        {
+          "value": true,
+          "label_t": "pool.contact.active.high",
+          "label": "Contact actif au niveau haut",
+          "label_i18n": "pool.contact.active.high"
+        },
+        {
+          "value": false,
+          "label_t": "pool.contact.active.low",
+          "label": "Contact actif au niveau bas",
+          "label_i18n": "pool.contact.active.low"
         }
       ],
       "i18n_languages": [

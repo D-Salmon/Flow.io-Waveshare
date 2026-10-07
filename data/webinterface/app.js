@@ -9629,7 +9629,7 @@
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue(selectedDef.module, 'dis_setpoint', data.dis_setpoint), { featured: true });
           poolConfigAppendMetric(metrics, tr('pool.metric.window', 'Fenêtre'), poolConfigFormatValue(selectedDef.module, 'dis_window_ms', data.dis_window_ms));
         } else if (selectedDef.key === 'o2') {
-          poolConfigAppendMetric(metrics, tr('pool.metric.poolVolume', 'Volume bassin'), poolConfigFormatValue(selectedDef.module, 'pool_volume_m3', data.pool_volume_m3), { featured: true });
+          poolConfigAppendMetric(metrics, tr('pool.metric.poolVolume', 'Volume bassin'), poolConfigFormatValue('poollogic/pool', 'pool_volume_m3', modules['poollogic/pool']?.pool_volume_m3), { featured: true });
           poolConfigAppendMetric(metrics, tr('pool.metric.weeklyDose', 'Dose hebdo'), poolConfigFormatValue(selectedDef.module, 'dose_ml_10m3_week', data.dose_ml_10m3_week));
           poolConfigAppendMetric(metrics, tr('pool.metric.injections', 'Injections'), poolConfigFormatValue(selectedDef.module, 'split_count', data.split_count));
           poolConfigAppendMetric(metrics, tr('pool.metric.pending', 'En attente'), poolConfigFormatValue(selectedDef.module, 'pending_ml', data.pending_ml));
@@ -10082,7 +10082,7 @@
       if (forceRefresh) invalidatePoolDashboardSlots();
       try {
         const primaryNames = poolConfigModuleDefs.concat(poolDisinfectionModeDefs)
-          .map(def => def.module).concat('poollogic/sensors');
+          .map(def => def.module).concat('poollogic/sensors', 'poollogic/pool');
         const [modules, alarmSlots] = await Promise.all([
           poolConfigFetchModules(primaryNames, reqSeq),
           fetchPoolAlarmSlots(),
@@ -12359,7 +12359,7 @@
         if (!ok && !opts.silent) inputEl.reportValidity();
         return ok;
       }
-      if ((kind !== 'int'  && kind !== 'float') || displayFormat !== 'hex') {
+      if ((kind !== 'int' && kind !== 'float') || displayFormat !== 'hex') {
         return setConfigFieldValidationState(inputEl, true, '');
       }
       const parsed = parseConfigNumericValueDetailed(inputEl.value, kind, displayFormat);
@@ -12896,6 +12896,7 @@
         row.className = 'control-row';
 
         const doc = configDocFor(moduleName, key, []);
+        if (doc && doc.hidden === true) continue;
         const { element: labelWrap, label } = buildConfigFieldLabel(doc, key);
         row.appendChild(labelWrap);
 
@@ -13083,6 +13084,23 @@
         updateEnabled();
       });
 
+      visibilityEntries.forEach((entry) => {
+        const condition = entry.doc && entry.doc.visible_when;
+        if (!entry.inputEl || !condition || typeof condition.field !== 'string') return;
+        const controller = visibilityEntries.find(candidate => candidate.key === condition.field);
+        if (!controller || !controller.inputEl) return;
+        const updateVisibility = () => {
+          const hidden = readConfigFieldValue(controller.inputEl) === condition.not_equals;
+          entry.row.hidden = hidden;
+          entry.inputEl.dataset.runtimeHidden = hidden ? '1' : '0';
+          entry.inputEl.disabled = hidden || entry.inputEl.dataset.runtimeDisabled === '1';
+          if (controlsPrimaryPane && !perFieldApply) updatePrimaryCfgApplyState();
+        };
+        controller.inputEl.addEventListener('input', updateVisibility);
+        controller.inputEl.addEventListener('change', updateVisibility);
+        updateVisibility();
+      });
+
       if (isDigitalInputConfigModule(moduleName) && visibilityEntries.length > 0) {
         const readModeValue = () => {
           if (modeFieldInputEl) {
@@ -13249,7 +13267,7 @@
         if (!patch[targetModule]) patch[targetModule] = {};
         const modulePatch = patch[targetModule];
         if (kind === 'bool') {
-          modulePatch[key] = !!el.checked;
+          modulePatch[key] = readConfigFieldValueStrict(el);
           return;
         }
         if (kind === 'int') {

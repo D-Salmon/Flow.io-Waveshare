@@ -8,6 +8,17 @@ MODULE = runpy.run_path(str(SCRIPT), init_globals={"Import": lambda name: None, 
 
 
 class ConfigDocsWaveshareSlotTests(unittest.TestCase):
+    def test_optional_input_choices_survive_profile_pruning(self):
+        meta = {"enum_sets": {
+            "flowio_logical_input_analog": [{"value": 65535}, {"value": 212}, {"value": 213}],
+            "flowio_logical_input_digital": [{"value": 65535}, {"value": 76}, {"value": 77}],
+        }}
+        result = MODULE["_prune_io_slot_meta"](
+            meta, analog_last=20, digital_last=12, output_last=7,
+        )
+        self.assertEqual([65535, 212], [item["value"] for item in result["enum_sets"]["flowio_logical_input_analog"]])
+        self.assertEqual([65535, 76], [item["value"] for item in result["enum_sets"]["flowio_logical_input_digital"]])
+
     def test_waveshare_analog_configuration_keeps_a20_and_prunes_a21(self):
         docs = {
             "io/input/a15/a15_name": {},

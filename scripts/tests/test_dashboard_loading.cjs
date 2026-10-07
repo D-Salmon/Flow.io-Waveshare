@@ -52,7 +52,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
       };
       window.fetchPoolAlarmSlots = async () => [];
       eval(definitions + functions + `
-        const primaryNames = new Set(poolConfigModuleDefs.concat(poolDisinfectionModeDefs).map(def => def.module).concat('poollogic/sensors'));
+        const primaryNames = new Set(poolConfigModuleDefs.concat(poolDisinfectionModeDefs).map(def => def.module).concat('poollogic/sensors', 'poollogic/pool'));
         window.reset = () => {
           poolConfigReqSeq = 0; poolConfigLoadedOnce = false; poolConfigModulesCache = null;
           primaryError = ''; primaryRenderCount = 0; assignmentsRenderCount = 0;
@@ -85,8 +85,8 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
     await page.waitForFunction(() => primaryRenderCount === 1 && pendingAssignments.length === 3);
     assert.equal(await page.locator('#assignments').count(), 0, 'Incomplete assignments must not become editable');
     assert.equal(await page.locator('[data-pool-assignments-status]').getAttribute('aria-busy'), 'true');
-    assert.equal(await page.evaluate(() => reads.slice(0, 11).every(name => name.startsWith('poollogic/'))), true);
-    assert.equal(await page.evaluate(() => reads.length), 14, 'Eleven main modules are followed by the first three deferred reads');
+    assert.equal(await page.evaluate(() => reads.slice(0, 12).every(name => name.startsWith('poollogic/'))), true);
+    assert.equal(await page.evaluate(() => reads.length), 15, 'Twelve main modules are followed by the first three deferred reads');
     await page.locator('#draft').fill('8');
     await page.evaluate(() => {
       window.originalInput = document.querySelector('#draft');
@@ -101,8 +101,8 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
     assert.equal(await page.evaluate(() => assignmentsRenderCount), 1);
     assert.equal(await page.locator('#assignments input').inputValue(), '300');
     assert.equal(await page.locator('[data-pool-assignments-status]').count(), 0);
-    assert.equal(await page.evaluate(() => reads.length), 42);
-    assert.equal(await page.evaluate(() => new Set(reads).size), 42);
+    assert.equal(await page.evaluate(() => reads.length), 43);
+    assert.equal(await page.evaluate(() => new Set(reads).size), 43);
     assert.equal(await page.evaluate(() => peakReads), 3);
     assert.equal(await page.evaluate(() => peakDocs), 2);
     await page.evaluate(() => { reset(); failure = 'io/input/a00'; loading = load(false); });

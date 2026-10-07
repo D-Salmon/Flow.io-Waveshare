@@ -304,13 +304,13 @@ def _prune_io_slot_meta(meta: dict, analog_last: int, digital_last: int, output_
         if isinstance(analog_entries, list):
             enum_sets["flowio_logical_input_analog"] = [
                 entry for entry in analog_entries
-                if (_to_int(entry.get("value")) is not None and _to_int(entry.get("value")) <= 192 + analog_last)
+                if (_to_int(entry.get("value")) is not None and (_to_int(entry.get("value")) == 65535 or _to_int(entry.get("value")) <= 192 + analog_last))
             ]
         digital_entries = enum_sets.get("flowio_logical_input_digital")
         if isinstance(digital_entries, list):
             enum_sets["flowio_logical_input_digital"] = [
                 entry for entry in digital_entries
-                if (_to_int(entry.get("value")) is not None and _to_int(entry.get("value")) <= 64 + digital_last)
+                if (_to_int(entry.get("value")) is not None and (_to_int(entry.get("value")) == 65535 or _to_int(entry.get("value")) <= 64 + digital_last))
             ]
         out["enum_sets"] = enum_sets
     return out

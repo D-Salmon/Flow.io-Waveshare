@@ -250,7 +250,7 @@ private:
     uint8_t fillingMinOnSec_ = 30;
 
     // Active oxygen phase-2 configuration and persisted protocol cursor.
-    float o2PoolVolumeM3_ = 50.0f;
+    float poolVolumeM3_ = 50.0f;
     float o2DoseMlPer10M3Week_ = 500.0f;
     uint8_t o2MainHour_ = 20;
     uint8_t o2SplitCount_ = 2;
@@ -455,8 +455,8 @@ private:
     ConfigVariable<uint8_t,0> fillingMinOnVar_{NVS_KEY(NvsKeys::PoolLogic::FillingMinOn), "fill_min_on_s", "poollogic/refill", ConfigType::UInt8,
                                                &fillingMinOnSec_, ConfigPersistence::Persistent, 0};
 
-    ConfigVariable<float,0> o2PoolVolumeVar_{NVS_KEY(NvsKeys::PoolLogic::O2PoolVolumeM3), "pool_volume_m3", "poollogic/o2", ConfigType::Float,
-                                             &o2PoolVolumeM3_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<float,0> poolVolumeVar_{NVS_KEY(NvsKeys::PoolLogic::PoolVolumeM3), "pool_volume_m3", "poollogic/pool", ConfigType::Float,
+                                             &poolVolumeM3_, ConfigPersistence::Persistent, 0};
     ConfigVariable<float,0> o2DoseVar_{NVS_KEY(NvsKeys::PoolLogic::O2DoseMlPer10M3Week), "dose_ml_10m3_week", "poollogic/o2", ConfigType::Float,
                                        &o2DoseMlPer10M3Week_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint8_t,0> o2MainHourVar_{NVS_KEY(NvsKeys::PoolLogic::O2MainHour), "main_hour", "poollogic/o2", ConfigType::UInt8,
@@ -547,6 +547,7 @@ private:
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
     void normalizeDeviceSlots_();
+    void syncSensorMonitoring_();
     void logDeviceSlotConfig_() const;
     void logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const;
     void applyAutoMode_(bool requested);

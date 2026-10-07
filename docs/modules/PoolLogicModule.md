@@ -265,9 +265,12 @@ Dans `poollogic/modes`:
 - `disinfection_type`: choisir `Oxygène actif`
 - `auto_mode`: doit être actif pour que flow.io pilote le protocole
 
+Dans `poollogic/pool`:
+
+- `pool_volume_m3`: volume du bassin en m3, partagé avec le contexte IA
+
 Dans `poollogic/o2`:
 
-- `pool_volume_m3`: volume du bassin en m3
 - `dose_ml_10m3_week`: dose hebdomadaire du produit pour 10 m3
 - `main_hour`: heure principale de dosage
 - `split_count`: nombre d'injections par semaine
@@ -403,9 +406,15 @@ Persistance: `ConfigStore` + `NvsKeys::PoolLogic::*`
 - `secure_elec_t`
 - `dly_electro_min`
 
+### Caractéristiques du bassin (`poollogic/pool`)
+
+- `pool_volume_m3`: volume commun au dosage O2 et au contexte IA. La clé NVS historique `pl_o2vol` et l’identifiant Home Assistant `pl_o2_vol` sont conservés pour garder la valeur et l’entité existantes.
+- `indoor`
+- `automatic_cover`
+- `cover_closed_at_night`
+
 ### Paramètres oxygène actif (`poollogic/o2`)
 
-- `pool_volume_m3`
 - `dose_ml_10m3_week`
 - `main_hour`
 - `split_count`
@@ -451,6 +460,10 @@ Les curseurs `protocol_state`, `last_dose_day`, `weekly_done_ml` et `pending_ml`
 - `pool_lvl_io_id`
 - `ph_lvl_io_id`
 - `chl_lvl_io_id`
+
+Les entrées analogiques servent aux mesures pH, ORP, pression et températures. Les entrées numériques servent aux contacts de niveau, de débit et de disjoncteur. Chaque choix accepte `65535` (désactivé / non câblé), affiché sous ce libellé plutôt que sous sa valeur interne.
+
+La surveillance de pression suit `psi_io_id` : le drapeau historique `psi_monitoring` reste publié pour compatibilité, mais ne constitue plus un réglage indépendant. La surveillance du débit peut être suspendue avec un détecteur câblé ; elle est automatiquement coupée si `flow_switch_io_id` est désactivé. Les polarités des retours disjoncteurs ne sont affichées que si une entrée est affectée. Les changements restent en attente jusqu’à « Appliquer ».
 
 ### Sécurités (`poollogic/safety`)
 

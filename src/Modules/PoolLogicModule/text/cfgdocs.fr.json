@@ -178,12 +178,6 @@
       "help_t": "cfgdocs.poollogic.o2.pending_ml.help",
       "unit": "ml"
     },
-    "poollogic/o2/pool_volume_m3": {
-      "type": "Float",
-      "label_t": "cfgdocs.poollogic.o2.pool_volume_m3.label",
-      "help_t": "cfgdocs.poollogic.o2.pool_volume_m3.help",
-      "unit": "m3"
-    },
     "poollogic/o2/protocol_state": {
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.o2.protocol_state.label",
@@ -335,49 +329,57 @@
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.air_temp_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.air_temp_io_id.help",
-      "enum_set": "flowio_logical_input_analog"
+      "enum_set": "flowio_logical_input_analog",
+      "order": 1
     },
     "poollogic/sensors/chl_lvl_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.chl_lvl_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.chl_lvl_io_id.help",
-      "enum_set": "flowio_logical_input_digital"
+      "enum_set": "flowio_logical_input_digital",
+      "order": 7
     },
     "poollogic/sensors/dis_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.dis_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.dis_io_id.help",
-      "enum_set": "flowio_logical_input_analog"
+      "enum_set": "flowio_logical_input_analog",
+      "order": 3
     },
     "poollogic/sensors/ph_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.ph_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.ph_io_id.help",
-      "enum_set": "flowio_logical_input_analog"
+      "enum_set": "flowio_logical_input_analog",
+      "order": 2
     },
     "poollogic/sensors/ph_lvl_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.ph_lvl_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.ph_lvl_io_id.help",
-      "enum_set": "flowio_logical_input_digital"
+      "enum_set": "flowio_logical_input_digital",
+      "order": 6
     },
     "poollogic/sensors/pool_lvl_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.pool_lvl_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.pool_lvl_io_id.help",
-      "enum_set": "flowio_logical_input_digital"
+      "enum_set": "flowio_logical_input_digital",
+      "order": 5
     },
     "poollogic/sensors/psi_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.psi_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.psi_io_id.help",
-      "enum_set": "flowio_logical_input_analog"
+      "enum_set": "flowio_logical_input_analog",
+      "order": 4
     },
     "poollogic/sensors/wat_temp_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.wat_temp_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.wat_temp_io_id.help",
-      "enum_set": "flowio_logical_input_analog"
+      "enum_set": "flowio_logical_input_analog",
+      "order": 0
     },
     "poollogic/swg/dly_electro_min": {
       "type": "UInt8",
@@ -468,43 +470,76 @@
     "poollogic/sensors/filtr_fb_active_high": {
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.label",
-      "help_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.help"
+      "help_t": "cfgdocs.poollogic.sensors.filtr_fb_active_high.help",
+      "enum_set": "poollogic_contact_active_level",
+      "visible_when": {
+        "field": "filtr_fb_io_id",
+        "not_equals": 65535
+      },
+      "order": 11
     },
     "poollogic/sensors/filtr_fb_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.label",
-      "help_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.help"
+      "help_t": "cfgdocs.poollogic.sensors.filtr_fb_io_id.help",
+      "enum_set": "flowio_logical_input_digital",
+      "order": 10
     },
     "poollogic/sensors/flow_switch_enabled": {
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.label",
-      "help_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.help"
+      "help_t": "cfgdocs.poollogic.sensors.flow_switch_enabled.help",
+      "order": 9,
+      "visible_when": {
+        "field": "flow_switch_io_id",
+        "not_equals": 65535
+      }
     },
     "poollogic/sensors/flow_switch_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.flow_switch_io_id.label",
       "help_t": "cfgdocs.poollogic.sensors.flow_switch_io_id.help",
-      "enum_set": "flowio_logical_input_digital"
+      "enum_set": "flowio_logical_input_digital",
+      "order": 8
     },
     "poollogic/sensors/psi_monitoring": {
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.psi_monitoring.label",
-      "help_t": "cfgdocs.poollogic.sensors.psi_monitoring.help"
+      "help_t": "cfgdocs.poollogic.sensors.psi_monitoring.help",
+      "hidden": true
     },
     "poollogic/sensors/swg_fb_active_high": {
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.label",
-      "help_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.help"
+      "help_t": "cfgdocs.poollogic.sensors.swg_fb_active_high.help",
+      "enum_set": "poollogic_contact_active_level",
+      "visible_when": {
+        "field": "swg_fb_io_id",
+        "not_equals": 65535
+      },
+      "order": 13
     },
     "poollogic/sensors/swg_fb_io_id": {
       "type": "UInt16",
       "label_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.label",
-      "help_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.help"
+      "help_t": "cfgdocs.poollogic.sensors.swg_fb_io_id.help",
+      "enum_set": "flowio_logical_input_digital",
+      "order": 12
     },
     "poollogic/regulation/enabled": {
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.regulation.enabled.label",
       "help_t": "cfgdocs.poollogic.regulation.enabled.help"
+    },
+    "poollogic/pool/pool_volume_m3": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pool.pool_volume_m3.label",
+      "help_t": "cfgdocs.poollogic.pool.pool_volume_m3.help",
+      "unit": "m3",
+      "order": 0,
+      "minimum": 1,
+      "maximum": 200,
+      "step": 0.1
     }
   }
 }

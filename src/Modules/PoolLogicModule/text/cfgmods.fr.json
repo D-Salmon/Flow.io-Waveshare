@@ -213,6 +213,16 @@
           "value": false,
           "label_t": "pool.temperature.location.pool"
         }
+      ],
+      "poollogic_contact_active_level": [
+        {
+          "value": true,
+          "label_t": "pool.contact.active.high"
+        },
+        {
+          "value": false,
+          "label_t": "pool.contact.active.low"
+        }
       ]
     }
   }

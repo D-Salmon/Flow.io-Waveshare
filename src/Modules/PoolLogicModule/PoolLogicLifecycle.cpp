@@ -208,8 +208,8 @@ bool PoolLogicModule::getPoolCharacteristics_(PoolCharacteristics& outCharacteri
 {
     outCharacteristics = PoolCharacteristics{};
     outCharacteristics.available = true;
-    outCharacteristics.volumeValid = std::isfinite(o2PoolVolumeM3_) && o2PoolVolumeM3_ > 0.0f;
-    if (outCharacteristics.volumeValid) outCharacteristics.volumeM3 = o2PoolVolumeM3_;
+    outCharacteristics.volumeValid = std::isfinite(poolVolumeM3_) && poolVolumeM3_ > 0.0f;
+    if (outCharacteristics.volumeValid) outCharacteristics.volumeM3 = poolVolumeM3_;
     outCharacteristics.indoor = indoorPool_;
     outCharacteristics.automaticCoverPresent = automaticCoverPresent_;
     outCharacteristics.coverClosedAtNight = coverClosedAtNight_;
@@ -341,7 +341,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     robotDurationVar_.moduleName = kCfgModuleRobot;
     fillingMinOnVar_.moduleName = kCfgModuleRefill;
 
-    o2PoolVolumeVar_.moduleName = kCfgModuleO2;
+    poolVolumeVar_.moduleName = kCfgModulePool;
     o2DoseVar_.moduleName = kCfgModuleO2;
     o2MainHourVar_.moduleName = kCfgModuleO2;
     o2SplitCountVar_.moduleName = kCfgModuleO2;
@@ -396,6 +396,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(phDosePlusVar_, kCfgModuleId, kCfgBranchPh);
     cfg.registerVar(disinfectionTypeVar_, kCfgModuleId, kCfgBranchModes);
     cfg.registerVar(swgControlModeVar_, kCfgModuleId, kCfgBranchSwg);
+    cfg.registerVar(poolVolumeVar_, kCfgModuleId, kCfgBranchPool);
     cfg.registerVar(indoorPoolVar_, kCfgModuleId, kCfgBranchPool);
     cfg.registerVar(automaticCoverVar_, kCfgModuleId, kCfgBranchPool);
     cfg.registerVar(coverClosedAtNightVar_, kCfgModuleId, kCfgBranchPool);
@@ -446,7 +447,6 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(robotDurationVar_, kCfgModuleId, kCfgBranchRobot);
     cfg.registerVar(fillingMinOnVar_, kCfgModuleId, kCfgBranchRefill);
 
-    cfg.registerVar(o2PoolVolumeVar_, kCfgModuleId, kCfgBranchO2);
     cfg.registerVar(o2DoseVar_, kCfgModuleId, kCfgBranchO2);
     cfg.registerVar(o2MainHourVar_, kCfgModuleId, kCfgBranchO2);
     cfg.registerVar(o2SplitCountVar_, kCfgModuleId, kCfgBranchO2);
@@ -997,14 +997,14 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:gauge-full",
             "bar"
         };
-        const HANumberEntry o2PoolVolume{
+        const HANumberEntry poolVolume{
             "poollogic",
             "pl_o2_vol",
-            "O2 Pool Volume",
-            "cfg/poollogic/o2",
+            "Pool Volume",
+            "cfg/poollogic/pool",
             "{{ value_json.pool_volume_m3 | float(0) }}",
             MqttTopics::SuffixCfgSet,
-            "{\\\"poollogic/o2\\\":{\\\"pool_volume_m3\\\":{{ value | float(0) }}}}",
+            "{\\\"poollogic/pool\\\":{\\\"pool_volume_m3\\\":{{ value | float(0) }}}}",
             1.0f,
             200.0f,
             0.1f,
@@ -1091,7 +1091,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc->addNumber(haSvc->ctx, &orpWindowMin);
         (void)haSvc->addNumber(haSvc->ctx, &psiLowThreshold);
         (void)haSvc->addNumber(haSvc->ctx, &psiHighThreshold);
-        (void)haSvc->addNumber(haSvc->ctx, &o2PoolVolume);
+        (void)haSvc->addNumber(haSvc->ctx, &poolVolume);
         (void)haSvc->addNumber(haSvc->ctx, &o2WeeklyDose);
         (void)haSvc->addNumber(haSvc->ctx, &o2SplitCount);
         (void)haSvc->addNumber(haSvc->ctx, &o2LoadFactor);
@@ -1344,6 +1344,23 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     (void)cfgStore_;
 }
 
+void PoolLogicModule::syncSensorMonitoring_()
+{
+    // Pressure monitoring follows the probe assignment. Retain the historical
+    // flag for MQTT/API compatibility, but expose only the probe choice in the UI.
+    const bool pressureEnabled = psiIoId_ != IO_ID_INVALID;
+    if (pressureMonitoringEnabled_ != pressureEnabled) {
+        if (cfgStore_) (void)cfgStore_->set(pressureMonitoringEnabledVar_, pressureEnabled);
+        pressureMonitoringEnabled_ = pressureEnabled;
+    }
+    // A wired flow detector may be temporarily suspended, whereas an absent
+    // detector must never leave monitoring enabled.
+    if (flowSwitchIoId_ == IO_ID_INVALID && flowSwitchEnabled_) {
+        if (cfgStore_) (void)cfgStore_->set(flowSwitchEnabledVar_, false);
+        flowSwitchEnabled_ = false;
+    }
+}
+
 void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 {
     mqttSvc_ = services.get<MqttService>(ServiceId::Mqtt);
@@ -1374,9 +1391,9 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
         swgControlMode_ = SwgControlContinuous;
         if (cfgStore_) (void)cfgStore_->set(swgControlModeVar_, swgControlMode_);
     }
-    if (!std::isfinite(o2PoolVolumeM3_) || o2PoolVolumeM3_ <= 0.0f) {
-        o2PoolVolumeM3_ = 50.0f;
-        if (cfgStore_) (void)cfgStore_->set(o2PoolVolumeVar_, o2PoolVolumeM3_);
+    if (!std::isfinite(poolVolumeM3_) || poolVolumeM3_ <= 0.0f) {
+        poolVolumeM3_ = 50.0f;
+        if (cfgStore_) (void)cfgStore_->set(poolVolumeVar_, poolVolumeM3_);
     }
     if (!std::isfinite(o2DoseMlPer10M3Week_) || o2DoseMlPer10M3Week_ <= 0.0f) {
         o2DoseMlPer10M3Week_ = 500.0f;
@@ -1407,6 +1424,7 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
         if (cfgStore_) (void)cfgStore_->set(o2PendingVar_, o2PendingMl_);
     }
 
+    syncSensorMonitoring_();
     LOGI("PoolLogic pH dosing mode=%s", phDosePlus_ ? "pH+" : "pH-");
     LOGI("PoolLogic disinfection=%s swg_control=%s",
          disinfectionTypeStr_(disinfectionType_),
@@ -1582,6 +1600,7 @@ void PoolLogicModule::onEvent_(const Event& e)
         if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
             (p->localBranchId == kCfgBranchSensors || p->localBranchId == kCfgBranchSafety)) {
             sensorHoldBindingsReady_ = false;
+            if (p->localBranchId == kCfgBranchSensors) syncSensorMonitoring_();
         }
 
         if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&

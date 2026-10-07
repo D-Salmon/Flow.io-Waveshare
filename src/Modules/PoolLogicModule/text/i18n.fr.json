@@ -112,7 +112,7 @@
     "cfgdocs.poollogic.safety.psi_low_th.help": "Seuil de pression basse pour detection d'anomalie.",
     "cfgdocs.poollogic.safety.psi_low_th.label": "Seuil pression basse",
     "cfgdocs.poollogic.safety.psi_start_dly_s.help": "Temps d'attente avant vérification pression après démarrage.",
-    "cfgdocs.poollogic.safety.psi_start_dly_s.label": "Délai démarrage pression (s)",
+    "cfgdocs.poollogic.safety.psi_start_dly_s.label": "Délai avant contrôle de pression (s)",
     "cfgdocs.poollogic.safety.winter_start_t.help": "Temperature de bascule vers la logique hiver.",
     "cfgdocs.poollogic.safety.winter_start_t.label": "Seuil entrée hiver (C)",
     "cfgdocs.poollogic.sensors.air_temp_io_id.help": "Identifiant IO de la sonde température air.",
@@ -213,7 +213,7 @@
     "cfgdocs.poollogic.refill.fill_enabled.help": "Autorise le maintien automatique du niveau du bassin à partir de la sonde de niveau bas.",
     "cfgdocs.poollogic.refill.fill_enabled.label": "Maintien du niveau du bassin",
     "cfgdocs.poollogic.safety.flow_start_dly_s.help": "Temps laissé à la pompe pour établir le débit avant déclenchement de la sécurité DIN5.",
-    "cfgdocs.poollogic.safety.flow_start_dly_s.label": "Délai de contrôle du débit (s)",
+    "cfgdocs.poollogic.safety.flow_start_dly_s.label": "Délai avant contrôle du débit (s)",
     "cfgdocs.poollogic.safety.sensor_hold_wat.help": "Canalisation : la mesure est figée lorsque la filtration s'arrête. Bassin : la sonde reste immergée et la mesure continue.",
     "cfgdocs.poollogic.safety.sensor_hold_wat.label": "Sonde température d’eau",
     "cfgdocs.poollogic.sensors.filtr_fb_active_high.help": "Choisissez Normalement ouvert (NO) si le contact se ferme en marche, ou Normalement fermé (NF) s'il s'ouvre en marche.",
@@ -230,6 +230,8 @@
     "cfgdocs.poollogic.sensors.swg_fb_active_high.label": "Type de contact de la surveillance disjoncteur électrolyseur",
     "cfgdocs.poollogic.sensors.swg_fb_io_id.help": "Choisissez l'entrée numérique du contact auxiliaire, ou Désactivé / non câblé.",
     "cfgdocs.poollogic.sensors.swg_fb_io_id.label": "Surveillance disjoncteur électrolyseur",
-    "runtimeui.poollogic.alarms.flag10.label": "Débit de filtration absent"
+    "runtimeui.poollogic.alarms.flag10.label": "Débit de filtration absent",
+    "pool.temperature.location.pipe": "Tuyauterie",
+    "pool.temperature.location.pool": "Bassin"
   }
 }

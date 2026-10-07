@@ -17,11 +17,11 @@
       "gzip_bytes": 9475
     },
     "app.js": {
-      "source_sha256": "8c1767caa8555255f3c2deedee6aff605b9b1b6d688edd323f938742dd11cd99",
-      "gzip_sha256": "3990dd47ef9d0d161c348fcc4aeb5210ea45e0f12a47b5d0bcb24df9d4884540",
-      "original_bytes": 640411,
-      "minified_bytes": 475575,
-      "gzip_bytes": 112864
+      "source_sha256": "5f9ab7d43c4abb62434ded25a9a7fa48fe9e636517a9d350488a5c40a7278e5e",
+      "gzip_sha256": "b0e53c1cf284b404a6fec543baec6ce5534b8354160614b78d255177ba10b900",
+      "original_bytes": 644272,
+      "minified_bytes": 478635,
+      "gzip_bytes": 113649
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -45,10 +45,10 @@
       "gzip_bytes": 8172
     },
     "app-core.css": {
-      "source_sha256": "85944051928b4373769d092ac52439a4cef82b7d061b30ea26919ea576d041a2",
-      "gzip_sha256": "04b92cc102da72507784f8fbe1040f925e6038ca5fcfa85baa26a9af6bf0e92e",
-      "original_bytes": 165324,
-      "minified_bytes": 158477,
+      "source_sha256": "bb22ac1bc21e989c388be5699dee04fe5ff11cff829ce6374b147fac0a5f92cf",
+      "gzip_sha256": "c71c3079d9222a47be94233174eeecc654e32fa2fac25a001ddef7f6a9999e4f",
+      "original_bytes": 165361,
+      "minified_bytes": 158511,
       "gzip_bytes": 28417
     },
     "network.css": {

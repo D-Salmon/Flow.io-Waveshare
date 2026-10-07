@@ -113,7 +113,7 @@
     "cfgdocs.poollogic.safety.psi_low_th.help": "Seuil de pressure basse for detection of anomalie.",
     "cfgdocs.poollogic.safety.psi_low_th.label": "Seuil pressure basse",
     "cfgdocs.poollogic.safety.psi_start_dly_s.help": "Temps of attente avant vérification pressure après startup.",
-    "cfgdocs.poollogic.safety.psi_start_dly_s.label": "Délai startup pressure (s)",
+    "cfgdocs.poollogic.safety.psi_start_dly_s.label": "Delay before pressure check (s)",
     "cfgdocs.poollogic.safety.winter_start_t.help": "Temperature de bascule vers the logique hiver.",
     "cfgdocs.poollogic.safety.winter_start_t.label": "Seuil input hiver (C)",
     "cfgdocs.poollogic.sensors.air_temp_io_id.help": "Identifiant IO de the sonde temperature air.",
@@ -214,7 +214,7 @@
     "cfgdocs.poollogic.refill.fill_enabled.help": "Enables automatic pool level top-up from the low-level sensor.",
     "cfgdocs.poollogic.refill.fill_enabled.label": "Pool level top-up",
     "cfgdocs.poollogic.safety.flow_start_dly_s.help": "Time allowed for the pump to establish flow before the DIN5 safety trips.",
-    "cfgdocs.poollogic.safety.flow_start_dly_s.label": "Flow validation delay (s)",
+    "cfgdocs.poollogic.safety.flow_start_dly_s.label": "Delay before flow check (s)",
     "cfgdocs.poollogic.safety.sensor_hold_wat.help": "Pipework: the reading is held when filtration stops. Pool: the probe remains immersed and the reading continues.",
     "cfgdocs.poollogic.safety.sensor_hold_wat.label": "Water-temperature probe",
     "cfgdocs.poollogic.sensors.filtr_fb_active_high.help": "Choose Normally open (NO) when the contact closes while running, or Normally closed (NC) when it opens while running.",
@@ -231,6 +231,8 @@
     "cfgdocs.poollogic.sensors.swg_fb_active_high.label": "Chlorine generator feedback contact type",
     "cfgdocs.poollogic.sensors.swg_fb_io_id.help": "Choose the auxiliary-contact digital input, or Disabled / not wired.",
     "cfgdocs.poollogic.sensors.swg_fb_io_id.label": "Electrolyser circuit-breaker monitoring",
-    "runtimeui.poollogic.alarms.flag10.label": "No filtration flow"
+    "runtimeui.poollogic.alarms.flag10.label": "No filtration flow",
+    "pool.temperature.location.pipe": "Pipework",
+    "pool.temperature.location.pool": "Pool"
   }
 }

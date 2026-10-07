@@ -203,6 +203,16 @@
           "value": 1,
           "label_t": "cfgmods_meta.poollogicmodule.enum_sets.poollogic_swg_control_mode.1.label"
         }
+      ],
+      "poollogic_temperature_location": [
+        {
+          "value": true,
+          "label_t": "pool.temperature.location.pipe"
+        },
+        {
+          "value": false,
+          "label_t": "pool.temperature.location.pool"
+        }
       ]
     }
   }

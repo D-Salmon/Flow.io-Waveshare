@@ -269,43 +269,58 @@
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.robot.robot_delay_min.label",
       "help_t": "cfgdocs.poollogic.robot.robot_delay_min.help",
-      "unit": "min"
+      "unit": "min",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1
     },
     "poollogic/robot/robot_dur_min": {
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.robot.robot_dur_min.label",
       "help_t": "cfgdocs.poollogic.robot.robot_dur_min.help",
-      "unit": "min"
+      "unit": "min",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1
     },
     "poollogic/safety/freeze_hold_t": {
       "type": "Float",
       "label_t": "cfgdocs.poollogic.safety.freeze_hold_t.label",
       "help_t": "cfgdocs.poollogic.safety.freeze_hold_t.help",
-      "unit": "C"
+      "unit": "C",
+      "step": 0.5
     },
     "poollogic/safety/psi_high_th": {
       "type": "Float",
       "label_t": "cfgdocs.poollogic.safety.psi_high_th.label",
       "help_t": "cfgdocs.poollogic.safety.psi_high_th.help",
-      "unit": "bar"
+      "unit": "bar",
+      "minimum": 0,
+      "step": 0.01
     },
     "poollogic/safety/psi_low_th": {
       "type": "Float",
       "label_t": "cfgdocs.poollogic.safety.psi_low_th.label",
       "help_t": "cfgdocs.poollogic.safety.psi_low_th.help",
-      "unit": "bar"
+      "unit": "bar",
+      "minimum": 0,
+      "step": 0.01
     },
     "poollogic/safety/psi_start_dly_s": {
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.safety.psi_start_dly_s.label",
       "help_t": "cfgdocs.poollogic.safety.psi_start_dly_s.help",
-      "unit": "s"
+      "unit": "s",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1
     },
     "poollogic/safety/winter_start_t": {
       "type": "Float",
       "label_t": "cfgdocs.poollogic.safety.winter_start_t.label",
       "help_t": "cfgdocs.poollogic.safety.winter_start_t.help",
-      "unit": "C"
+      "unit": "C",
+      "step": 0.5
     },
     "poollogic/sensors/air_temp_io_id": {
       "type": "UInt16",
@@ -430,12 +445,16 @@
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.safety.flow_start_dly_s.label",
       "help_t": "cfgdocs.poollogic.safety.flow_start_dly_s.help",
-      "unit": "s"
+      "unit": "s",
+      "minimum": 0,
+      "maximum": 255,
+      "step": 1
     },
     "poollogic/safety/sensor_hold_wat": {
       "type": "Bool",
       "label_t": "cfgdocs.poollogic.safety.sensor_hold_wat.label",
-      "help_t": "cfgdocs.poollogic.safety.sensor_hold_wat.help"
+      "help_t": "cfgdocs.poollogic.safety.sensor_hold_wat.help",
+      "enum_set": "poollogic_temperature_location"
     },
     "poollogic/sensors/filtr_fb_active_high": {
       "type": "Bool",

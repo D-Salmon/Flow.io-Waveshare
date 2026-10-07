@@ -2508,6 +2508,7 @@
     let poolAiPreviewReqSeq = 0;
     let poolAiPreviewPollTimer = null;
     let poolAiReady = false;
+    const poolPressureFieldVisibility = Object.freeze({ module: 'poollogic/sensors', enabled: 'psi_monitoring', input: 'psi_io_id' });
     const poolConfigModuleDefs = Object.freeze([
       Object.freeze({ module: 'poollogic/modes', titleKey: 'pool.card.modes.title', title: 'Pilotage général', icon: 'tune', noteKey: 'pool.card.modes.note', note: 'Ces interrupteurs définissent si PoolLogic pilote la piscine et quelle stratégie de traitement est retenue.' }),
       Object.freeze({ module: 'poollogic/filtration', titleKey: 'pool.card.filtration.title', title: 'Filtration', icon: 'waves', noteKey: 'pool.card.filtration.note', note: 'La plage de filtration combine contraintes horaires et température d’eau pour protéger le bassin.' }),
@@ -2516,9 +2517,25 @@
         heater_setpoint: { type: 'number', step: 0.5, enabledBy: 'heater_auto_mode' }
       } }),
       Object.freeze({ module: 'poollogic/refill', titleKey: 'pool.card.refill.title', title: 'Remplissage', icon: 'water_drop', noteKey: 'pool.card.refill.note', note: 'Le remplissage garde une durée minimale pour éviter les cycles trop courts.' }),
-      Object.freeze({ module: 'poollogic/safety', titleKey: 'pool.card.safety.title', title: 'Protections', icon: 'health_and_safety', noteKey: 'pool.card.safety.note', note: 'Seuils de pression, hors gel et bascule hiver utilisés par les automatismes.' }),
+      Object.freeze({ module: 'poollogic/safety', titleKey: 'pool.card.safety.title', title: 'Protections', icon: 'health_and_safety', noteKey: 'pool.card.safety.note', note: 'Seuils de pression, hors gel et bascule hiver utilisés par les automatismes.',
+        fieldOrder: ['flow_start_dly_s', 'psi_start_dly_s', 'psi_high_th', 'psi_low_th', 'winter_start_t', 'sensor_hold_wat', 'freeze_hold_t'], editableFields: {
+          flow_start_dly_s: { type: 'number', visibleWhen: { module: 'poollogic/sensors', enabled: 'flow_switch_enabled', input: 'flow_switch_io_id' } },
+          psi_start_dly_s: { type: 'number', visibleWhen: poolPressureFieldVisibility },
+          psi_high_th: { type: 'number', visibleWhen: poolPressureFieldVisibility },
+          psi_low_th: { type: 'number', visibleWhen: poolPressureFieldVisibility },
+          winter_start_t: { type: 'number' },
+          sensor_hold_wat: { type: 'boolean' },
+          freeze_hold_t: { type: 'number' }
+        }
+      }),
       Object.freeze({ module: 'poollogic/regulation', titleKey: 'pool.card.regulation.title', title: 'Régulation', icon: 'speed', noteKey: 'pool.card.regulation.note', note: 'Temporisations communes aux régulateurs pH et désinfection.' }),
-      Object.freeze({ module: 'poollogic/robot', titleKey: 'pool.card.robot.title', title: 'Robot', icon: 'smart_toy', noteKey: 'pool.card.robot.note', note: 'Fenêtre de lancement et durée du nettoyage automatique.' })
+      Object.freeze({ module: 'poollogic/robot', titleKey: 'pool.card.robot.title', title: 'Robot', icon: 'smart_toy', noteKey: 'pool.card.robot.note', note: 'Fenêtre de lancement et durée du nettoyage automatique.',
+        fieldOrder: ['robot_auto_mode', 'robot_delay_min', 'robot_dur_min'], editableFields: {
+          robot_auto_mode: { type: 'boolean', module: 'poollogic/modes' },
+          robot_delay_min: { type: 'number', enabledBy: 'robot_auto_mode' },
+          robot_dur_min: { type: 'number', enabledBy: 'robot_auto_mode' }
+        }
+      })
     ]);
     const poolDisinfectionModeDefs = Object.freeze([
       Object.freeze({
@@ -9160,15 +9177,60 @@
 
     function poolConfigFields(moduleName, data, options) {
       const opts = options || {};
+      const order = opts.fieldOrder || [];
       const keys = Object.keys((data && typeof data === 'object') ? data : {})
         .filter((key) => !opts.exclude || opts.exclude.indexOf(key) < 0)
-        .sort();
+        .sort((a, b) => {
+          const ai = order.indexOf(a), bi = order.indexOf(b);
+          return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi) || a.localeCompare(b);
+        });
       const picked = Number.isFinite(Number(opts.limit)) ? keys.slice(0, Number(opts.limit)) : keys;
       return picked.map((key) => ({
         key,
-        label: poolConfigFieldLabel(moduleName, key),
-        value: poolConfigFormatValue(moduleName, key, data[key])
+        module: opts.editableFields?.[key]?.module || moduleName,
+        label: poolConfigFieldLabel(opts.editableFields?.[key]?.module || moduleName, key),
+        value: poolConfigFormatValue(opts.editableFields?.[key]?.module || moduleName, key, data[key])
       }));
+    }
+
+    function poolConfigEditorData(moduleName, data, options, modules) {
+      const result = { ...data };
+      Object.entries(options?.editableFields || {}).forEach(([key, definition]) => {
+        if (!definition.module || definition.module === moduleName) return;
+        const source = modules?.[definition.module];
+        if (source && key in source) result[key] = source[key];
+        else delete result[key];
+      });
+      return result;
+    }
+
+    function poolConfigFieldVisible(definition, modules) {
+      const condition = definition.visibleWhen;
+      if (!condition) return true;
+      const source = modules?.[condition.module];
+      const id = Number(source?.[condition.input]);
+      return !!source && toBool(source[condition.enabled]) &&
+        Number.isInteger(id) && id >= 0 && id < 65535;
+    }
+
+    function poolConfigUpdateAssignmentControls(modules) {
+      if (!poolConfigGrid) return;
+      poolConfigGrid.querySelectorAll('.pool-assignment-form select[data-config-module]').forEach(input => {
+        if (document.activeElement === input || input.value !== input.dataset.initialValue) return;
+        const data = modules?.[input.dataset.configModule];
+        if (!data || !(input.dataset.configKey in data)) return;
+        input.value = toBool(data[input.dataset.configKey]) ? '1' : '0';
+        input.dataset.initialValue = input.value;
+      });
+    }
+
+    function poolConfigUpdateEditorLists(modules) {
+      if (!poolConfigGrid) return;
+      poolConfigGrid.querySelectorAll('.pool-field-editor-list[data-module]').forEach(list => {
+        const moduleName = list.dataset.module;
+        poolConfigUpdateFieldEditors(list, poolConfigEditorData(moduleName, modules[moduleName] || {}, list.poolFieldOptions, modules), modules);
+      });
+      poolConfigUpdateAssignmentControls(modules);
     }
 
     async function poolConfigApplyPatch(patch) {
@@ -9187,16 +9249,18 @@
             renderFlowCfgFieldsWithExtensions(flowCfgCurrentData);
           }
         });
+        poolConfigUpdateEditorLists(poolConfigModulesCache);
         flowCfgChildrenCache = {};
         invalidatePoolDashboardSlots();
       } finally { ++poolConfigEditRevision; }
     }
 
-    function poolConfigUpdateFieldEditors(list, data) {
+    function poolConfigUpdateFieldEditors(list, data, modules) {
       if (list.dataset.saving === '1') return;
       list.poolFieldData = data;
-      (list.poolFieldEditors || []).forEach(({ key, definition, input, syncApplyState }) => {
-        input.disabled = !isAdminSession() || !(key in data) ||
+      (list.poolFieldEditors || []).forEach(({ key, definition, row, input, syncApplyState }) => {
+        row.hidden = !poolConfigFieldVisible(definition, modules || poolConfigModulesCache);
+        input.disabled = row.hidden || !isAdminSession() || !(key in data) ||
           (!!definition.enabledBy && !toBool(data[definition.enabledBy]));
         if (document.activeElement !== input) {
           input.value = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
@@ -9209,8 +9273,11 @@
       const list = document.createElement('div');
       list.className = options && options.editableFields ? 'pool-field-editor-list' : 'pool-field-list';
       list.dataset.module = moduleName;
+      list.poolFieldOptions = options;
       list.poolFieldEditors = [];
       const editableFields = (options && options.editableFields) || {};
+      const modules = options?.modules || poolConfigModulesCache;
+      data = poolConfigEditorData(moduleName, data, options, modules);
       const status = document.createElement('p');
       status.className = 'pool-field-save-status';
       status.setAttribute('role', 'status');
@@ -9221,7 +9288,7 @@
         const definition = editableFields[field.key];
         if (definition) {
           row.className = 'control-row';
-          const doc = poolConfigDoc(moduleName, field.key);
+          const doc = poolConfigDoc(field.module, field.key);
           const labelView = buildConfigFieldLabel(doc, field.label);
           const valueWrap = document.createElement('div');
           valueWrap.className = 'control-value-wrap';
@@ -9229,16 +9296,19 @@
           input.className = 'control-input';
           input.setAttribute('aria-label', field.label);
           input.dataset.key = field.key;
+          input.dataset.module = field.module;
           if (definition.type === 'boolean') {
-            [[true, tr('pool.state.active', 'Actif')], [false, tr('pool.state.inactive', 'Inactif')]].forEach(([value, text]) => {
+            const choices = doc?._enumOptions?.map(option => [option.value, option.label]) ||
+              [[true, tr('pool.state.active', 'Actif')], [false, tr('pool.state.inactive', 'Inactif')]];
+            choices.forEach(([value, text]) => {
               const option = document.createElement('option');
               option.value = String(value); option.textContent = text;
               input.appendChild(option);
             });
           } else {
-            input.type = 'number'; input.required = true; input.step = String(definition.step || 'any');
-            for (const constraint of ['min', 'max']) {
-              if (doc && doc[constraint] != null) input[constraint] = String(doc[constraint]);
+            input.type = 'number'; input.required = true; input.step = String(definition.step || doc?.step || 'any');
+            for (const [attribute, constraint] of [['min', 'minimum'], ['max', 'maximum']]) {
+              if (doc && doc[constraint] != null) input[attribute] = String(doc[constraint]);
             }
           }
           const applyBtn = buildConfigFieldApplyButton();
@@ -9254,7 +9324,7 @@
               : (!valid ? 'Corrigez ce champ avant application' : (dirty ? 'Appliquer ce changement' : 'Aucun changement à appliquer'));
             applyBtn.setAttribute('aria-label', applyBtn.title);
           };
-          list.poolFieldEditors.push({ key: field.key, definition, input, syncApplyState });
+          list.poolFieldEditors.push({ key: field.key, definition, row, input, syncApplyState });
           const saveField = async () => {
             if (input.disabled || list.dataset.saving === '1' || !isAdminSession()) return;
             if (!input.reportValidity()) return;
@@ -9267,8 +9337,8 @@
             status.hidden = false;
             status.textContent = tr('cfg.apply.busy', 'Application de la configuration en cours...');
             try {
-              await poolConfigApplyPatch({ [moduleName]: { [field.key]: value } });
-              Object.assign(currentData, poolConfigModulesCache[moduleName]);
+              await poolConfigApplyPatch({ [field.module]: { [field.key]: value } });
+              Object.assign(currentData, poolConfigEditorData(moduleName, poolConfigModulesCache[moduleName], options, poolConfigModulesCache));
               status.textContent = tr('pool.settings.saved', 'Enregistré.');
             } catch (error) {
               status.textContent = error.message || String(error);
@@ -9309,7 +9379,7 @@
         row.appendChild(value);
         list.appendChild(row);
       });
-      poolConfigUpdateFieldEditors(list, data);
+      poolConfigUpdateFieldEditors(list, data, modules);
       if (list.poolFieldEditors.length) list.appendChild(status);
       if (!list.childNodes.length) {
         const empty = document.createElement('div');
@@ -9420,29 +9490,24 @@
       if (forceRefresh) invalidatePoolDashboardSlots();
       const editRevision = poolConfigEditRevision;
 
-      const results = await Promise.allSettled([
-        poolConfigFetchModule('poollogic/modes'),
-        poolConfigFetchModule('poollogic/heater'),
-        fetchPoolAlarmSlots()
-      ]);
-      const modesResult = results[0];
-      const heaterResult = results[1];
-      const alarmsResult = results[2];
-
-      if (modesResult.status === 'fulfilled') {
-        const payload = modesResult.value;
-        poolConfigModulesCache = Object.assign({}, poolConfigModulesCache || {}, {
-          [payload.module]: payload.data
+      const moduleNames = new Set(['poollogic/modes']);
+      poolConfigModuleDefs.filter(def => def.editableFields).forEach(def => {
+        moduleNames.add(def.module);
+        Object.values(def.editableFields).forEach(field => {
+          if (field.module) moduleNames.add(field.module);
+          if (field.visibleWhen) moduleNames.add(field.visibleWhen.module);
         });
-      }
-
-      if (heaterResult.status === 'fulfilled' && editRevision === poolConfigEditRevision) {
-        const payload = heaterResult.value;
-        const list = poolConfigGrid && poolConfigGrid.querySelector('.pool-field-editor-list[data-module="poollogic/heater"]');
-        if (!list || list.dataset.saving !== '1') {
-          poolConfigModulesCache = Object.assign({}, poolConfigModulesCache || {}, { [payload.module]: payload.data });
-          if (list) poolConfigUpdateFieldEditors(list, payload.data);
-        }
+      });
+      const results = await Promise.allSettled([...Array.from(moduleNames, poolConfigFetchModule), fetchPoolAlarmSlots()]);
+      const alarmsResult = results.pop();
+      if (editRevision === poolConfigEditRevision) {
+        poolConfigModulesCache = poolConfigModulesCache || {};
+        results.forEach(result => {
+          if (result.status !== 'fulfilled') return;
+          const payload = result.value;
+          poolConfigModulesCache[payload.module] = payload.data;
+        });
+        poolConfigUpdateEditorLists(poolConfigModulesCache);
       }
 
       if (poolConfigModulesCache && alarmsResult.status === 'fulfilled') {
@@ -9682,9 +9747,7 @@
           button.disabled = true;
           try {
             const patch = patchBuilder();
-            const result = await fetchJsonResponse('/api/flowcfg/apply',
-              createFormPostOptions({ patch: JSON.stringify(patch) }), fetchWithBusyRetry);
-            if (!result.res.ok || !result.data || !result.data.ok) throw new Error(formatFlowCfgApplyError(result.data));
+            await poolConfigApplyPatch(patch);
             status.textContent = 'Enregistré. Redémarrez pour appliquer les changements de raccordement.';
             Object.entries(patch).forEach(([module, data]) => Object.assign(modules[module] || (modules[module] = {}), data));
             form.querySelectorAll('select').forEach(select => { select.dataset.initialValue = select.value; });
@@ -9727,6 +9790,8 @@
         return { ...spec, control: addSelect(form, spec.label, temperatureOptions(spec.gpio), initial) };
       });
       const location = addSelect(form, 'Emplacement de la sonde de température eau', [[1, 'Tuyauterie — gel hors circulation'], [0, 'Bassin — mesure continue, sans gel']], toBool(safety.sensor_hold_wat) ? 1 : 0);
+      location.dataset.configModule = 'poollogic/safety';
+      location.dataset.configKey = 'sensor_hold_wat';
       const flow = addSelect(form, 'Surveillance de débit', digitalOptions, toBool(sensors.flow_switch_enabled) ? sensors.flow_switch_io_id : disabled);
       const levels = ['pool_lvl_io_id', 'ph_lvl_io_id', 'chl_lvl_io_id'].map((key, i) => ({ key,
         control: addSelect(form, ['Niveau du bassin', 'Niveau produit pH', 'Niveau désinfectant'][i], digitalOptions, sensors[key]) }));
@@ -9851,7 +9916,7 @@
         head.appendChild(icon);
         head.appendChild(copy);
         card.appendChild(head);
-        card.appendChild(poolConfigBuildFieldList(def.module, data, { editableFields: def.editableFields }));
+        card.appendChild(poolConfigBuildFieldList(def.module, data, { ...def, modules }));
         poolConfigGrid.appendChild(card);
       });
     }

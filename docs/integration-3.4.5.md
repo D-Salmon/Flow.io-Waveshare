@@ -28,6 +28,8 @@ La résolution détecte les conflits de configuration. Un acquittement I²C seul
 
 La carte Équipements affiche l'état réel du chauffage. La carte Chauffage conserve sa présentation et permet de choisir Actif/Inactif ; sa consigne devient modifiable par pas de 0,5 °C lorsque la régulation est active. Chaque changement est immédiatement enregistré dans les variables persistantes `poollogic/heater/heater_auto_mode` et `heater_setpoint`, également utilisées par Configuration et Home Assistant. Aucun redémarrage n'est nécessaire.
 
+Les réglages du chauffage reprennent les lignes de l'électrolyse : libellé et description à gauche, liste de choix ou champ numérique à droite, puis coche de validation. Les composants et styles communs à Configuration sont réutilisés, en modes clair et sombre. La coche indique également un enregistrement en cours ; l'enregistrement automatique et le verrouillage de la consigne inactive sont conservés.
+
 Passer à Inactif retire la demande guidée précédente du chauffage et désactive les cycles de filtration nécessaires aux prises de température pour la régulation. La filtration conserve ses autres règles, notamment sa plage horaire et la protection contre le gel. Le rafraîchissement du tableau de bord reprend les changements de configuration sans interrompre une saisie en cours ni remplacer un réglage récent par une ancienne lecture.
 
 Les tests du chauffage exécutent la sérialisation du véritable état du relais dans le module, les réponses HTTP et les comparaisons utilisées par les notifications, l'arrêt de la demande guidée lors d'un changement de régulation, ainsi que les commandes web, la validation, les droits d'accès, les échecs d'enregistrement et les lectures concurrentes.

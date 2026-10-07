@@ -15,6 +15,7 @@ function extract(name) {
 const functions = ['poolConfigDoc', 'poolConfigFieldLabel', 'poolConfigEnumLabel',
   'poolConfigFormatValue', 'poolConfigFormatNumber', 'poolConfigFormatDurationMs',
   'poolConfigFormatHour', 'poolConfigBoolLabel', 'poolConfigFields',
+  'buildConfigFieldLabel', 'buildConfigFieldApplyButton',
   'poolConfigApplyPatch', 'poolConfigUpdateFieldEditors', 'poolConfigBuildFieldList',
   'refreshPoolOverview'].map(extract).join('\n');
 const definitions = app.slice(app.indexOf('    const poolConfigModuleDefs ='),
@@ -42,12 +43,13 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
       window.flowCfgChildrenCache = {};
       window.patches = []; window.admin = true; window.fail = false;
       window.webUiLocale = 'fr';
+      window.fieldApplyCheckIcon = '✓';
       window.isAdminSession = () => admin;
       window.toBool = value => value === true || value === 1 || value === 'true';
       window.tr = (key, fallback) => translations[key] || fallback;
       window.configDocFor = (module, key) => {
         const doc = docs[module + '/' + key];
-        return doc ? { ...doc, label: translations[doc.label_t] } : null;
+        return doc ? { ...doc, label: translations[doc.label_t], help: translations[doc.help_t] } : null;
       };
       window.renderFlowCfgFieldsWithExtensions = data => { window.configuration = { ...data }; };
       window.invalidatePoolDashboardSlots = () => {};

@@ -9195,18 +9195,19 @@
     function poolConfigUpdateFieldEditors(list, data) {
       if (list.dataset.saving === '1') return;
       list.poolFieldData = data;
-      (list.poolFieldEditors || []).forEach(({ key, definition, input }) => {
+      (list.poolFieldEditors || []).forEach(({ key, definition, input, syncApplyState }) => {
         input.disabled = !isAdminSession() || !(key in data) ||
           (!!definition.enabledBy && !toBool(data[definition.enabledBy]));
         if (document.activeElement !== input) {
           input.value = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
         }
+        syncApplyState();
       });
     }
 
     function poolConfigBuildFieldList(moduleName, data, options) {
       const list = document.createElement('div');
-      list.className = 'pool-field-list';
+      list.className = options && options.editableFields ? 'pool-field-editor-list' : 'pool-field-list';
       list.dataset.module = moduleName;
       list.poolFieldEditors = [];
       const editableFields = (options && options.editableFields) || {};
@@ -9217,13 +9218,15 @@
       poolConfigFields(moduleName, data, options).forEach((field) => {
         const row = document.createElement('div');
         row.className = 'pool-field-row';
-        const label = document.createElement('span');
-        label.className = 'pool-field-label';
-        label.textContent = field.label;
         const definition = editableFields[field.key];
         if (definition) {
+          row.className = 'control-row';
+          const doc = poolConfigDoc(moduleName, field.key);
+          const labelView = buildConfigFieldLabel(doc, field.label);
+          const valueWrap = document.createElement('div');
+          valueWrap.className = 'control-value-wrap';
           const input = document.createElement(definition.type === 'boolean' ? 'select' : 'input');
-          input.className = 'pool-field-control control-input';
+          input.className = 'control-input';
           input.setAttribute('aria-label', field.label);
           input.dataset.key = field.key;
           if (definition.type === 'boolean') {
@@ -9234,20 +9237,33 @@
             });
           } else {
             input.type = 'number'; input.required = true; input.step = String(definition.step || 'any');
-            const doc = poolConfigDoc(moduleName, field.key);
             for (const constraint of ['min', 'max']) {
               if (doc && doc[constraint] != null) input[constraint] = String(doc[constraint]);
             }
           }
-          list.poolFieldEditors.push({ key: field.key, definition, input });
-          input.addEventListener('change', async () => {
+          const applyBtn = buildConfigFieldApplyButton();
+          const syncApplyState = () => {
+            const pending = list.dataset.saving === '1';
+            const dirty = input.value !== String(list.poolFieldData?.[field.key] ?? '');
+            const valid = input.checkValidity();
+            applyBtn.disabled = input.disabled || pending || !dirty || !valid;
+            applyBtn.classList.toggle('is-dirty', dirty && valid && !input.disabled);
+            applyBtn.classList.toggle('is-pending', pending && list.dataset.savingKey === field.key);
+            row.classList.toggle('is-dirty', dirty && !input.disabled);
+            applyBtn.title = pending ? tr('cfg.apply.busy', 'Application de la configuration en cours...')
+              : (!valid ? 'Corrigez ce champ avant application' : (dirty ? 'Appliquer ce changement' : 'Aucun changement à appliquer'));
+            applyBtn.setAttribute('aria-label', applyBtn.title);
+          };
+          list.poolFieldEditors.push({ key: field.key, definition, input, syncApplyState });
+          const saveField = async () => {
             if (input.disabled || list.dataset.saving === '1' || !isAdminSession()) return;
             if (!input.reportValidity()) return;
             const value = definition.type === 'boolean' ? input.value === 'true' : Number(input.value);
             if (definition.type === 'number' && !Number.isFinite(value)) return;
             list.dataset.saving = '1';
+            list.dataset.savingKey = field.key;
             const currentData = list.poolFieldData;
-            list.poolFieldEditors.forEach(editor => { editor.input.disabled = true; });
+            list.poolFieldEditors.forEach(editor => { editor.input.disabled = true; editor.syncApplyState(); });
             status.hidden = false;
             status.textContent = tr('cfg.apply.busy', 'Application de la configuration en cours...');
             try {
@@ -9259,14 +9275,22 @@
               input.value = definition.type === 'boolean' ? String(toBool(currentData[field.key])) : String(currentData[field.key]);
             } finally {
               delete list.dataset.saving;
+              delete list.dataset.savingKey;
               poolConfigUpdateFieldEditors(list, currentData);
             }
             refreshPoolMeasures(false);
-          });
-          row.append(label, input);
+          };
+          input.addEventListener('input', syncApplyState);
+          input.addEventListener('change', saveField);
+          applyBtn.addEventListener('click', saveField);
+          valueWrap.append(input, applyBtn);
+          row.append(labelView.element, valueWrap);
           list.appendChild(row);
           return;
         }
+        const label = document.createElement('span');
+        label.className = 'pool-field-label';
+        label.textContent = field.label;
         const value = document.createElement('b');
         const activeText = tr('pool.state.active', 'Actif').trim().toLowerCase();
         const cleanValue = String(field.value || '').trim().toLowerCase();
@@ -9414,7 +9438,7 @@
 
       if (heaterResult.status === 'fulfilled' && editRevision === poolConfigEditRevision) {
         const payload = heaterResult.value;
-        const list = poolConfigGrid && poolConfigGrid.querySelector('.pool-field-list[data-module="poollogic/heater"]');
+        const list = poolConfigGrid && poolConfigGrid.querySelector('.pool-field-editor-list[data-module="poollogic/heater"]');
         if (!list || list.dataset.saving !== '1') {
           poolConfigModulesCache = Object.assign({}, poolConfigModulesCache || {}, { [payload.module]: payload.data });
           if (list) poolConfigUpdateFieldEditors(list, payload.data);
@@ -12596,6 +12620,33 @@
       return { element: root, input: stored };
     }
 
+    function buildConfigFieldLabel(doc, fallback) {
+      const element = document.createElement('div');
+      element.className = 'control-label-wrap';
+      const label = document.createElement('span');
+      label.className = 'control-label';
+      label.textContent = doc && typeof doc.label === 'string' && doc.label.length > 0 ? doc.label : fallback;
+      element.appendChild(label);
+      if (doc && typeof doc.help === 'string' && doc.help.length > 0) {
+        const help = document.createElement('span');
+        help.className = 'control-help';
+        help.textContent = doc.help;
+        element.appendChild(help);
+      }
+      return { element, label };
+    }
+
+    function buildConfigFieldApplyButton() {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'control-field-apply';
+      button.innerHTML = fieldApplyCheckIcon;
+      button.disabled = true;
+      button.title = 'Aucun changement à appliquer';
+      button.setAttribute('aria-label', button.title);
+      return button;
+    }
+
     function renderConfigFields(containerEl, moduleName, dataObj, options) {
       const opts = options || {};
       const appendMode = !!opts.append;
@@ -12652,20 +12703,7 @@
         row.className = 'control-row';
 
         const doc = configDocFor(moduleName, key, []);
-        const labelWrap = document.createElement('div');
-        labelWrap.className = 'control-label-wrap';
-        const label = document.createElement('span');
-        label.className = 'control-label';
-        label.textContent = (doc && typeof doc.label === 'string' && doc.label.length > 0) ? doc.label : key;
-        labelWrap.appendChild(label);
-
-        const helpTxt = (doc && typeof doc.help === 'string') ? doc.help : '';
-        if (helpTxt.length > 0) {
-          const help = document.createElement('span');
-          help.className = 'control-help';
-          help.textContent = helpTxt;
-          labelWrap.appendChild(help);
-        }
+        const { element: labelWrap, label } = buildConfigFieldLabel(doc, key);
         row.appendChild(labelWrap);
 
         const enumOptions = configEnumOptionsForField(moduleName, key, doc);
@@ -12810,13 +12848,7 @@
         }
 
         if (perFieldApply && inputEl) {
-          const applyBtn = document.createElement('button');
-          applyBtn.type = 'button';
-          applyBtn.className = 'control-field-apply';
-          applyBtn.innerHTML = fieldApplyCheckIcon;
-          applyBtn.disabled = true;
-          applyBtn.title = 'Aucun changement a appliquer';
-          applyBtn.setAttribute('aria-label', applyBtn.title);
+          const applyBtn = buildConfigFieldApplyButton();
           applyBtn.addEventListener('click', async () => {
             if (onApplyField) {
               await onApplyField(inputEl, applyBtn);

@@ -974,6 +974,8 @@ body.web-icons-disabled .control-field-apply{font-size:16.8px;font-weight:800;le
 .pool-field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(86px,auto);gap:12px;align-items:center;min-height:40px;padding:0 12px;border-top:1px solid #E6EDF4;background:#FFFFFF;}
 .pool-field-row:first-child{border-top:0;}
 .pool-field-editor-list{display:grid;align-content:start;gap:0;min-width:0;}
+.pool-field-editor-list .control-label-wrap{flex:1 1 0;}
+.pool-field-editor-list .control-value-wrap{flex-shrink:0;}
 .pool-field-save-status{margin:0;padding:8px 12px;border-top:1px solid var(--border);color:var(--text-muted);font-size:14px;}
 .pool-field-row:nth-child(even){background:#FBFDFF;}
 .pool-field-label{min-width:0;color:#60758B;font-size:14.6px;font-weight:700;line-height:1.25;}

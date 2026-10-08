@@ -2,7 +2,7 @@
 
 Cette branche contient le fork adapté de la base expérimentale 2.0.1 avec les fonctions de notre version de référence 3.4.3 : sécurité Web et OTA, sondes directes ou Qwiic, politiques de filtration et de désinfection, réseau Ethernet/Wi-Fi/MQTT, affectation des relais, étalonnages et interface française.
 
-La version **3.5.0** poursuit la branche 3.4.5 et améliore le chargement Web : cache des fichiers statiques, lectures groupées des réglages et des noms de sorties, démarrage parallèle et chargement à la demande de l’historique et du sélecteur Wi-Fi. Le [compte rendu d’intégration et de validation](docs/integration-3.5.0.md) précise les changements et les mesures. Les étapes précédentes restent documentées dans le [compte rendu 3.4.3](docs/integration-3.4.3.md).
+La version **3.5.0** poursuit la branche 3.4.5 et améliore le chargement Web : cache des fichiers statiques, lectures groupées des réglages et des noms de sorties, démarrage parallèle et chargement à la demande de l’historique, de l’étalonnage et du sélecteur Wi-Fi. Les vérifications de langue ne reconstruisent plus les formulaires lorsque la langue est inchangée. Le [compte rendu d’intégration et de validation](docs/integration-3.5.0.md) précise les changements et les mesures. Les étapes précédentes restent documentées dans le [compte rendu 3.4.3](docs/integration-3.4.3.md).
 
 Pour construire : installer les dépendances Web avec `pnpm install --frozen-lockfile`, exécuter `pnpm web:minify` puis `pnpm web:check`, et lancer `platformio run`. Les images firmware/SPIFFS et le paquet de mise à jour sont produits dans `binary/`, exclu de Git.
 

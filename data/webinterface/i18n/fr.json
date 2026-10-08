@@ -400,6 +400,7 @@
     "calibration.compute": "Calculer C0/C1",
     "calibration.applyFlow": "Appliquer sur flow.io",
     "calibration.ready": "Étalonnage prêt.",
+    "calibration.pageLoadFailed": "Chargement de l’assistant impossible. Rouvrez la page pour réessayer.",
     "calibration.chip.loading": "Chargement",
     "calibration.chip.error": "Erreur",
     "calibration.chip.ok": "OK",

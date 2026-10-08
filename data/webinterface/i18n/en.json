@@ -400,6 +400,7 @@
     "calibration.compute": "Compute C0/C1",
     "calibration.applyFlow": "Apply to flow.io",
     "calibration.ready": "Calibration ready.",
+    "calibration.pageLoadFailed": "Unable to load the assistant. Reopen this page to retry.",
     "calibration.chip.loading": "Loading",
     "calibration.chip.error": "Error",
     "calibration.chip.ok": "OK",

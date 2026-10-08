@@ -8,7 +8,8 @@ const root = path.resolve(__dirname, '../../data');
   const browser = await chromium.launch({headless: true, executablePath: process.env.FLOWIO_TEST_BROWSER});
   try {
     const page = await browser.newPage();
-    const errors = [], writes = [];
+    const errors = [], writes = [], calibrationWrites = [];
+    const coefficients = {a01_c0:1.25,a01_c1:0.5};
     let mqttConnected = false;
     const wifi = {ok:true, enabled:true, ssid:'Test network', password_configured:true,
       runtime:{connected:true, ip:'192.168.31.6'},
@@ -33,7 +34,12 @@ const root = path.resolve(__dirname, '../../data');
         if (url.pathname === '/api/flowcfg/module') {
           const name=url.searchParams.get('name');
           if (name==='poollogic/sensors') data={ok:true,data:{ph_io_id:101}};
-          else if (name.startsWith('io/input/')) data={ok:true,data:{a01_c0:1.25,a01_c1:0.5}};
+          else if (name.startsWith('io/input/')) data={ok:true,data:coefficients};
+        }
+        if (url.pathname === '/api/flowcfg/apply') {
+          const patch = JSON.parse(new URLSearchParams(route.request().postData()).get('patch'));
+          calibrationWrites.push(patch);
+          Object.assign(coefficients, patch['io/input/a01']);
         }
         if (url.pathname === '/api/runtime/values') data={ok:true,values:[]};
         if (url.pathname === '/api/wifi/scan') data = {ok:true,state:'done',networks:[{ssid:'Test network',rssi:-50}],count:1};
@@ -90,13 +96,35 @@ const root = path.resolve(__dirname, '../../data');
     assert.equal(await page.locator('#calibrationC0Current').innerText(),'1,25');
     assert.equal(await page.locator('#calibrationC1Current').innerText(),'0,5');
     assert(!await page.locator('#calibrationStatus').evaluate(n=>n.classList.contains('is-error')));
+    await page.locator('#calibrationSingleMeasured').fill('7');
+    await page.locator('#calibrationSingleReference').fill('7.4');
+    await page.locator('#calibrationComputeBtn').click();
+    assert.equal(calibrationWrites.length,0, 'Computing a calibration does not save coefficients');
+    await page.locator('#calibrationApplyBtn').click();
+    await page.waitForFunction(()=>document.querySelector('#calibrationStatus').textContent.includes('appliqué avec succès'));
+    assert.deepEqual(calibrationWrites,[{'io/input/a01':{a01_c0:1.25,a01_c1:0.9}}]);
+    assert.equal(await page.locator('#calibrationC1Current').innerText(),'0,9');
     await page.locator('#calibrationSensorSelect').selectOption('ph');
     assert.equal(await page.locator('#calibrationOnePointFields').isVisible(),false);
     assert.equal(await page.locator('#calibrationTwoPointFields').isVisible(),true);
     assert.equal(await page.locator('#page-calibration .calibration-fields-shell input:visible').count(),4);
+    await page.locator('#calibrationLoadBtn').click();
+    await page.waitForFunction(()=>document.querySelector('#calibrationStatus').textContent.includes('Configuration chargée'));
+    await page.locator('#calibrationPoint1Measured').fill('7');
+    await page.locator('#calibrationPoint1Reference').fill('7.2');
+    await page.locator('#calibrationPoint2Measured').fill('4');
+    await page.locator('#calibrationPoint2Reference').fill('4.2');
+    await page.locator('#calibrationComputeBtn').click();
+    await page.locator('#calibrationApplyBtn').click();
+    await page.waitForFunction(()=>document.querySelector('#calibrationStatus').textContent.includes('appliqué avec succès'));
+    assert.deepEqual(calibrationWrites[1],{'io/input/a01':{a01_c0:1.25,a01_c1:1.1}});
+    await page.locator('#calibrationPoint2Measured').fill('7');
+    await page.locator('#calibrationComputeBtn').click();
+    assert.equal(await page.locator('#calibrationApplyBtn').isDisabled(),true);
+    assert.equal(calibrationWrites.length,2, 'An invalid pair cannot be saved');
     await page.locator('#calibrationSensorSelect').selectOption('water_temp');
     assert.equal(await page.locator('#page-calibration .calibration-fields-shell input:visible').count(),2);
     assert.deepEqual(errors,[]);
-    console.log('Full UI: reference network page, live IP, secret retention, scoped Ethernet save/cancel, one/two-point calibration visibility passed');
+    console.log('Full UI: network state, secret retention, scoped save/cancel, one/two-point calibration, explicit coefficient save and invalid-pair rejection passed');
   } finally {await browser.close();}
 })().catch(error => {console.error(error);process.exitCode=1;});

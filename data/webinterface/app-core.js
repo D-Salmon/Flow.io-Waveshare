@@ -307,7 +307,8 @@
   async function loadPageModule(name) {
     var assets = {
       network: { script: '/webinterface/network.js', style: '/webinterface/network.css' },
-      history: { script: '/webinterface/history.js' }
+      history: { script: '/webinterface/history.js' },
+      calibration: { script: '/webinterface/calibration.js' }
     };
     var page = assets[name];
     if (!page) throw new Error('unknown_page_module');

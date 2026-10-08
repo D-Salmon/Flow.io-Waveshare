@@ -72,6 +72,7 @@
     "pool.error.readFailed": "Lecture de la configuration impossible.",
     "pool.error.moduleRead": "lecture {module} impossible",
     "pool.error.incompleteConfig": "Réponse de configuration incomplète.",
+    "network.loadError": "Chargement des réglages réseau impossible. Rouvrez la page pour réessayer.",
     "pool.assignments.title": "Affectation des sondes et relais",
     "pool.assignments.loading": "Chargement des affectations…",
     "pool.assignments.error": "Chargement des affectations impossible : ",

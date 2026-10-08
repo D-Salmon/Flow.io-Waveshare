@@ -286,7 +286,7 @@
       syncMenuIconFallbacks();
       renderInfoPanel();
       refreshPoolMeasuresView();
-      refreshCfgDocLocaleRuntime(true).catch(() => {});
+      refreshCfgDocLocaleRuntime(false).catch(() => {});
 
       ensureWebUiLocaleBundle(normalized, false).then((loaded) => {
         if (!loaded || webUiLocale !== normalized) return;
@@ -301,7 +301,7 @@
         if (getActivePageId() === 'page-dashboard' && poolConfigLoadedOnce) {
           loadPoolConfig(true).catch(() => {});
         }
-        refreshCfgDocLocaleRuntime(true).catch(() => {});
+        refreshCfgDocLocaleRuntime(false).catch(() => {});
       }).catch(() => {});
     }
 
@@ -1874,144 +1874,24 @@
       }
     }
 
-    // History is fetched only on entry or explicit refresh, never polled.
-    const historyView = { days: [], selected: 0, controller: null, sequence: 0 };
-    const historyText = (key, fallback) => tr('history.' + key, fallback);
-    function historyNumber(value, unit = '', digits = 1) {
-      return value === null || value === undefined || !Number.isFinite(Number(value))
-        ? '—' : new Intl.NumberFormat(currentWebLocaleTag(), { maximumFractionDigits: digits }).format(Number(value)) + (unit ? ' ' + unit : '');
-    }
-    function historyDate(value) {
-      const raw = String(value || '');
-      if (raw.length !== 8) return '—';
-      return new Intl.DateTimeFormat(currentWebLocaleTag(), { day: 'numeric', month: 'short' })
-        .format(new Date(Number(raw.slice(0, 4)), Number(raw.slice(4, 6)) - 1, Number(raw.slice(6))));
-    }
-    function historyCell(row, value, header = false) {
-      const cell = document.createElement(header ? 'th' : 'td');
-      cell.textContent = value;
-      if (header) cell.scope = 'col';
-      row.appendChild(cell); return cell;
-    }
-    function historyTable(target, headings, rows) {
-      target.replaceChildren();
-      const table = document.createElement('table'); table.className = 'history-table';
-      const head = table.createTHead().insertRow(); headings.forEach(value => historyCell(head, value, true));
-      const body = table.createTBody();
-      rows.forEach(values => { const row = body.insertRow(); values.forEach(value => historyCell(row, value)); });
-      target.appendChild(table); return body;
-    }
-    function renderHistoryDay() {
-      const day = historyView.days[historyView.selected];
-      const detail = document.getElementById('historyDayDetail');
-      detail.hidden = !day || !day.valid;
-      if (detail.hidden) return;
-      document.getElementById('historyDayTitle').textContent = historyDate(day.date) + ' · ' +
-        (day.complete ? historyText('closed', 'Journée clôturée') : historyText('current', 'Journée en cours'));
-      const names = [historyText('water', 'Eau'), historyText('air', 'Air'), 'pH', 'ORP',
-        historyText('dayWater', 'Eau · journée'), historyText('nightWater', 'Eau · nuit'),
-        historyText('phTarget', 'Consigne pH'), historyText('orpTarget', 'Consigne ORP'), historyText('heatTarget', 'Consigne chauffage')];
-      const units = ['°C', '°C', '', 'mV', '°C', '°C', '', 'mV', '°C'];
-      historyTable(document.getElementById('historyMetrics'), [historyText('measure', 'Mesure'),
-        historyText('average', 'Moyenne'), 'Min', 'Max', historyText('first', 'Première'), historyText('last', 'Dernière'),
-        historyText('samples', 'Échantillons')], names.map((name, index) => {
-          const metric = (day.metrics || [])[index] || {};
-          return [name, ...['average', 'min', 'max', 'first', 'last'].map(key => historyNumber(metric[key], units[index], 2)), historyNumber(metric.samples, '', 0)];
-        }));
-      const periods = [historyText('night', 'Nuit'), historyText('morning', 'Matin'), historyText('afternoon', 'Après-midi'), historyText('evening', 'Soir')];
-      historyTable(document.getElementById('historyPeriods'), [historyText('period', 'Période'), historyText('filtration', 'Filtration'), historyText('heating', 'Chauffage')], periods.map((name, i) =>
-        [name, ...['filtration', 'heating'].map(key => {
-          const seconds = day[key]?.periods?.[i]?.seconds;
-          return historyNumber(seconds == null ? null : seconds / 3600, 'h', 2);
-        })]));
-      const dateTime = value => value ? new Date(value * 1000).toLocaleString(currentWebLocaleTag()) : '—';
-      document.getElementById('historyCoverage').textContent = historyText('observed', 'Observations') + ' : ' + dateTime(day.from) + ' → ' + dateTime(day.until);
-      document.getElementById('historyNightDelta').textContent = historyText('nightDelta', 'Variation nuit − journée') + ' : ' + historyNumber(day.night_delta, '°C', 2);
-    }
-    function renderPoolHistory(data) {
-      historyView.days = Array.isArray(data.days) ? data.days : [];
-      const heading = [historyText('day', 'Jour'), historyText('water', 'Eau') + ' · ' + historyText('average', 'Moyenne'),
-        'pH', historyText('filtration', 'Filtration'), historyText('heating', 'Chauffage'),
-        historyText('refill', 'Appoint estimé'), historyText('refills', 'Appoints')];
-      const rows = historyView.days.map((day, index) => [historyDate(day.date),
-        historyNumber(day.metrics?.[0]?.average, '°C'), historyNumber(day.metrics?.[2]?.average, '', 2),
-        ...['filtration', 'heating'].map(key => historyNumber(day[key]?.seconds == null ? null : day[key].seconds / 3600, 'h', 2)),
-        historyNumber(day.refill_litres, 'L'), historyNumber(day.refill_events, '', 0)]);
-      const body = historyTable(document.getElementById('historyDays'), heading, rows);
-      [...body.rows].forEach((row, index) => {
-        const day = historyView.days[index]; const button = document.createElement('button');
-        button.className = 'btn-tonal'; button.textContent = historyDate(day.date) + (index === 0 ? ' · ' + historyText('today', 'Aujourd’hui') : '');
-        button.disabled = !day.valid;
-        button.setAttribute('aria-pressed', String(index === historyView.selected));
-        button.addEventListener('click', () => { historyView.selected = index; renderPoolHistory(data); });
-        row.cells[0].replaceChildren(button);
-      });
-      renderHistoryDay();
-      const select = document.getElementById('historyValueId'); const selected = select.value;
-      select.replaceChildren();
-      const groups = [historyText('analog', 'Analogique'), historyText('digital', 'Entrée'), historyText('rate', 'Débit brut'),
-        historyText('total', 'Total converti'), historyText('convertedRate', 'Débit converti'), historyText('derived', 'Valeur dérivée')];
-      (data.values || []).forEach(value => {
-        const id = Number(value.id); const group = id < 32 ? 0 : 1 + Math.floor((id - 32) / 16);
-        const base = [0, 32, 48, 64, 80, 96][group];
-        const option = document.createElement('option'); option.value = String(id);
-        option.textContent = `${groups[group]} ${id - base + 1} · #${id}`; select.appendChild(option);
-      });
-      if ([...select.options].some(option => option.value === selected)) select.value = selected;
-      document.getElementById('historyValueRead').disabled = !select.options.length;
-    }
+    let historyPage = null;
+    let historyPageVisit = 0;
     function cancelHistoryRequest() {
-      ++historyView.sequence;
-      if (historyView.controller) historyView.controller.abort();
-      historyView.controller = null;
+      ++historyPageVisit;
+      if (historyPage) historyPage.hide();
     }
+
     async function loadHistory(valueOnly = false) {
-      cancelHistoryRequest();
-      const sequence = historyView.sequence;
-      const controller = new AbortController(); historyView.controller = controller;
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      document.getElementById('historyRefresh').disabled = true;
-      document.getElementById('historyValueRead').disabled = true;
-      const status = document.getElementById('historyStatus');
-      status.textContent = historyText('loading', 'Chargement de l’historique…');
-      document.getElementById('page-history').setAttribute('aria-busy', 'true');
+      const visit = ++historyPageVisit;
       try {
-        const id = document.getElementById('historyValueId').value;
-        const daily = document.getElementById('historyValuePeriod').value;
-        const url = valueOnly ? `/api/history/value?id=${encodeURIComponent(id)}&daily=${encodeURIComponent(daily)}` : '/api/history/pool';
-        const data = await fetchOkJson(url, { cache: 'no-store', signal: controller.signal }, historyText('error', 'Historique indisponible'));
-        if (sequence !== historyView.sequence) return;
-        if (!valueOnly) {
-          renderPoolHistory(data);
-          status.textContent = data.ready ? historyText('updated', 'Données actualisées. Les tirets indiquent une absence de mesure.') : historyText('waiting', 'Historique en attente de données ou d’une heure valide.');
-        } else {
-          const records = data.records || [];
-          const counter = data.mode === 2;
-          const unit = ['', historyText('pulses', 'impulsions'), historyText('pulsesMinute', 'impulsions/min')][data.unit || 0] || '';
-          const headings = [historyText('periodUtc', 'Période (UTC)'), (counter ? historyText('delta', 'Variation') : historyText('average', 'Moyenne')) + (unit ? ' · ' + unit : ''),
-            counter ? historyText('continuity', 'Continuité') : 'Min / Max', historyText('coverage', 'Couverture')];
-          const resultBody = historyTable(document.getElementById('historyValues'), headings, records.map(record => {
-            const flags = [];
-            if (record.discontinuities) flags.push(historyText('reset', 'Ruptures') + ': ' + record.discontinuities);
-            if (record.boundary_uncertain) flags.push(historyText('uncertain', 'Répartition entre périodes incertaine'));
-            const amount = counter && data.type === 3 ? record.raw_delta : historyNumber(counter ? record.delta : record.average, '', 3);
-            return [new Date(record.start_utc * 1000).toLocaleString(currentWebLocaleTag(), { timeZone: 'UTC' }) + (record.current ? ' · ' + historyText('ongoing', 'En cours') : ''),
-              amount, counter ? flags.join(' · ') || '—' : historyNumber(record.min, '', 3) + ' / ' + historyNumber(record.max, '', 3),
-              counter ? '—' : historyNumber(record.coverage_ms / 60000, 'min', 1)];
-          }));
-          resultBody.parentElement.createCaption().textContent = historyText('value', 'Valeur') + ' #' + id + ' · ' + (daily === '1' ? historyText('daily', 'Journalière') : historyText('hourly', 'Horaire'));
-          status.textContent = records.length ? historyText('updated', 'Données actualisées. Les tirets indiquent une absence de mesure.') : historyText('empty', 'Aucune période disponible pour cette valeur.');
-        }
-      } catch (error) {
-        if (sequence === historyView.sequence) status.textContent = historyText('error', 'Historique indisponible') + ' · ' + historyText('retry', 'Réessayez avec Actualiser. Les données déjà affichées ne sont pas actualisées.');
-      } finally {
-        clearTimeout(timeout);
-        if (sequence === historyView.sequence) {
-          historyView.controller = null;
-          document.getElementById('historyRefresh').disabled = false;
-          document.getElementById('historyValueRead').disabled = !document.getElementById('historyValueId').options.length;
-          document.getElementById('page-history').setAttribute('aria-busy', 'false');
-        }
+        const module = await window.FlowWebCore.loadPageModule('history');
+        if (visit !== historyPageVisit || getActivePageId() !== 'page-history') return;
+        if (!historyPage) historyPage = module.create({tr, currentWebLocaleTag, fetchOkJson});
+        await historyPage.load(valueOnly);
+      } catch (err) {
+        if (visit !== historyPageVisit || getActivePageId() !== 'page-history') return;
+        document.getElementById('historyStatus').textContent = tr('history.error', 'Historique indisponible')
+          + ' · ' + tr('history.retry', 'Réessayez avec Actualiser. Les données déjà affichées ne sont pas actualisées.');
       }
     }
     document.getElementById('historyRefresh')?.addEventListener('click', () => loadHistory(false));
@@ -2311,6 +2191,8 @@
     let flowCfgLocalApplyBusyDepth = 0;
     let flowCfgApplyBtnSavedText = '';
     let flowCfgLoadedOnce = false;
+    let flowCfgSelectionSeq = 0;
+    let flowCfgModuleReqSeq = 0;
     let calibrationLoadedOnce = false;
     let calibrationContext = null;
     let calibrationComputed = null;
@@ -2318,7 +2200,7 @@
     let cfgTreeAliases = [];
     let cfgTreeVirtualBranches = [];
     let cfgTreeNodeTextNames = {};
-    let cfgTreeNodeTextNamePending = new Set();
+    let cfgTreeNodeTextNameLoad = { pending: new Map(), promise: null };
     const poolLogicDeviceIoOutputNames = {};
     const ioOutputPdmLabels = Object.freeze({
       0: 'Filtration',
@@ -2512,6 +2394,8 @@
     let poolAiReady = false;
     let poolAiPreviewWeatherState = 'idle';
     const poolPressureFieldVisibility = Object.freeze({ module: 'poollogic/sensors', enabled: 'psi_monitoring', input: 'psi_io_id' });
+    // Match Limits::Config::Capacity::BatchModuleMax in the HTTP API.
+    const flowCfgBatchSize = 8;
     const poolConfigModuleDefs = Object.freeze([
       Object.freeze({ module: 'poollogic/modes', titleKey: 'pool.card.modes.title', title: 'Pilotage général', icon: 'tune', noteKey: 'pool.card.modes.note', note: 'Ces interrupteurs définissent si PoolLogic pilote la piscine et quelle stratégie de traitement est retenue.' }),
       Object.freeze({ module: 'poollogic/filtration', titleKey: 'pool.card.filtration.title', title: 'Filtration', icon: 'waves', noteKey: 'pool.card.filtration.note', note: 'La plage de filtration combine contraintes horaires et température d’eau pour protéger le bassin.' }),
@@ -4758,7 +4642,19 @@
 
     let networkPage = null;
     async function onWifiPageShown() {
-      await networkPage.show();
+      const page = document.getElementById('page-wifi');
+      const visit = pageLoadToken;
+      page.setAttribute('aria-busy', 'true');
+      try {
+        await getNetworkPage();
+        if (visit === pageLoadToken && getActivePageId() === 'page-wifi') await networkPage.show();
+      } catch (err) {
+        if (visit === pageLoadToken && getActivePageId() === 'page-wifi') {
+          document.getElementById('wifiConfigStatus').textContent = tr('network.loadError', 'Chargement des réglages réseau impossible. Rouvrez la page pour réessayer.');
+        }
+      } finally {
+        if (visit === pageLoadToken) page.setAttribute('aria-busy', 'false');
+      }
     }
 
     async function onControlPageShown() {
@@ -4768,7 +4664,7 @@
       }
       try {
         await ensureFlowCfgLoaded(false);
-        await refreshCfgDocLocaleRuntime(true);
+        await refreshCfgDocLocaleRuntime(false);
       } finally {
         if (shouldShowInitialTreeSkeleton) {
           endFlowCfgLoading({ tree: true, detail: false });
@@ -9432,11 +9328,10 @@
     async function poolConfigFetchModules(moduleNames, requestSeq) {
       const modules = {};
       const names = Array.from(new Set(moduleNames));
-      // Match Limits::Config::Capacity::BatchModuleMax. One bounded response at a time.
-      const batchSize = 8;
-      for (let offset = 0; offset < names.length; offset += batchSize) {
+      // One bounded response at a time.
+      for (let offset = 0; offset < names.length; offset += flowCfgBatchSize) {
         if (requestSeq !== poolConfigReqSeq) return null;
-        const batch = await fetchFlowCfgModules(names.slice(offset, offset + batchSize));
+        const batch = await fetchFlowCfgModules(names.slice(offset, offset + flowCfgBatchSize));
         if (requestSeq !== poolConfigReqSeq) return null;
         Object.assign(modules, batch);
       }
@@ -11051,27 +10946,37 @@
       if (!info || info.type !== 'io') return;
       const existing = cfgTreeNodeTextNames[cleanPath];
       if (typeof existing !== 'undefined') return;
-      if (cfgTreeNodeTextNamePending.has(cleanPath)) return;
+      const state = cfgTreeNodeTextNameLoad;
+      const storePath = cfgStorePathFromDisplayPath(cleanPath) || info.modulePath;
+      if (!storePath) return;
+      state.pending.set(cleanPath, { module: storePath, key: info.nameKey });
+      if (!state.promise) {
+        // Collect all labels requested by this render before starting the first batch.
+        state.promise = Promise.resolve().then(() => flushCfgTreeNodeTextNames(state));
+      }
+      return state.promise;
+    }
 
-      cfgTreeNodeTextNamePending.add(cleanPath);
+    async function flushCfgTreeNodeTextNames(state) {
       try {
-        const storePath = cfgStorePathFromDisplayPath(cleanPath) || info.modulePath;
-        if (!storePath) return;
-        const url = '/api/flowcfg/module?name=' + encodeURIComponent(storePath);
-        const res = await fetchWithBusyRetry(url, { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || data.ok !== true || typeof data.data !== 'object') {
-          cfgTreeNodeTextNames[cleanPath] = '';
-          return;
+        while (state === cfgTreeNodeTextNameLoad && state.pending.size > 0) {
+          const entries = Array.from(state.pending.entries()).slice(0, flowCfgBatchSize);
+          let modules = {};
+          try {
+            modules = await fetchFlowCfgModules(entries.map(([, field]) => field.module));
+          } catch (err) {
+            // Retain reference-only labels until the next explicit cache invalidation.
+          }
+          if (state !== cfgTreeNodeTextNameLoad) return;
+          entries.forEach(([path, field]) => {
+            const raw = modules[field.module] && modules[field.module][field.key];
+            cfgTreeNodeTextNames[path] = typeof raw === 'string' ? raw.trim() : '';
+            state.pending.delete(path);
+          });
+          renderFlowCfgTree();
         }
-        const raw = data.data[info.nameKey];
-        const textName = (typeof raw === 'string') ? raw.trim() : '';
-        cfgTreeNodeTextNames[cleanPath] = textName;
-      } catch (err) {
-        cfgTreeNodeTextNames[cleanPath] = '';
       } finally {
-        cfgTreeNodeTextNamePending.delete(cleanPath);
-        renderFlowCfgTree();
+        state.promise = null;
       }
     }
 
@@ -11093,7 +10998,7 @@
 
     function clearCfgTreeNodeTextNameCache() {
       cfgTreeNodeTextNames = {};
-      cfgTreeNodeTextNamePending = new Set();
+      cfgTreeNodeTextNameLoad = { pending: new Map(), promise: null };
     }
 
     function flowCfgTitreDepuisChemin(pathValue) {
@@ -11438,12 +11343,14 @@
     }
 
     async function selectFlowCfgPath(pathValue, forceReload) {
+      const selectionSeq = ++flowCfgSelectionSeq;
       const preservedTreeScrollTop = flowCfgTree ? flowCfgTree.scrollTop : 0;
       beginFlowCfgLoading('Chargement de la configuration...', { tree: false, detail: true });
       const cleanPath = nettoyerNomFlowCfg(pathValue);
       try {
         const storePath = cfgStorePathFromDisplayPath(cleanPath);
         const node = await ensureCfgPathLoaded(cleanPath, !!forceReload);
+        if (selectionSeq !== flowCfgSelectionSeq) return;
         flowCfgPath = cleanPath ? cleanPath.split('/') : [];
         flowCfgRootExpanded = true;
         cfgExpandAncestors(cleanPath);
@@ -11463,7 +11370,7 @@
         }
 
         if (node && node.hasExact) {
-          await chargerFlowCfgModule(storePath || cleanPath);
+          await chargerFlowCfgModule(storePath || cleanPath, selectionSeq);
           return;
         }
 
@@ -11474,6 +11381,7 @@
           resetPrimaryCfgEditor('Aucune variable configurable dans cette branche.');
         }
       } catch (err) {
+        if (selectionSeq !== flowCfgSelectionSeq) return;
         renderFlowCfgCurrentPath(cleanPath, null);
         renderFlowCfgTree();
         restoreFlowCfgTreeScroll(preservedTreeScrollTop);
@@ -11933,29 +11841,20 @@
 
     async function loadPoolLogicDeviceSlotLabels(forceReload) {
       const cache = poolLogicDeviceIoOutputNames;
-      const fetchOne = async (slot) => {
-        if (!forceReload && Object.prototype.hasOwnProperty.call(cache, slot)) return;
-        const moduleName = poolLogicDeviceIoOutputModule(slot);
-        const nameKey = poolLogicDeviceIoOutputNameKey(slot);
-        if (!moduleName || !nameKey) return;
+      const slots = Array.from({ length: 16 }, (_, slot) => slot)
+        .filter(slot => forceReload || !Object.prototype.hasOwnProperty.call(cache, slot));
+      for (let offset = 0; offset < slots.length; offset += flowCfgBatchSize) {
+        const batch = slots.slice(offset, offset + flowCfgBatchSize);
         try {
-          const url = '/api/flowcfg/module?name=' + encodeURIComponent(moduleName);
-          const { res, data: payload } = await fetchJsonResponse(url, { cache: 'no-store' });
-          if (!res.ok || !payload || payload.ok !== true || !payload.data || typeof payload.data !== 'object') {
-            cache[slot] = '';
-            return;
-          }
-          const raw = payload.data[nameKey];
-          cache[slot] = (typeof raw === 'string') ? raw.trim() : '';
+          const modules = await fetchFlowCfgModules(batch.map(poolLogicDeviceIoOutputModule));
+          batch.forEach(slot => {
+            const raw = modules[poolLogicDeviceIoOutputModule(slot)][poolLogicDeviceIoOutputNameKey(slot)];
+            cache[slot] = typeof raw === 'string' ? raw.trim() : '';
+          });
         } catch (err) {
-          cache[slot] = '';
+          batch.forEach(slot => { cache[slot] = ''; });
         }
-      };
-      const jobs = [];
-      for (let slot = 0; slot <= 15; slot += 1) {
-        jobs.push(fetchOne(slot));
       }
-      await Promise.all(jobs);
     }
 
     function closeColorPickerPopover() {
@@ -13312,7 +13211,8 @@
       return buildPatchJsonFromFields(flowCfgFields, flowCfgCurrentModule);
     }
 
-    async function chargerFlowCfgModule(moduleName) {
+    async function chargerFlowCfgModule(moduleName, selectionSeq = flowCfgSelectionSeq) {
+      const requestSeq = ++flowCfgModuleReqSeq;
       beginFlowCfgLoading('Chargement de la branche...', { tree: false, detail: true });
       const m = nettoyerNomFlowCfg(moduleName);
       try {
@@ -13329,6 +13229,9 @@
           throw new Error('lecture module impossible');
         }
         await ensureCfgDocsForModule(m);
+        if (cfgDocPathCandidates(m).includes('wifi')) {
+          await window.FlowWebCore.loadPageModule('network');
+        }
         const pdmModule = flowCfgPdmModuleForIoOutput(m, data.data);
         if (pdmModule) {
           await ensureCfgDocsForModule(pdmModule);
@@ -13339,14 +13242,17 @@
         if (isWaveshareProfile() && m === 'poollogic/devices') {
           await loadPoolLogicDeviceSlotLabels(true);
         }
+        const extension = await loadFlowCfgPdmExtensionData(m, data.data);
+        if (requestSeq !== flowCfgModuleReqSeq || selectionSeq !== flowCfgSelectionSeq) return;
         flowCfgCurrentModule = m;
         flowCfgCurrentData = data.data;
-        flowCfgCurrentPdmExtension = await loadFlowCfgPdmExtensionData(m, flowCfgCurrentData);
+        flowCfgCurrentPdmExtension = extension;
         renderFlowCfgFieldsWithExtensions(flowCfgCurrentData);
         flowCfgStatus.textContent = data.truncated
           ? tr('config.branchLoadedTruncated', 'Branche chargée (tronquée, capacité du buffer atteinte).')
           : tr('config.branchLoaded', 'Branche chargée.');
       } catch (err) {
+        if (requestSeq !== flowCfgModuleReqSeq || selectionSeq !== flowCfgSelectionSeq) return;
         flowCfgCurrentPdmExtension = null;
         resetFlowCfgEditor('Chargement branche échoué: ' + err);
       } finally {
@@ -14189,13 +14095,16 @@
       calibrationSetStatus(tr('calibration.ready', 'Étalonnage prêt.'));
     }
 
-    function initWifiBindings() {
-      networkPage = window.FlowWebPages.network.create({
+    async function getNetworkPage() {
+      const module = await window.FlowWebCore.loadPageModule('network');
+      if (networkPage) return networkPage;
+      networkPage = module.create({
         tr, fetchOkJson, createFormPostOptions, fetchFlowStatusDomain, renderNetworkAddresses,
         normalizeNetworkType, getActivePageId, bindClickAction,
         updatePasswordVisibility: mettreAJourEtatVisibiliteMotDePasse,
         togglePasswordVisibility: basculerVisibiliteMotDePasse
       });
+      return networkPage;
     }
 
     function initSystemBindings() {
@@ -14693,7 +14602,6 @@
     initStatusBindings();
     initInfoBindings();
     initCalibrationBindings();
-    initWifiBindings();
     initSystemBindings();
     initConfigBindings();
     initGlobalUiBindings();

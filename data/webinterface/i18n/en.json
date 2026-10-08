@@ -72,6 +72,7 @@
     "pool.error.readFailed": "Unable to read the configuration.",
     "pool.error.moduleRead": "unable to read {module}",
     "pool.error.incompleteConfig": "Incomplete configuration response.",
+    "network.loadError": "Unable to load network settings. Reopen the page to retry.",
     "pool.assignments.title": "Sensor and relay assignments",
     "pool.assignments.loading": "Loading assignments…",
     "pool.assignments.error": "Unable to load assignments: ",

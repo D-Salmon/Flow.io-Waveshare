@@ -1537,6 +1537,7 @@ const char* webAssetVersion_()
     hash = webAssetFingerprintFile_(hash, "/webinterface/app.js.gz");
     hash = webAssetFingerprintFile_(hash, "/webinterface/network.css.gz");
     hash = webAssetFingerprintFile_(hash, "/webinterface/network.js.gz");
+    hash = webAssetFingerprintFile_(hash, "/webinterface/history.js.gz");
     hash = webAssetFingerprintFile_(hash, "/wc/i.j.gz");
     hash = webAssetFingerprintFile_(hash, "/wc/v.j.gz");
     hash = webAssetFingerprintFile_(hash, "/webinterface/i18n/fr.json.gz");
@@ -6003,6 +6004,7 @@ void WebInterfaceModule::startServer_()
     registerWebAsset("/webinterface/app-core.css", "/webinterface/app-core.css", "text/css");
     registerWebAsset("/webinterface/network.css", "/webinterface/network.css", "text/css");
     registerWebAsset("/webinterface/network.js", "/webinterface/network.js", "application/javascript");
+    registerWebAsset("/webinterface/history.js", "/webinterface/history.js", "application/javascript");
     server_.on("/webinterface/sh.html", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;

@@ -122,6 +122,7 @@ if src_dir.exists():
         Path("webinterface/index.html"): Path("webinterface/index.html.gz"),
         Path("webinterface/sh.html"): Path("webinterface/sh.html.gz"),
         Path("webinterface/app.js"): Path("webinterface/app.js.gz"),
+        Path("webinterface/history.js"): Path("webinterface/history.js.gz"),
         Path("webinterface/i18n/fr.json"): Path("webinterface/i18n/fr.json.gz"),
         Path("webinterface/i18n/en.json"): Path("webinterface/i18n/en.json.gz"),
         Path("webinterface/app-core.css"): Path("webinterface/app-core.css.gz"),

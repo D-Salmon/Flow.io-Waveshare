@@ -6,7 +6,8 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../..');
 const app = fs.readFileSync(path.join(root, 'data/webinterface/app.js'), 'utf8');
-const code = app.slice(app.indexOf('    // History is fetched only'), app.indexOf('    function showPage('));
+const history = fs.readFileSync(path.join(root, 'data/webinterface/history.js'), 'utf8');
+const code = history + '\n' + app.slice(app.indexOf('    let historyPage = null;'), app.indexOf('    function showPage('));
 const shell = fs.readFileSync(path.join(root, 'data/webinterface/sh.html'), 'utf8');
 const section = shell.slice(shell.indexOf('      <section id="page-history"'), shell.indexOf('      <section id="page-activity-log"'));
 (async () => {
@@ -18,6 +19,8 @@ const section = shell.slice(shell.indexOf('      <section id="page-history"'), s
     await page.evaluate(code => {
       window.tr = (key, fallback) => fallback || key;
       window.currentWebLocaleTag = () => 'fr-FR';
+      window.getActivePageId = () => 'page-history';
+      window.FlowWebCore = {loadPageModule: async name => window.FlowWebPages[name]};
       const metric = average => ({ average, min: average == null ? null : average - .2, max: average == null ? null : average + .3, first: average, last: average, samples: 120 });
       const activity = seconds => ({ seconds, observed_seconds: 36000, periods: [0, 1, 2, 3].map(i => ({ seconds: i === 2 ? seconds : 0, observed_seconds: 9000 })) });
       window.fixture = { ok: true, ready: true, days: Array.from({length: 8}, (_, i) => ({ valid: i !== 7, complete: i > 0, date: 20260925 - i, from: 1790294400, until: 1790330400, metrics: [metric(25.4 - i * .2), metric(19.2), metric(i === 1 ? null : 7.2), metric(680), metric(25.6), metric(25.1), metric(7.2), metric(700), metric(26)], filtration: activity(i ? 18000 : 7200), heating: activity(0), refill_litres: i ? 25 : 0, refill_events: i ? 1 : 0, night_delta: -.5 })), values: [{ id: 32, mode: 2, type: 3 }, { id: 0, mode: 0, type: 4 }] };

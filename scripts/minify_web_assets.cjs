@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, "..");
 const webRoot = path.join(root, "data", "webinterface");
 const manifestPath = path.join(webRoot, ".minified-assets.json");
 const assets = [
-  "index.html", "sh.html", "app.js", "network.js", "activity.js",
+  "index.html", "sh.html", "app.js", "network.js", "history.js", "activity.js",
   "io-summary.js", "calibration.js", "info.js", "logs.js", "updates.js",
   "pool.js", "config.js", "i18n/fr.json", "i18n/en.json", "app-core.css",
   "network.css", "activity.css", "io-summary.css", "calibration.css",

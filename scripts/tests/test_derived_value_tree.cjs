@@ -14,18 +14,23 @@ function extract(name) {
 }
 const requests = [];
 let renders = 0;
+let hold = false, releaseOld, fail = false;
 let savedName = 'Débit piscine';
 const context = vm.createContext({
-  cfgTreeNodeTextNames: {}, cfgTreeNodeTextNamePending: new Set(),
+  cfgTreeNodeTextNames: {}, cfgTreeNodeTextNameLoad: {pending: new Map(), promise: null},
+  flowCfgBatchSize: 8, ioSummaryLocalizedName: value => value,
   nettoyerNomFlowCfg: value => value.trim(),
   cfgStorePathFromDisplayPath: value => value,
   renderFlowCfgTree: () => { ++renders; },
-  fetchWithBusyRetry: async url => {
-    requests.push(url);
-    return { ok: true, json: async () => ({ ok: true, data: { name: savedName, a00_name: 'Pression' } }) };
+  fetchFlowCfgModules: async names => {
+    requests.push(Array.from(names));
+    const nameAtStart = savedName;
+    if (hold) { hold = false; await new Promise(resolve => { releaseOld = resolve; }); }
+    if (fail) throw new Error('offline');
+    return Object.fromEntries(names.map(name => [name, {name: nameAtStart, a00_name: 'Pression'}]));
   }
 });
-for (const name of ['cfgTreeNodeRefInfo', 'fetchCfgTreeNodeTextName',
+for (const name of ['cfgTreeNodeRefInfo', 'fetchCfgTreeNodeTextName', 'flushCfgTreeNodeTextNames',
   'cfgTreeDecoratedNodeLabel', 'clearCfgTreeNodeTextNameCache']) {
   vm.runInContext(extract(name), context);
 }
@@ -39,15 +44,15 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
     context.cfgTreeDecoratedNodeLabel(branch, 'Valeur dérivée ' + ref);
   }
   await settle();
-  assert.equal(requests.length, 16); // Pending requests are deduplicated.
-  assert.equal(renders, 16);
+  assert.equal(requests.length, 2); // Sixteen labels share two bounded HTTP requests.
+  assert.equal(renders, 2);
   for (let slot = 0; slot < 16; ++slot) {
     const ref = 'v' + String(slot).padStart(2, '0');
     assert.equal(context.cfgTreeDecoratedNodeLabel('io/value/' + ref, 'Valeur dérivée ' + ref),
       ref + ' [Débit piscine]');
   }
-  assert.equal(requests[0], '/api/flowcfg/module?name=io%2Fvalue%2Fv00');
-  assert.equal(requests.length, 16);
+  assert.deepEqual(requests[0], Array.from({length: 8}, (_, slot) => 'io/value/v0' + slot));
+  assert.equal(requests.length, 2);
   // Existing name-cache invalidation after applying config also refreshes values.
   savedName = '  Température eau  ';
   context.clearCfgTreeNodeTextNameCache();
@@ -65,5 +70,28 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(context.cfgTreeDecoratedNodeLabel('io/input/a00', 'Entrée analogique'), 'a00 [Pression]');
   assert.equal(context.cfgTreeDecoratedNodeLabel('io/value', 'Valeurs dérivées'), 'Valeurs dérivées');
   assert.equal(context.cfgTreeNodeRefInfo('io/value/v00/name'), null);
-  console.log('Derived-value tree: automatic names, stable labels, rename, empty names and existing IO verified.');
+  // An obsolete response cannot undo a renamed label after cache invalidation.
+  savedName = 'Old name'; hold = true;
+  context.clearCfgTreeNodeTextNameCache();
+  context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00');
+  await settle();
+  savedName = 'New name'; context.clearCfgTreeNodeTextNameCache();
+  context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00');
+  await settle();
+  const beforeOldResponse = renders;
+  releaseOld(); await settle();
+  assert.equal(renders, beforeOldResponse);
+  assert.equal(context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00'), 'v00 [New name]');
+  // A failed batch retains reference labels without an automatic retry loop.
+  fail = true; context.clearCfgTreeNodeTextNameCache();
+  context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00');
+  await settle();
+  const afterFailure = requests.length;
+  assert.equal(context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00'), 'v00');
+  await settle(); assert.equal(requests.length, afterFailure);
+  fail = false; context.clearCfgTreeNodeTextNameCache();
+  context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00');
+  await settle();
+  assert.equal(context.cfgTreeDecoratedNodeLabel('io/value/v00', 'v00'), 'v00 [New name]');
+  console.log('Derived-value tree: bounded batches, stale responses, errors, automatic names, stable labels, rename, empty names and existing IO verified.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

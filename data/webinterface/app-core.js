@@ -304,6 +304,22 @@
     return version;
   }
 
+  async function loadPageModule(name) {
+    var assets = {
+      network: { script: '/webinterface/network.js', style: '/webinterface/network.css' },
+      history: { script: '/webinterface/history.js' }
+    };
+    var page = assets[name];
+    if (!page) throw new Error('unknown_page_module');
+    var version = window.__FLOW_WEB_ASSET_VERSION__ || '';
+    var jobs = [loadScriptOnce(assetUrl(page.script, version), { retries: 3 })];
+    if (page.style) jobs.push(loadCssOnce(assetUrl(page.style, version), { retries: 3 }));
+    await Promise.all(jobs);
+    var module = window.FlowWebPages && window.FlowWebPages[name];
+    if (!module || typeof module.create !== 'function') throw new Error('page_module_init');
+    return module;
+  }
+
   async function bootstrap() {
     var root = document.getElementById('app-root');
     if (!root) return;
@@ -320,11 +336,13 @@
       window.__FLOW_WEB_ASSET_VERSION__ = version;
       storeVersion(version);
 
-      await loadCssOnce(assetUrl('/webinterface/app-core.css', version), { retries: 3 });
-      await loadCssOnce(assetUrl('/webinterface/network.css', version), { retries: 3 });
-      await loadScriptOnce(assetUrl('/webinterface/network.js', version), { retries: 3 });
+      // Two independent downloads, within the device's two-asset admission limit.
+      var initialAssets = await Promise.all([
+        loadCssOnce(assetUrl('/webinterface/app-core.css', version), { retries: 3 }),
+        fetchShellMarkup(assetUrl('/webinterface/sh.html', version))
+      ]);
       root.className = '';
-      root.innerHTML = await fetchShellMarkup(assetUrl('/webinterface/sh.html', version));
+      root.innerHTML = initialAssets[1];
       window.__FLOW_WEB_APP_READY__ = false;
       var appRuntimeError = '';
       var captureAppError = function (event) {
@@ -363,6 +381,7 @@
     supervisorFetch: supervisorFetch,
     loadScriptOnce: loadScriptOnce,
     loadCssOnce: loadCssOnce,
+    loadPageModule: loadPageModule,
     prefetchAsset: prefetchAsset,
     bootstrap: bootstrap,
     applyStoredTheme: applyStoredTheme,

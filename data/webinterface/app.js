@@ -193,7 +193,7 @@
         try {
           const response = await fetchWithBusyRetry(
             webI18nAssetUrlForLocale(normalized),
-            { cache: 'no-store' }
+            { cache: forceReload ? 'reload' : 'default' }
           );
           const payload = await response.json().catch(() => null);
           const source = payload && typeof payload === 'object' && payload.translations && typeof payload.translations === 'object'
@@ -9432,14 +9432,30 @@
     async function poolConfigFetchModules(moduleNames, requestSeq) {
       const modules = {};
       const names = Array.from(new Set(moduleNames));
-      // Keep at most three configuration responses in flight on the device.
-      for (let offset = 0; offset < names.length; offset += 3) {
+      // Match Limits::Config::Capacity::BatchModuleMax. One bounded response at a time.
+      const batchSize = 8;
+      for (let offset = 0; offset < names.length; offset += batchSize) {
         if (requestSeq !== poolConfigReqSeq) return null;
-        const results = await Promise.allSettled(names.slice(offset, offset + 3).map(poolConfigFetchModule));
+        const batch = await fetchFlowCfgModules(names.slice(offset, offset + batchSize));
         if (requestSeq !== poolConfigReqSeq) return null;
-        const failed = results.find(result => result.status === 'rejected');
-        if (failed) throw failed.reason;
-        results.forEach(({ value }) => { modules[value.module] = value.data; });
+        Object.assign(modules, batch);
+      }
+      return modules;
+    }
+
+    async function fetchFlowCfgModules(moduleNames) {
+      const names = Array.from(new Set(moduleNames.map(nettoyerNomFlowCfg)));
+      const result = await fetchOkJson(
+        '/api/flowcfg/batch?names=' + encodeURIComponent(JSON.stringify(names)),
+        { cache: 'no-store' },
+        tr('pool.error.moduleRead', 'lecture {module} impossible').replace('{module}', names.join(', ')),
+        fetchWithBusyRetry
+      );
+      const modules = result && result.modules;
+      if (!modules || typeof modules !== 'object' || Array.isArray(modules) || names.some(name =>
+        !Object.prototype.hasOwnProperty.call(modules, name) || !modules[name] ||
+        typeof modules[name] !== 'object' || Array.isArray(modules[name]))) {
+        throw new Error(tr('pool.error.incompleteConfig', 'Réponse de configuration incomplète.'));
       }
       return modules;
     }
@@ -11583,7 +11599,7 @@
         try {
           const payload = await fetchOkJson(
             cfgDocLocaleAssetUrl(cleanLocale),
-            { cache: 'no-store' },
+            { cache: forceReload ? 'reload' : 'default' },
             'traductions cfgdoc indisponibles'
           );
           const source = payload && payload.translations && typeof payload.translations === 'object'
@@ -11682,8 +11698,8 @@
       flowCfgDocIndexPromise = (async () => {
         try {
           const data = await fetchOkJson(
-            '/api/cfgdoc/index',
-            { cache: 'no-store' },
+            assetUrl('/api/cfgdoc/index'),
+            { cache: 'default' },
             'index de documentation indisponible'
           );
           const docs = (data && data.docs && typeof data.docs === 'object') ? data.docs : {};
@@ -11723,8 +11739,8 @@
             : '';
           if (!relativePath) return null;
           const payload = await fetchOkJson(
-            '/api/cfgdoc/module?name=' + encodeURIComponent(cacheKey),
-            { cache: 'no-store' },
+            assetUrl('/api/cfgdoc/module?name=' + encodeURIComponent(cacheKey)),
+            { cache: 'default' },
             'documentation indisponible pour ' + cacheKey
           );
           const docs = (payload && payload.docs && typeof payload.docs === 'object') ? payload.docs : {};

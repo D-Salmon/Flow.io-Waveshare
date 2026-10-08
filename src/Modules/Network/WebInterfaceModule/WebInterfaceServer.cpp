@@ -1538,6 +1538,9 @@ const char* webAssetVersion_()
     hash = webAssetFingerprintFile_(hash, "/webinterface/network.css.gz");
     hash = webAssetFingerprintFile_(hash, "/webinterface/network.js.gz");
     hash = webAssetFingerprintFile_(hash, "/wc/i.j.gz");
+    hash = webAssetFingerprintFile_(hash, "/wc/v.j.gz");
+    hash = webAssetFingerprintFile_(hash, "/webinterface/i18n/fr.json.gz");
+    hash = webAssetFingerprintFile_(hash, "/webinterface/i18n/en.json.gz");
     snprintf(version, sizeof(version), "%s-%08lx", FirmwareVersion::BuildRef, (unsigned long)hash);
     return version;
 }
@@ -8667,6 +8670,83 @@ void WebInterfaceModule::startServer_()
         response->print("]}");
         request->send(response);
         return;
+    });
+
+    server_.on("/api/flowcfg/batch", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/flowcfg/batch",
+                                 kHttpLatencyFlowCfgInfoMs, kHttpLatencyFlowCfgWarnMs);
+        if (!cfgStore_) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flowcfg.batch\"}}");
+            return;
+        }
+        const AsyncWebParameter* param = request->hasParam("names") ? request->getParam("names") : nullptr;
+        JsonDocument query(psramPreferredJsonAllocator());
+        if (!param || param->value().length() > Limits::Config::Capacity::BatchQueryMax ||
+            deserializeJson(query, param->value()) || !query.is<JsonArrayConst>()) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"flowcfg.batch.names\"}}");
+            return;
+        }
+        const JsonArrayConst names = query.as<JsonArrayConst>();
+        if (names.size() == 0U || names.size() > Limits::Config::Capacity::BatchModuleMax) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"flowcfg.batch.names\"}}");
+            return;
+        }
+        for (size_t i = 0; i < names.size(); ++i) {
+            const char* name = names[i].is<const char*>() ? names[i].as<const char*>() : nullptr;
+            bool valid = name && name[0] && strlen(name) < Limits::Config::Capacity::BatchNameMax;
+            // Reject embedded nulls and duplicate keys rather than silently shortening a name.
+            if (valid) valid = names[i].as<JsonString>().size() == strlen(name);
+            for (size_t j = 0; valid && j < i; ++j) {
+                valid = strcmp(name, names[j].as<const char*>()) != 0;
+            }
+            if (!valid) {
+                request->send(400, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"flowcfg.batch.names\"}}");
+                return;
+            }
+        }
+        WebHeapCharBuffer moduleJson(Limits::Mqtt::Buffers::StateCfg);
+        auto body = std::make_shared<WebJsonBuffer>(Limits::Config::Capacity::BatchResponseMax);
+        if (!moduleJson || !body || !body->valid()) {
+            sendTinyBusyJson_(request, "web_scratch_alloc");
+            return;
+        }
+        body->print("{\"ok\":true,\"modules\":{");
+        for (size_t i = 0; i < names.size(); ++i) {
+            const char* name = names[i].as<const char*>();
+            bool truncated = false;
+            // Reuse ConfigStore's canonical serializer and its default secret masking.
+            const bool found = cfgStore_->toJsonModule(name, moduleJson.data, moduleJson.capacity, &truncated);
+            if (truncated) {
+                request->send(413, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"Overflow\",\"where\":\"flowcfg.batch.module\"}}");
+                return;
+            }
+            if (!found) {
+                request->send(404, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"flowcfg.batch.module\"}}");
+                return;
+            }
+            if (i) body->print(',');
+            printJsonEscaped_(*body, name);
+            body->print(':');
+            body->print(moduleJson.data);
+        }
+        body->print("}}");
+        if (!body->finish()) {
+            request->send(413, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Overflow\",\"where\":\"flowcfg.batch\"}}");
+            return;
+        }
+        auto* response = request->beginResponse("application/json", body->length(),
+            [body](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+                return body->fillAt(buffer, maxLen, index);
+            });
+        addNoCacheHeaders_(response);
+        request->send(response);
     });
 
     server_.on("/api/flowcfg/module", HTTP_GET, [this](AsyncWebServerRequest* request) {

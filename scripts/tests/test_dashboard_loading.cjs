@@ -56,7 +56,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
         window.reset = () => {
           poolConfigReqSeq = 0; poolConfigLoadedOnce = false; poolConfigModulesCache = null;
           primaryError = ''; primaryRenderCount = 0; assignmentsRenderCount = 0;
-          reads = []; activeReads = 0; peakReads = 0; activeDocs = 0; peakDocs = 0;
+          reads = []; batches = []; activeReads = 0; peakReads = 0; activeDocs = 0; peakDocs = 0;
           assignmentGateOpen = false; pendingAssignments = []; failure = '';
           poolConfigGrid.replaceChildren();
         };
@@ -64,16 +64,16 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
           activeDocs++; peakDocs = Math.max(peakDocs, activeDocs);
           await new Promise(resolve => setTimeout(resolve, 5)); activeDocs--;
         };
-        window.poolConfigFetchModule = async name => {
-          reads.push(name); activeReads++; peakReads = Math.max(peakReads, activeReads);
+        window.fetchFlowCfgModules = async names => {
+          reads.push(...names); batches.push(names); activeReads++; peakReads = Math.max(peakReads, activeReads);
           try {
-            if (!primaryNames.has(name) && !assignmentGateOpen) {
+            if (names.some(name => !primaryNames.has(name)) && !assignmentGateOpen) {
               await new Promise(resolve => pendingAssignments.push(resolve));
             }
             await new Promise(resolve => setTimeout(resolve, 5));
-            if (name === failure) throw new Error('Simulated read failure');
-            return {module: name, data: name === 'poollogic/regulation'
-              ? {enabled: true, dly_pid_min: 6} : {binding_port: 300}};
+            if (names.includes(failure)) throw new Error('Simulated read failure');
+            return Object.fromEntries(names.map(name => [name, name === 'poollogic/regulation'
+              ? {enabled: true, dly_pid_min: 6} : {binding_port: 300}]));
           } finally { activeReads--; }
         };
         window.load = loadPoolConfig;
@@ -82,11 +82,11 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
         reset(); window.loading = load(false);
       `);
     }, {definitions, functions});
-    await page.waitForFunction(() => primaryRenderCount === 1 && pendingAssignments.length === 3);
+    await page.waitForFunction(() => primaryRenderCount === 1 && pendingAssignments.length === 1);
     assert.equal(await page.locator('#assignments').count(), 0, 'Incomplete assignments must not become editable');
     assert.equal(await page.locator('[data-pool-assignments-status]').getAttribute('aria-busy'), 'true');
     assert.equal(await page.evaluate(() => reads.slice(0, 12).every(name => name.startsWith('poollogic/'))), true);
-    assert.equal(await page.evaluate(() => reads.length), 15, 'Twelve main modules are followed by the first three deferred reads');
+    assert.equal(await page.evaluate(() => reads.length), 20, 'Twelve main modules are followed by the first eight deferred reads');
     await page.locator('#draft').fill('8');
     await page.evaluate(() => {
       window.originalInput = document.querySelector('#draft');
@@ -103,7 +103,9 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
     assert.equal(await page.locator('[data-pool-assignments-status]').count(), 0);
     assert.equal(await page.evaluate(() => reads.length), 43);
     assert.equal(await page.evaluate(() => new Set(reads).size), 43);
-    assert.equal(await page.evaluate(() => peakReads), 3);
+    assert.equal(await page.evaluate(() => batches.length), 6, 'The 43 modules require six HTTP requests');
+    assert.equal(await page.evaluate(() => Math.max(...batches.map(batch => batch.length))), 8);
+    assert.equal(await page.evaluate(() => peakReads), 1);
     assert.equal(await page.evaluate(() => peakDocs), 2);
     await page.evaluate(() => { reset(); failure = 'io/input/a00'; loading = load(false); });
     await page.waitForFunction(() => primaryRenderCount === 1);
@@ -119,7 +121,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
       ++poolConfigReqSeq; releaseAssignments();
     });
     assert.equal(await page.evaluate(() => stale), null, 'A superseded load cannot publish old data');
-    assert.equal(await page.evaluate(() => reads.length), 3, 'A superseded load stops before its next batch');
+    assert.equal(await page.evaluate(() => reads.length), 8, 'A superseded load stops before its next batch');
     console.log('Dashboard loading: early main cards, complete assignments, concurrency limits, preserved drafts/edits, isolated failures and superseded loads passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

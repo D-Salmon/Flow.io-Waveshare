@@ -1,11 +1,13 @@
 """Compile production ConfigStore export methods and round-trip their JSON."""
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-ARDUINO_JSON = ROOT / ".pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src"
+ARDUINO_JSON = Path(os.environ.get("FLOWIO_ARDUINO_JSON",
+    ROOT / ".pio/libdeps/Flowio-waveshare-esp32-s3/ArduinoJson/src"))
 
 PREAMBLE = r'''
 #include <ArduinoJson.h>

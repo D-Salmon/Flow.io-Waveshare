@@ -8,6 +8,7 @@ Outputs (SPIFFS-short names):
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
@@ -239,6 +240,17 @@ def main() -> int:
     }
     (CFGDOC_DIR / "i.j").write_text(
         json.dumps(index_payload, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    # A small content stamp lets the firmware invalidate cached documentation
+    # without reading every chunk at boot. Include translations and help text.
+    digest = hashlib.sha256()
+    for path in sorted(CFGDOC_DIR.glob("*.j")):
+        digest.update(path.name.encode("utf-8") + b"\0")
+        digest.update(path.read_bytes() + b"\0")
+    (CFGDOC_DIR / "v.j").write_text(
+        json.dumps({"sha256": digest.hexdigest()}, separators=(",", ":")),
         encoding="utf-8",
     )
 

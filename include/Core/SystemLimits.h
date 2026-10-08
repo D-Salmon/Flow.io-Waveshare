@@ -69,6 +69,11 @@ namespace Config {
 namespace Capacity {
 /** @brief Maximum number of unique config branches returned by `ConfigStore::listModules`. */
 constexpr uint8_t ModuleListMax = 160;
+/** @brief Bounded HTTP configuration batch; names include their null terminator. */
+constexpr uint8_t BatchModuleMax = 8;
+constexpr size_t BatchNameMax = 64;
+constexpr size_t BatchQueryMax = 1024;
+constexpr size_t BatchResponseMax = 16U * 1024U;
 /** @brief FreeRTOS queue length for serialized ConfigStore persistence requests. */
 constexpr uint8_t PersistenceQueueLen = 16;
 /** @brief Maximum runtime blob payload length accepted by ConfigStore async persistence. */

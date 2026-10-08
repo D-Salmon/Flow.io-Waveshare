@@ -285,7 +285,7 @@
   }
 
   async function fetchShellMarkup(url) {
-    var res = await supervisorFetch(url, { cache: 'no-store' }, { retries: 4 });
+    var res = await supervisorFetch(url, { cache: 'default' }, { retries: 4 });
     if (!res.ok) throw new Error('shell');
     return res.text();
   }

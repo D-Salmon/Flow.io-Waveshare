@@ -249,7 +249,7 @@
       activityAbortController = controller;
       updateActivitySelection();
       const requestToken = ++activityRequestToken;
-      const limit = 32;
+      const limit = 64;
       let offset = 0;
       const events = [];
       const seenSequences = new Set();
@@ -300,6 +300,7 @@
       activityDeleting = true;
       let deletionMessage = '';
       updateActivitySelection();
+      if (activityLogStatus) activityLogStatus.textContent = 'Suppression en cours : 0/' + sequences.length + ' message(s) vérifiés…';
       try {
         for (let offset = 0; offset < sequences.length; offset += 128) {
           const batch = sequences.slice(offset, offset + 128);
@@ -308,16 +309,23 @@
           const deadline = Date.now() + 60000;
           while (true) {
             if (Date.now() >= deadline) throw new Error('Délai dépassé : la suppression reste à vérifier.');
-            await new Promise(resolve => setTimeout(resolve, 300));
             const state = await fetchJsonResponse('/api/activity/status', {cache:'no-store'});
             if (!state.res.ok || !state.data) throw new Error('État de suppression indisponible.');
             if (Number(state.data.delete_id) !== Number(payload.delete_id)) throw new Error('Suppression interrompue ou remplacée.');
             if (Number(state.data.delete_state) === 3) throw new Error('Écriture impossible : la suppression peut être partielle.');
             if (Number(state.data.delete_state) === 2) break;
-            if (activityLogStatus) activityLogStatus.textContent = 'Suppression en cours : ' + offset + '/' + sequences.length + ' message(s) vérifiés…';
+            const confirmed = Math.min(batch.length, Math.max(0, Number(state.data.delete_removed) || 0));
+            if (activityLogStatus) activityLogStatus.textContent = 'Suppression en cours : ' + (offset + confirmed) + '/' + sequences.length + ' message(s) vérifiés…';
+            await new Promise(resolve => setTimeout(resolve, 200));
           }
           batch.forEach(seq => activitySelectedSequences.delete(seq));
+          const completed = new Set(batch);
+          activityLoadedEvents = activityLoadedEvents.filter(event => !completed.has(Number(event.seq)));
+          if (activityLoadedStats) activityLoadedStats.entries = activityLoadedEvents.length;
+          renderActivityLog(activityLoadedEvents, activityLoadedStats);
+          if (activityLogStatus) activityLogStatus.textContent = 'Suppression en cours : ' + (offset + batch.length) + '/' + sequences.length + ' message(s) vérifiés…';
         }
+        if (activityLogStatus) activityLogStatus.textContent = 'Suppression enregistrée. Actualisation du journal…';
         await refreshActivityLog(false);
         deletionMessage = 'Sélection supprimée.';
       } catch (err) {

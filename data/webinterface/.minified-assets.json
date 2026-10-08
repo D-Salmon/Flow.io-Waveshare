@@ -38,11 +38,11 @@
       "gzip_bytes": 2765
     },
     "activity.js": {
-      "source_sha256": "e99174bc88faf118756ad6caec1e0adbc145305f2bcef2c93004d1628be27f86",
-      "gzip_sha256": "f6678f9fc92000d11b919acf789ddfe93af40325105eef2e5f151ed752236718",
-      "original_bytes": 19770,
-      "minified_bytes": 9364,
-      "gzip_bytes": 3294
+      "source_sha256": "5542fa313c3bc93a653a769dddd09e9073ddf979e9c56b15c671ec44b25291fe",
+      "gzip_sha256": "edeed4e53e31a7c16473bff787aa6a05675e40bdf224972aa805c5015ce91bc6",
+      "original_bytes": 20647,
+      "minified_bytes": 9785,
+      "gzip_bytes": 3385
     },
     "users.js": {
       "source_sha256": "fd3d936886a31659c76d72b9f12c1d8d33fa73d9bcf1690f4681e30cb5439a74",

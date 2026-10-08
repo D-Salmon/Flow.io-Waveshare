@@ -88,3 +88,46 @@ MQTT connecté, une durée de fonctionnement croissante, le pilote des relais
 activé et les huit sorties disponibles sans erreur. La filtration est en marche
 et l'éclairage est commandable. Le fichier d'accès AP a été actualisé après ce
 flash. Le paquet de mise à jour associe ce SPIFFS au firmware précédent inchangé.
+
+## Suppression des événements d'activité
+
+La suppression conserve le traitement en tâche de fond et le format des marques
+de suppression de la 3.4.3. Huit marques au maximum partagent désormais une
+ouverture/écriture/fermeture du fichier, suivie d'une seule compaction du journal
+en RAM. Pour 300 événements, le test de production compte 38 ouvertures en ajout
+au lieu de 300. Chaque lot est fermé avant de retirer ses événements de la RAM ;
+une écriture courte ne confirme que les lignes entièrement écrites. Les pauses
+entre lots, la rotation des fichiers, l'ordre des événements en attente et la
+limite HTTP de 128 identifiants restent conservés. L'avancement confirmé est
+publié après chaque petit lot.
+
+L'interface interroge l'état dès l'acceptation, puis attend 200 ms entre les
+lectures encore nécessaires. Un lot n'est retiré de l'affichage qu'après son
+état de fin confirmé. Le journal est ensuite relu par pages de 64 événements,
+limite déjà prise en charge par l'API : jusqu'à 12 lectures au lieu de 24 pour
+768 événements. Les écritures refusées ne sont pas automatiquement réessayées.
+Les nombres d'ouvertures et de requêtes ne constituent pas une mesure du temps
+de suppression sur la carte.
+
+Les tests exécutent les méthodes C++ de production : aucune écriture en section
+critique ni dans la demande HTTP, fermeture avant retrait en RAM, écriture
+partielle et relecture, échec de la file d'attente, rotation, journal circulaire
+plein, doublons, événements reçus pendant l'opération et lot de 300 événements.
+Les tests Chrome, avec les fichiers livrés minifiés, vérifient la confirmation,
+la sélection sur toutes les dates, les pages de 64, les erreurs sans répétition
+et la conservation des autres événements.
+
+La compilation de ce lot (`3.5.0+20261008.234327`) réussit : RAM statique
+97 204 octets, inchangée, et programme Flash 2 379 227 octets (+304). Le cadre de
+pile propre à `processDelete_` est de 848 octets dans le code Xtensa compilé ;
+le tampon de huit marques occupe 512 octets. La pile configurée de la tâche
+reste de 4 Kio. Ces cadres locaux ne constituent pas une mesure du maximum de
+pile de toute la chaîne d'appels sur la carte.
+
+Après installation du programme et du SPIFFS, les 14 ressources Web contrôlées
+correspondent aux fichiers produits (`20261008.234327-67d793d0`). Le journal est
+disponible, sans perte d'écriture signalée ; MQTT est connecté et les huit sorties
+relais sont disponibles sans erreur. Le fichier d'accès AP a été régénéré après
+le flash. Les essais de suppression restent ceux des tests C++ et Chrome ; le
+journal de l'utilisateur n'a pas servi de jeu de données à supprimer pour
+mesurer une durée réelle.

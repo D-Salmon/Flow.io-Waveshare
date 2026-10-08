@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const {chromium} = require('playwright');
 const root = path.resolve(__dirname, '../../data');
 
@@ -8,7 +9,7 @@ const root = path.resolve(__dirname, '../../data');
   const browser = await chromium.launch({headless: true, executablePath: process.env.FLOWIO_TEST_BROWSER});
   try {
     const page = await browser.newPage();
-    const errors = [], writes = [];
+    const errors = [], writes = [], logReads = [];
     let mqttConnected = false;
     let activityEvents = [1,2,3].map(seq=>({seq,epoch_s:Math.floor(Date.now()/1000),title:'Événement '+seq,domain_name:'system',source_name:'system'}));
     const deletions=[];
@@ -25,6 +26,7 @@ const root = path.resolve(__dirname, '../../data');
         if (url.pathname === '/api/flow/status/domain') data = {ok:true,wifi:{rdy:wifi.runtime.connected,typ:'wifi'},mqtt:{rdy:mqttConnected}};
         if (url.pathname === '/api/activity/logs') {
           const offset=Number(url.searchParams.get('offset'))||0,limit=Number(url.searchParams.get('limit'))||32;
+          logReads.push({offset,limit});
           const events=[...activityEvents].sort((a,b)=>b.seq-a.seq).slice(offset,offset+limit);
           const complete=offset+events.length>=activityEvents.length;
           data={ok:true,entries:activityEvents.length,count:events.length,complete,next:complete?null:offset+events.length,events};
@@ -42,7 +44,7 @@ const root = path.resolve(__dirname, '../../data');
           if (state===2&&pendingDelete) {
             activityEvents=activityEvents.filter(event=>!pendingDelete.includes(event.seq));pendingDelete=null;
           }
-          data={delete_id:deleteId,delete_state:state};
+          data={delete_id:deleteId,delete_state:state,delete_removed:state===1?1:0};
         }
         assert.notEqual(url.pathname,'/api/activity/purge');
         if (url.pathname === '/api/web/meta') data = {ok:true,web_asset_version:'regression',auth_enabled:true,auth_required:false};
@@ -61,7 +63,8 @@ const root = path.resolve(__dirname, '../../data');
       }
       const file = path.join(root, url.pathname === '/webinterface' ? 'webinterface/index.html' : url.pathname);
       if (!fs.existsSync(file)) return route.fulfill({status:404});
-      return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'text/html',
+      const body=process.env.FLOWIO_TEST_MINIFIED&&fs.existsSync(file+'.gz')?zlib.gunzipSync(fs.readFileSync(file+'.gz')):fs.readFileSync(file);
+      return route.fulfill({body,contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'text/html',
         headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws: wss:"}});
     });
     await page.goto('http://flowio.local/webinterface?full=1&page=page-activity-log');
@@ -75,7 +78,10 @@ const root = path.resolve(__dirname, '../../data');
     await page.locator('#activityPurgeBtn').click();
     assert.deepEqual(deletions,[]);
     await page.locator('#activityDeleteConfirmBtn').click();
+    await page.waitForFunction(()=>document.getElementById('activityLogStatus').textContent.includes('1/1 message(s) vérifiés'));
+    assert.equal(await page.locator('.activity-row-selection').count(),3,'Pending deletion is not displayed as completed');
     await page.waitForFunction(()=>document.querySelectorAll('.activity-row-selection').length===2);
+    assert(logReads.every(read=>read.limit===64),'Journal reads use the existing 64-event API limit');
     assert.deepEqual(deletions,[[3]]);
     assert.deepEqual(activityEvents.map(event=>event.seq),[1,2]);
     assert.equal(await page.locator('#activityPurgeBtn').isDisabled(),true);

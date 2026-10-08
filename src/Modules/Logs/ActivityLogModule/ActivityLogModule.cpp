@@ -454,19 +454,25 @@ void ActivityLogModule::rotateIfNeeded_(size_t incomingLen)
 bool ActivityLogModule::persist_(const ActivityEvent& event)
 {
     if (!spiffsReady_) return false;
-    char line[kLineMax] = {0};
-    if (!formatLine_(event, line, sizeof(line))) return false;
+    char line[kLineMax + 1U] = {0};
+    if (!formatLine_(event, line, kLineMax)) return false;
 
-    const size_t len = strlen(line);
-    rotateIfNeeded_(len);
-    File file = ReleaseStorage::runtimeFilesystem().open(kLogPath, FILE_APPEND);
-    if (!file) return false;
-    const size_t wrote = file.print(line);
-    const size_t wroteNl = file.print('\n');
-    file.close();
-    if (wrote != len || wroteNl != 1U) return false;
+    size_t len = strlen(line);
+    line[len++] = '\n';
+    if (appendLines_(line, len) != len) return false;
     ++persistedCount_;
     return true;
+}
+
+size_t ActivityLogModule::appendLines_(const char* lines, size_t length)
+{
+    if (!spiffsReady_ || !lines || length == 0U) return 0;
+    rotateIfNeeded_(length - 1U);
+    File file = ReleaseStorage::runtimeFilesystem().open(kLogPath, FILE_APPEND);
+    if (!file) return 0;
+    const size_t wrote = file.write(reinterpret_cast<const uint8_t*>(lines), length);
+    file.close();
+    return wrote;
 }
 
 void ActivityLogModule::emitBootEvent_()
@@ -562,12 +568,21 @@ uint32_t ActivityLogModule::requestDelete_(const uint32_t* sequences, uint16_t c
 
 uint16_t ActivityLogModule::removeRing_(uint32_t sequence, bool all)
 {
+    return removeRingBatch_(&sequence, 1U, all);
+}
+
+uint16_t ActivityLogModule::removeRingBatch_(const uint32_t* sequences, uint16_t count, bool all)
+{
+    if (!sequences || count == 0U) return 0;
     portENTER_CRITICAL(&mux_);
     const uint16_t previous = count_;
     uint16_t kept = 0;
     for (uint16_t i = 0; i < previous; ++i) {
         const uint16_t from = (head_ + i) % capacity_;
-        const bool erase = all ? entries_[from].seq <= sequence : entries_[from].seq == sequence;
+        bool erase = all && entries_[from].seq <= sequences[0];
+        for (uint16_t j = 0; !erase && !all && j < count; ++j) {
+            erase = entries_[from].seq == sequences[j];
+        }
         if (!erase) {
             const uint16_t to = (head_ + kept++) % capacity_;
             if (to != from) entries_[to] = entries_[from];
@@ -600,13 +615,39 @@ void ActivityLogModule::processDelete_()
         vTaskDelay(1);
     }
     uint16_t removed = 0;
-    for (uint16_t i = 0; ok && i < job->count; ++i) {
-        event = {};
-        event.seq = job->sequences[i];
-        event.code = UINT16_MAX; // Same durable tombstone format as 3.4.3.
-        event.state = job->all ? 1U : 0U;
-        if (!persist_(event)) { ok = false; break; }
-        removed += removeRing_(event.seq, job->all);
+    // Keep batches small for the 4 KiB task stack and yield between them.
+    // The existing newline-delimited tombstones remain replay-compatible.
+    constexpr uint16_t kBatchSize = 8U;
+    char lines[kBatchSize * 64U];
+    uint16_t lineEnds[kBatchSize];
+    for (uint16_t offset = 0; ok && offset < job->count;) {
+        uint16_t count = 0;
+        size_t length = 0;
+        while (count < kBatchSize && offset + count < job->count) {
+            event = {};
+            event.seq = job->sequences[offset + count];
+            event.code = UINT16_MAX;
+            event.state = job->all ? 1U : 0U;
+            if (!formatLine_(event, lines + length, sizeof(lines) - length)) {
+                ok = false;
+                break;
+            }
+            length += strlen(lines + length);
+            lines[length++] = '\n';
+            lineEnds[count++] = static_cast<uint16_t>(length);
+        }
+        if (!ok) break;
+        const size_t wrote = appendLines_(lines, length);
+        uint16_t confirmed = 0;
+        while (confirmed < count && lineEnds[confirmed] <= wrote) ++confirmed;
+        // appendLines_ has closed the file before any confirmed RAM removal.
+        persistedCount_ += confirmed;
+        removed += removeRingBatch_(job->sequences + offset, confirmed, job->all);
+        portENTER_CRITICAL(&mux_);
+        deleteRemoved_ = removed;
+        portEXIT_CRITICAL(&mux_);
+        ok = wrote == length;
+        offset += count;
         vTaskDelay(1);
     }
     heap_caps_free(job);

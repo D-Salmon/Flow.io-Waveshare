@@ -54,6 +54,7 @@ private:
     uint32_t requestDelete_(const uint32_t* sequences, uint16_t count, bool all);
     void processDelete_();
     uint16_t removeRing_(uint32_t sequence, bool all);
+    uint16_t removeRingBatch_(const uint32_t* sequences, uint16_t count, bool all);
     DeleteRequest* pendingDelete_ = nullptr;
     uint32_t deleteId_ = 0;
     uint8_t deleteState_ = 0;
@@ -73,6 +74,7 @@ private:
     bool parseLine_(const char* line, ActivityEvent& out) const;
     bool formatLine_(const ActivityEvent& event, char* out, size_t outLen) const;
     bool persist_(const ActivityEvent& event);
+    size_t appendLines_(const char* lines, size_t length);
     void rotateIfNeeded_(size_t incomingLen);
     uint32_t epochNow_();
     void normalizeEvent_(ActivityEvent& event);

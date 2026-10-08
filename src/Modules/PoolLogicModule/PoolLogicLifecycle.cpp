@@ -4,6 +4,7 @@
  */
 
 #include "PoolLogicModule.h"
+#include "Domain/Pool/PoolConfig.h"
 #include "Core/MqttTopics.h"
 #include "Modules/IOModule/IORuntime.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
@@ -33,7 +34,7 @@ static constexpr uint8_t kCfgBranchDevices = 10;
 static constexpr uint8_t kCfgBranchHeater = 11;
 static constexpr uint8_t kCfgBranchRobot = 12;
 static constexpr uint8_t kCfgBranchRefill = 13;
-static constexpr uint8_t kCfgBranchPool = 14;
+static constexpr uint8_t kCfgBranchPool = PoolConfig::PoolBranchId;
 static constexpr uint32_t kStartupActivityStabilizeMs = 3000U;
 static constexpr uint32_t kStartupActivityMaxDelayMs = 30000U;
 static constexpr uint64_t kActivityMinEpoch = 1609459200ULL;
@@ -50,7 +51,7 @@ static constexpr const char* kCfgModuleDevices = "poollogic/devices";
 static constexpr const char* kCfgModuleHeater = "poollogic/heater";
 static constexpr const char* kCfgModuleRobot = "poollogic/robot";
 static constexpr const char* kCfgModuleRefill = "poollogic/refill";
-static constexpr const char* kCfgModulePool = "poollogic/pool";
+static constexpr const char* kCfgModulePool = PoolConfig::PoolModule;
 
 enum : uint16_t {
     kCfgMsgBase = 1,

@@ -7,13 +7,17 @@ l’API OpenAI Responses sans bloquer le serveur web.
 
 ## Configuration
 
-Le module enregistre cinq valeurs persistantes dans `ConfigStore` :
+Le module enregistre sept valeurs persistantes dans `ConfigStore` :
 
 - `ai/openai/enabled` : activation de la fonctionnalité ;
 - `ai/openai/api_key` : clé API conservée comme une chaîne ordinaire ;
 - `ai/openai/model` : identifiant du modèle à employer ;
-- `system/location/latitude` : latitude en degrés décimaux ;
-- `system/location/longitude` : longitude en degrés décimaux.
+- `ai/openai/automatic_enabled` : activation de l’analyse quotidienne ;
+- `ai/openai/daily_time` : heure locale de l’analyse quotidienne ;
+- `poollogic/pool/latitude` : latitude en degrés décimaux ;
+- `poollogic/pool/longitude` : longitude en degrés décimaux.
+
+Les coordonnées figurent dans **Configuration → PoolLogic → Bassin**. Elles partagent l’identité de branche PoolLogic utilisée pour les notifications de configuration et la publication MQTT. Les clés NVS `inst_lat` et `inst_lon` sont conservées afin de reprendre les coordonnées déjà enregistrées.
 
 La latitude et la longitude sont stockées en `double`, exportées avec six
 décimales et présentées dans l’interface avec un pas de `0,000001°`. La valeur

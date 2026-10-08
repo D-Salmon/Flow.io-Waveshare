@@ -2481,11 +2481,6 @@
     "system/lang": {
       "enum_set": "i18n_languages"
     },
-    "system/location": {
-      "label_t": "cfgmods.system.location.label",
-      "label": "Localisation",
-      "label_i18n": "cfgmods.system.location.label"
-    },
     "time": {
       "label_t": "cfgmods.network.time.label",
       "label": "time",

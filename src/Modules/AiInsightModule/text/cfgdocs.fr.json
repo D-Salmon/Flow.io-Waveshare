@@ -23,24 +23,6 @@
       "help_t": "cfgdocs.ai.openai.model.help",
       "order": 2
     },
-    "system/location/latitude": {
-      "type": "Double",
-      "step": 1e-06,
-      "decimal_places": 6,
-      "minimum": -90,
-      "maximum": 90,
-      "label_t": "cfgdocs.system.location.latitude.label",
-      "help_t": "cfgdocs.system.location.latitude.help"
-    },
-    "system/location/longitude": {
-      "type": "Double",
-      "step": 1e-06,
-      "decimal_places": 6,
-      "minimum": -180,
-      "maximum": 180,
-      "label_t": "cfgdocs.system.location.longitude.label",
-      "help_t": "cfgdocs.system.location.longitude.help"
-    },
     "ai/openai/automatic_enabled": {
       "type": "Bool",
       "order": 3,

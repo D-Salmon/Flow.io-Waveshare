@@ -9,6 +9,7 @@
 #include "Core/NvsKeys.h"
 #include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
+#include "Domain/Pool/PoolConfig.h"
 #include "Modules/AiInsightModule/OpenAiResponsesClient.h"
 #include "Modules/AiInsightModule/OpenMeteoWeatherClient.h"
 #include "Modules/AiInsightModule/AiDailySchedule.h"
@@ -62,7 +63,6 @@ private:
     struct Storage;
 
     static constexpr uint8_t kOpenAiConfigBranch = 1U;
-    static constexpr uint8_t kLocationConfigBranch = 2U;
     static constexpr uint32_t kWeatherCacheLifetimeMs = 30U * 60U * 1000U;
     static constexpr uint32_t kPoolInsightReuseLifetimeSec = 60U * 60U;
     static constexpr uint32_t kLoopDelayMs = 100U;
@@ -124,11 +124,11 @@ private:
         sizeof(cfgData_.model)
     };
     ConfigVariable<double, 0> latitudeVar_{
-        NVS_KEY(NvsKeys::AiInsight::Latitude), "latitude", "system/location",
+        NVS_KEY(NvsKeys::AiInsight::Latitude), "latitude", PoolConfig::PoolModule,
         ConfigType::Double, &cfgData_.latitude, ConfigPersistence::Persistent, 0U
     };
     ConfigVariable<double, 0> longitudeVar_{
-        NVS_KEY(NvsKeys::AiInsight::Longitude), "longitude", "system/location",
+        NVS_KEY(NvsKeys::AiInsight::Longitude), "longitude", PoolConfig::PoolModule,
         ConfigType::Double, &cfgData_.longitude, ConfigPersistence::Persistent, 0U
     };
 

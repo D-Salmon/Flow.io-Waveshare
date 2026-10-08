@@ -684,8 +684,8 @@ void AiInsightModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(dailyTimeVar_, kConfigModuleId, kOpenAiConfigBranch);
     cfg.registerVar(apiKeyVar_, kConfigModuleId, kOpenAiConfigBranch);
     cfg.registerVar(modelVar_, kConfigModuleId, kOpenAiConfigBranch);
-    cfg.registerVar(latitudeVar_, kConfigModuleId, kLocationConfigBranch);
-    cfg.registerVar(longitudeVar_, kConfigModuleId, kLocationConfigBranch);
+    cfg.registerVar(latitudeVar_, (uint8_t)ConfigModuleId::PoolLogic, PoolConfig::PoolBranchId);
+    cfg.registerVar(longitudeVar_, (uint8_t)ConfigModuleId::PoolLogic, PoolConfig::PoolBranchId);
 
     void* storageMemory = heap_caps_malloc(sizeof(Storage),
                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

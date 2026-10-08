@@ -237,6 +237,10 @@
     "cfgdocs.poollogic.pool.pool_volume_m3.label": "Pool volume",
     "cfgdocs.poollogic.pool.pool_volume_m3.help": "Pool volume used for active oxygen doses and AI analysis context.",
     "pool.contact.active.high": "Contact active at high level",
-    "pool.contact.active.low": "Contact active at low level"
+    "pool.contact.active.low": "Contact active at low level",
+    "cfgdocs.poollogic.pool.latitude.label": "Latitude (decimal degrees)",
+    "cfgdocs.poollogic.pool.latitude.help": "Pool latitude in decimal degrees, between -90 and 90.",
+    "cfgdocs.poollogic.pool.longitude.label": "Longitude (decimal degrees)",
+    "cfgdocs.poollogic.pool.longitude.help": "Pool longitude in decimal degrees, between -180 and 180."
   }
 }

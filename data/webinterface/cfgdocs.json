@@ -7772,6 +7772,34 @@
       "help": "Indique si le bassin est installé en intérieur.",
       "help_i18n": "cfgdocs.poollogic.pool.indoor.help"
     },
+    "poollogic/pool/latitude": {
+      "type": "Double",
+      "step": 1e-06,
+      "decimal_places": 6,
+      "minimum": -90,
+      "maximum": 90,
+      "label_t": "cfgdocs.poollogic.pool.latitude.label",
+      "help_t": "cfgdocs.poollogic.pool.latitude.help",
+      "order": 1,
+      "label": "Latitude (degrés décimaux)",
+      "label_i18n": "cfgdocs.poollogic.pool.latitude.label",
+      "help": "Latitude du bassin en degrés décimaux, comprise entre -90 et 90.",
+      "help_i18n": "cfgdocs.poollogic.pool.latitude.help"
+    },
+    "poollogic/pool/longitude": {
+      "type": "Double",
+      "step": 1e-06,
+      "decimal_places": 6,
+      "minimum": -180,
+      "maximum": 180,
+      "label_t": "cfgdocs.poollogic.pool.longitude.label",
+      "help_t": "cfgdocs.poollogic.pool.longitude.help",
+      "order": 2,
+      "label": "Longitude (degrés décimaux)",
+      "label_i18n": "cfgdocs.poollogic.pool.longitude.label",
+      "help": "Longitude du bassin en degrés décimaux, comprise entre -180 et 180.",
+      "help_i18n": "cfgdocs.poollogic.pool.longitude.help"
+    },
     "poollogic/pool/pool_volume_m3": {
       "type": "Float",
       "label_t": "cfgdocs.poollogic.pool.pool_volume_m3.label",
@@ -8269,32 +8297,6 @@
       "label_i18n": "cfgdocs.system.lang.label",
       "help": "Langue d'affichage de l'interface.",
       "help_i18n": "cfgdocs.system.lang.help"
-    },
-    "system/location/latitude": {
-      "type": "Double",
-      "step": 1e-06,
-      "decimal_places": 6,
-      "minimum": -90,
-      "maximum": 90,
-      "label_t": "cfgdocs.system.location.latitude.label",
-      "help_t": "cfgdocs.system.location.latitude.help",
-      "label": "Latitude (degrés décimaux)",
-      "label_i18n": "cfgdocs.system.location.latitude.label",
-      "help": "Latitude de l’installation en degrés décimaux, comprise entre -90 et 90.",
-      "help_i18n": "cfgdocs.system.location.latitude.help"
-    },
-    "system/location/longitude": {
-      "type": "Double",
-      "step": 1e-06,
-      "decimal_places": 6,
-      "minimum": -180,
-      "maximum": 180,
-      "label_t": "cfgdocs.system.location.longitude.label",
-      "help_t": "cfgdocs.system.location.longitude.help",
-      "label": "Longitude (degrés décimaux)",
-      "label_i18n": "cfgdocs.system.location.longitude.label",
-      "help": "Longitude de l’installation en degrés décimaux, comprise entre -180 et 180.",
-      "help_i18n": "cfgdocs.system.location.longitude.help"
     },
     "tft/s3/alarms/slot00/alarm_id": {
       "type": "UInt16",

@@ -7,9 +7,6 @@
   "docs": {
     "ai/openai": {
       "label_t": "cfgmods.ai.openai.label"
-    },
-    "system/location": {
-      "label_t": "cfgmods.system.location.label"
     }
   }
 }

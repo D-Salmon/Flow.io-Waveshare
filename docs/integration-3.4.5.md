@@ -87,3 +87,7 @@ Les huit relais intégrés sont présentés comme CH1 à CH8 dans les listes de 
 Le nom par défaut du relais libre devient « Relais libre », sans numéro de canal figé. Les noms personnalisés déjà enregistrés restent éditables dans Configuration → io → output ; une mise à jour du firmware ne les écrase pas.
 
 L’arborescence Configuration utilise le même dictionnaire de noms IO que la page Entrées/sorties : les noms standards des équipements sont traduits selon la langue de l’interface et « Chlorine Pump » est présenté comme « Désinfection » en français. Les noms personnalisés sans traduction sont conservés. Les branches `io/output` et `io/drivers` sont affichées comme « Sorties » et « Pilotes » en français ; les chemins de configuration restent inchangés.
+
+## Coordonnées du bassin
+
+Latitude et longitude sont regroupées dans `poollogic/pool`, présenté comme **PoolLogic → Bassin**, juste après le volume. La branche `system/location` disparaît. Les valeurs restent stockées sous les clés NVS `inst_lat` et `inst_lon`, sans conversion ni remise à zéro. La météo et l’analyse IA continuent d’utiliser ces mêmes variables. Les notifications de modification utilisent l’identité commune de la branche Bassin afin d’actualiser aussi sa publication MQTT.

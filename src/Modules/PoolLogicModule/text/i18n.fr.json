@@ -236,6 +236,10 @@
     "cfgdocs.poollogic.pool.pool_volume_m3.label": "Volume bassin",
     "cfgdocs.poollogic.pool.pool_volume_m3.help": "Volume du bassin utilisé pour les doses d’oxygène actif et le contexte de l’analyse IA.",
     "pool.contact.active.high": "Contact actif au niveau haut",
-    "pool.contact.active.low": "Contact actif au niveau bas"
+    "pool.contact.active.low": "Contact actif au niveau bas",
+    "cfgdocs.poollogic.pool.latitude.label": "Latitude (degrés décimaux)",
+    "cfgdocs.poollogic.pool.latitude.help": "Latitude du bassin en degrés décimaux, comprise entre -90 et 90.",
+    "cfgdocs.poollogic.pool.longitude.label": "Longitude (degrés décimaux)",
+    "cfgdocs.poollogic.pool.longitude.help": "Longitude du bassin en degrés décimaux, comprise entre -180 et 180."
   }
 }

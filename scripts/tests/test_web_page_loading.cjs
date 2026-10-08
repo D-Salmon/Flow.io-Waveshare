@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const {chromium} = require('playwright');
 const dataRoot = path.resolve(__dirname, '../../data');
 const index = JSON.parse(fs.readFileSync(path.join(dataRoot, 'wc/i.j'), 'utf8'));
@@ -68,7 +69,9 @@ const storeModules = ['wifi', 'ethernet', ...Array.from({length: 16}, (_, i) => 
       }
       const file = path.join(dataRoot, name === '/webinterface' ? 'webinterface/index.html' : name);
       if (!fs.existsSync(file)) return route.fulfill({status:404});
-      return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'text/html',
+      const body = process.env.FLOWIO_TEST_MINIFIED && fs.existsSync(file + '.gz')
+        ? zlib.gunzipSync(fs.readFileSync(file + '.gz')) : fs.readFileSync(file);
+      return route.fulfill({body,contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'text/html',
         headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws: wss:"}});
     }
     await page.route('http://flowio.local/**', routeRequest);

@@ -97,7 +97,7 @@
     "io/drivers/expander00/enabled": {
       "type": "Bool",
       "label_t": "cfgdocs.io.drivers.expander00.enabled.label",
-      "help_t": "cfgdocs.io.drivers.expander.enabled.help"
+      "help_t": "cfgdocs.io.drivers.expander00.enabled.help"
     },
     "io/drivers/expander00/address": {
       "type": "UInt8",

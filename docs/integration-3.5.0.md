@@ -42,6 +42,22 @@ Le script `scripts/tests/check_device_config_batch.py` permet de vérifier sans 
 
 ## Mesures sur la carte
 
+Le cinquième lot raccourcit les noms JavaScript internes, sans renommer les
+propriétés ni les interfaces publiques et sans activer les transformations de
+compression de Terser. Les sources restent lisibles. Le script principal passe
+de 93 749 à 80 118 octets compressés et le chargeur de 3 192 à 2 680 octets,
+soit 14 143 octets de moins au démarrage (14,6 %). Les modules différés sont
+également réduits. Ce gain de transfert ne constitue pas une mesure du temps
+total de rendu. Les fichiers produits sont vérifiés dans Chrome : démarrage
+sous CSP, navigation et reprises après échec, comptes/mises à jour, validation
+explicite d'une consigne et commande d'éclairage.
+
+Dans `io/drivers/expander00`, le champ d'activation indique désormais
+« Sorties relais CH1 à CH8 activées ». Son aide précise que sans cette activation,
+les huit relais sont indisponibles et qu'un redémarrage est nécessaire après
+validation. Les autres pilotes d'extension précisent également l'indisponibilité
+des entrées/sorties dépendantes et l'application au redémarrage.
+
 Après installation le 8 octobre 2026, la comparaison des deux méthodes sur le même firmware, avec les mêmes valeurs, donne les médianes suivantes sur trois passages :
 
 | Lecture des réglages | Individuelle, groupes de trois | Groupée, huit modules maximum |
@@ -62,3 +78,13 @@ Le troisième lot retire encore 5 054 octets compressés des scripts de démarra
 Le quatrième lot retire 14 675 octets compressés supplémentaires des scripts de démarrage (environ 13 %) : le script principal passe de 108 455 à 93 749 octets, le chargeur de 3 161 à 3 192 octets. Les modules différés représentent 4 046 octets pour Activité, 1 994 pour Comptes et 11 793 pour Mises à jour. Le groupe de descriptions PoolLogic représente environ 6 Ko compressés. Ces tailles et les requêtes évitées ne constituent pas un chronométrage du rendu complet du navigateur.
 
 La compilation Waveshare du quatrième lot utilise 97 204 octets de RAM statique, identiques à la 3.4.5, et 2 378 923 octets de Flash, soit 3 156 octets supplémentaires depuis la 3.4.5 et 244 depuis le lot précédent. Le tampon de réponse groupée de 16 Kio en PSRAM est temporaire et libéré après l'envoi. Le firmware `3.5.0+20261008.230642` a été installé avec son SPIFFS ; les 14 fichiers Web contrôlés correspondent aux fichiers compilés, leurs URL versionnées utilisent le cache (l’entrée HTML conserve son absence de cache) et MQTT est connecté. La lecture des 43 modules, leur masquage et les limites de l’API ont été revérifiés sur la carte. Les images du paquet de mise à jour correspondent à celles flashées. Le flash conserve la NVS ; le fichier local d'accès de secours a été régénéré après le flash.
+
+Le cinquième lot a été installé par un flash du SPIFFS seul : le programme et sa
+RAM statique restent identiques au quatrième lot. Les 19 ressources minifiées
+passent les contrôles de syntaxe et d'empreinte. Sur la carte, les 14 ressources
+de l'interface principale correspondent aux fichiers produits ; l'empreinte Web
+`20261008.230642-d5b77b2b` invalide le cache précédent. Les contrôles confirment
+MQTT connecté, une durée de fonctionnement croissante, le pilote des relais
+activé et les huit sorties disponibles sans erreur. La filtration est en marche
+et l'éclairage est commandable. Le fichier d'accès AP a été actualisé après ce
+flash. Le paquet de mise à jour associe ce SPIFFS au firmware précédent inchangé.

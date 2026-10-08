@@ -103,7 +103,7 @@ async function main() {
     assert.equal(await panel.count(), 0);
     assert(await open.evaluate(node => node === document.activeElement));
     failCommand = true; await open.click(); await apply.click();
-    await page.waitForFunction(() => document.querySelector('dialog [role="status"]').textContent.includes('Sauvegarde impossible'));
+    await page.waitForFunction(() => document.querySelector('dialog .runtime-action-dialog-feedback').textContent.includes('Sauvegarde impossible'));
     assert.equal(device.control_mode, 'guided');
     assert.equal(await panel.count(), 1, 'A rejected command preserves the editor');
     failCommand = false;

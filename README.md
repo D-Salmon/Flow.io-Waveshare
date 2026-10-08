@@ -6,6 +6,8 @@ La version **3.5.0** poursuit la branche 3.4.5 et améliore le chargement Web : 
 
 Pour construire : installer les dépendances Web avec `pnpm install --frozen-lockfile`, exécuter `pnpm web:minify` puis `pnpm web:check`, et lancer `platformio run`. Les images firmware/SPIFFS et le paquet de mise à jour sont produits dans `binary/`, exclu de Git.
 
+La minification des noms JavaScript internes réduit encore de 14,6 % les scripts de démarrage par rapport au lot précédent. Sur Waveshare, `io/drivers/expander00` doit être activé pour disposer des huit sorties relais CH1 à CH8 ; toute modification de cette activation nécessite une validation puis un redémarrage.
+
 Les réglages propres à la carte et le fichier d’accès AP sont conservés dans `local-device/`, exclu de Git. Le fichier d’accès est créé ou actualisé après un flash, selon les identifiants disponibles.
 
 <p align="center">

@@ -27,7 +27,9 @@ async function minifyAsset(relativePath, source) {
   if (extension === ".js") {
     const result = await minifyJs(source.toString("utf8"), {
       compress: false,
-      mangle: false,
+      // Shorten local bindings only. Public globals, object properties, API
+      // field names and strings stay unchanged across separately loaded pages.
+      mangle: { toplevel: false, properties: false },
       format: { comments: false, ascii_only: false, semicolons: true }
     });
     if (typeof result.code !== "string") throw new Error(`No Terser output for ${relativePath}`);

@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');const path=require('node:path');
+const zlib=require('node:zlib');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'../../data');
 (async()=>{
@@ -13,7 +14,8 @@ const root=path.resolve(__dirname,'../../data');
    const file=path.join(root,name);
    if(!fs.existsSync(file))return route.fulfill({status:404});
    const contentType=file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'text/html';
-   return route.fulfill({contentType,body:fs.readFileSync(file),headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws: wss:"}});
+   const body=process.env.FLOWIO_TEST_MINIFIED&&fs.existsSync(file+'.gz')?zlib.gunzipSync(fs.readFileSync(file+'.gz')):fs.readFileSync(file);
+   return route.fulfill({contentType,body,headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws: wss:"}});
   });
   await page.goto('http://flowio.local/webinterface?full=1&page=page-wifi');
   await page.waitForFunction(()=>window.__FLOW_WEB_APP_READY__===true);

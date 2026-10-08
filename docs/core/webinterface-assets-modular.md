@@ -46,6 +46,12 @@ Fallback:
 - si les chunks ne sont pas disponibles, le frontend retombe sur `cfgdocs.fr.json` / `cfgmods.fr.json`.
 
 ## Compression
+La minification JavaScript raccourcit les noms des variables et fonctions locales
+avec Terser. Les noms globaux et les propriétés d'objets restent inchangés pour
+préserver les contrats entre modules chargés séparément et les champs des API.
+Les transformations de compression de Terser restent désactivées. Les fichiers
+sources lisibles sont conservés ; seuls les fichiers `.gz` utilisent ces noms courts.
+
 Le pipeline compresse désormais aussi:
 - `app-core.js(.gz)`
 - `app-core.css(.gz)`
@@ -58,5 +64,12 @@ Scripts:
 
 ## Régénération
 1. `scripts/generate_cfgdoc_chunks.py`
-2. `scripts/gzip_web_assets.sh`
+2. `pnpm web:minify` puis `pnpm web:check`
 3. build/upload SPIFFS habituel
+
+`scripts/tests/test_production_dashboard.cjs` ouvre les fichiers minifiés de
+l'application complète avec Chrome sous la CSP de production. Il vérifie
+l'enregistrement explicite d'un réglage et la commande d'éclairage, via des API
+simulées. Générer auparavant les descriptions et le manifeste runtime avec les
+scripts Python habituels. Les tests de démarrage, de chargement différé et de
+gestion acceptent aussi `FLOWIO_TEST_MINIFIED=1` pour employer les fichiers `.gz`.

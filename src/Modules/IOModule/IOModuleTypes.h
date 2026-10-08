@@ -117,7 +117,7 @@ struct IOBindingPortSpec {
     uint8_t kind = IO_PORT_KIND_NONE;
     uint8_t channel = 0;
     IOExpanderId expanderId = IO_EXPANDER_INVALID;
-    // Physical marking exposed by the board/profile (for example GPIO04, GPA0 or EXIO1).
+    // Physical marking exposed by the board/profile (for example GPIO04, GPA0 or CH1).
     const char* boardLabel = nullptr;
 };
 

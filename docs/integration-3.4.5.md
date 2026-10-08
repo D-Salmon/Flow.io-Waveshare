@@ -79,3 +79,9 @@ Les listes d’entrées proposent « Désactivé / non câblé » pour la valeur
 La surveillance de pression découle de l’affectation de la sonde : son ancien drapeau reste publié pour compatibilité mais est masqué comme réglage indépendant. Une entrée de débit désactivée coupe sa surveillance ; avec une entrée affectée, le choix de surveillance permet toujours de la suspendre. Les tests exécutent le rapprochement firmware de ces états, le rendu à partir des métadonnées générées, la validation explicite, les polarités conditionnelles et le maintien du volume dans la branche commune.
 
 Firmware et fichiers web ont été compilés et flashés avec conservation de NVS et de l’historique. La carte retrouve 192.168.31.6 et sa connexion MQTT TLS. Le contrôle web confirme le volume enregistré de 50 m³, les choix non câblés, l’absence du réglage de pression en doublon et l’apparition conditionnelle de la polarité sans enregistrement des affectations. Le fichier local des accès AP est régénéré après ce flash. RAM statique : 97 204 octets ; programme : 2 375 803 octets.
+
+## Repérage des relais
+
+Les huit relais intégrés sont présentés comme CH1 à CH8 dans les listes de ports physiques et dans la topologie Entrées/sorties. Les ports 300 à 307, les indices matériels et les constantes internes restent identiques. Un slot logique `dXX` peut commander un autre relais après réaffectation : `d05` ne signifie donc pas nécessairement CH6.
+
+Le nom par défaut du relais libre devient « Relais libre », sans numéro de canal figé. Les noms personnalisés déjà enregistrés restent éditables dans Configuration → io → output ; une mise à jour du firmware ne les écrase pas.

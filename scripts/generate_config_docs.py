@@ -549,14 +549,14 @@ def _apply_profile_specific_io_enum_sets(meta: dict, profile: str, tft_enabled: 
 
         if profile == "waveshare":
             dout_labels_waveshare = {
-                300: "EXIO1 - TCA9554 bit 0 [300]",
-                301: "EXIO2 - TCA9554 bit 1 [301]",
-                302: "EXIO3 - TCA9554 bit 2 [302]",
-                303: "EXIO4 - TCA9554 bit 3 [303]",
-                304: "EXIO5 - TCA9554 bit 4 [304]",
-                305: "EXIO6 - TCA9554 bit 5 [305]",
-                306: "EXIO7 - TCA9554 bit 6 [306]",
-                307: "EXIO8 - TCA9554 bit 7 [307]",
+                300: "CH1 - TCA9554 bit 0 [300]",
+                301: "CH2 - TCA9554 bit 1 [301]",
+                302: "CH3 - TCA9554 bit 2 [302]",
+                303: "CH4 - TCA9554 bit 3 [303]",
+                304: "CH5 - TCA9554 bit 4 [304]",
+                305: "CH6 - TCA9554 bit 5 [305]",
+                306: "CH7 - TCA9554 bit 6 [306]",
+                307: "CH8 - TCA9554 bit 7 [307]",
                 320: "GPB0 - MCP23017 output [320]",
                 321: "GPB1 - MCP23017 output [321]",
                 322: "GPB2 - MCP23017 output [322]",

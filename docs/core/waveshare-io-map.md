@@ -13,7 +13,7 @@ domain_slot (besoin métier) -> io_slot (endpoint stable) -> binding_port (resso
 ```
 
 Le domaine choisit par exemple `ActuatorFiltrationPump -> d00`; la configuration de
-`d00` choisit ensuite le port physique `300 / EXIO1`. La valeur `binding_port=0`
+`d00` choisit ensuite le port physique `300 / CH1`. La valeur `binding_port=0`
 signifie « non connecté ». Un binding peut être changé en configuration sans modifier
 le rôle métier ni les topics runtime de l'IO slot.
 
@@ -26,7 +26,7 @@ puis les trois capacités de configuration correspondantes.
 | Composant | Bus/adresse | Fonction |
 |---|---|---|
 | Bus I2C IO | SDA GPIO42, SCL GPIO41, 400 kHz | Bus commun |
-| TCA9554 | I2C `0x20`, expander `0` | EXIO1..EXIO8 |
+| TCA9554 | I2C `0x20`, expander `0` | CH1..CH8 |
 | MCP23017 | I2C `0x21`, expander `1` | GPA0..GPA6 en entrée, GPB0..GPB7 en sortie |
 | INA226 | I2C `0x40` | Shunt, tension, courant, puissance |
 | SHT40 | I2C `0x44` | Température et humidité |
@@ -55,7 +55,7 @@ GPIO génériques en entrée et en sortie, soit 63 ports. Un binding port décri
 endpoint runtime que lorsqu'un IO slot lui est affecté.
 
 Chaque entrée de `kBindingPorts` porte un `boardLabel` correspondant au marquage
-matériel (`GPIO05`, `GPA0`, `GPB0`, `EXIO1`, etc.). L'API `/api/io/topology`
+matériel (`GPIO05`, `GPA0`, `GPB0`, `CH1`, etc.). L'API `/api/io/topology`
 expose la configuration stable des ports et des slots, tandis que `/api/io/runtime`
 expose leurs états et valeurs actualisés. Les deux réponses sont préparées dans des
 tampons bornés en PSRAM avant leur transmission HTTP.
@@ -120,6 +120,11 @@ le texte « Entrée » ou « Sortie » est disponible au survol et au focus clav
 
 ### Sorties digitales
 
+Les relais intégrés sont affichés **CH1 à CH8**, comme sur le bornier.
+Les constantes internes `PortExio1..8` et les identifiants 300..307 restent inchangés.
+Un slot `dXX` peut être réaffecté à un autre CH : son indice ne désigne pas le
+relais physique. Le nom par défaut « Relais libre » ne fixe donc aucun numéro de CH.
+
 | ID | Constante | Kind/canal | Affectation par défaut |
 |---:|---|---|---|
 | 300 | `PortExio1` | TCA9554 bit 0 | `d00`, Filtration Pump |
@@ -127,7 +132,7 @@ le texte « Entrée » ou « Sortie » est disponible au survol et au focus clav
 | 302 | `PortExio3` | TCA9554 bit 2 | `d02`, Chlorine Pump |
 | 303 | `PortExio4` | TCA9554 bit 3 | `d03`, Robot |
 | 304 | `PortExio5` | TCA9554 bit 4 | `d04`, Remplissage |
-| 305 | `PortExio6` | TCA9554 bit 5 | `d05`, Electrolyse |
+| 305 | `PortExio6` | TCA9554 bit 5 | `d05`, Relais libre |
 | 306 | `PortExio7` | TCA9554 bit 6 | `d06`, Lights |
 | 307 | `PortExio8` | TCA9554 bit 7 | `d07`, Water Heater |
 | 320 | `PortMcpOutGpb0` | MCP GPB0 / canal 8 | `d08` |
@@ -209,7 +214,7 @@ l'ADS1115 externe restent sélectionnables. Aucun de ces slots libres n'est asso
 | `d02` | Chlorine Pump | 302 |
 | `d03` | Robot | 303 |
 | `d04` | Remplissage | 304 |
-| `d05` | Electrolyse | 305 |
+| `d05` | Relais libre | 305 |
 | `d06` | Lights | 306 |
 | `d07` | Water Heater | 307 |
 | `d08` | MCP B0 | 320 |

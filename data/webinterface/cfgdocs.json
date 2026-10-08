@@ -468,35 +468,35 @@
         },
         {
           "value": 300,
-          "label": "EXIO1 - TCA9554 bit 0 [300]"
+          "label": "CH1 - TCA9554 bit 0 [300]"
         },
         {
           "value": 301,
-          "label": "EXIO2 - TCA9554 bit 1 [301]"
+          "label": "CH2 - TCA9554 bit 1 [301]"
         },
         {
           "value": 302,
-          "label": "EXIO3 - TCA9554 bit 2 [302]"
+          "label": "CH3 - TCA9554 bit 2 [302]"
         },
         {
           "value": 303,
-          "label": "EXIO4 - TCA9554 bit 3 [303]"
+          "label": "CH4 - TCA9554 bit 3 [303]"
         },
         {
           "value": 304,
-          "label": "EXIO5 - TCA9554 bit 4 [304]"
+          "label": "CH5 - TCA9554 bit 4 [304]"
         },
         {
           "value": 305,
-          "label": "EXIO6 - TCA9554 bit 5 [305]"
+          "label": "CH6 - TCA9554 bit 5 [305]"
         },
         {
           "value": 306,
-          "label": "EXIO7 - TCA9554 bit 6 [306]"
+          "label": "CH7 - TCA9554 bit 6 [306]"
         },
         {
           "value": 307,
-          "label": "EXIO8 - TCA9554 bit 7 [307]"
+          "label": "CH8 - TCA9554 bit 7 [307]"
         },
         {
           "value": 320,

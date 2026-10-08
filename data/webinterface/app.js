@@ -11105,7 +11105,13 @@
           const childPath = p ? (p + '/' + name) : name;
           return !isConfigPathHidden(childPath) && !cfgIsAliasStoreShadowPath(childPath);
         })
-        .slice();
+        .sort((left, right) => {
+          const leftMeta = configPathMeta(p ? p + '/' + left : left);
+          const rightMeta = configPathMeta(p ? p + '/' + right : right);
+          const leftOrder = leftMeta && Number.isFinite(leftMeta.tree_order) ? leftMeta.tree_order : Number.MAX_SAFE_INTEGER;
+          const rightOrder = rightMeta && Number.isFinite(rightMeta.tree_order) ? rightMeta.tree_order : Number.MAX_SAFE_INTEGER;
+          return leftOrder - rightOrder;
+        });
     }
 
     function cfgExpandAncestors(pathValue) {

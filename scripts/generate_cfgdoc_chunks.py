@@ -219,11 +219,21 @@ def main() -> int:
             encoding="utf-8",
         )
 
+    # Tree presentation must be available before opening a module. Keep field
+    # documentation in its chunks, and publish only navigation metadata here.
+    tree_docs = {}
+    for key, doc in cfgmods.get("docs", {}).items():
+        if not isinstance(doc, dict):
+            continue
+        presentation = {name: doc[name] for name in ("label", "label_t", "tree_order", "hidden") if name in doc}
+        if presentation:
+            tree_docs[key] = presentation
+
     index_payload = {
         "ok": True,
         "version": "cfgdoc-chunks-v1",
         "meta": combined_meta,
-        "docs": {},
+        "docs": tree_docs,
         "modules": modules_index,
         "locales": locales,
     }

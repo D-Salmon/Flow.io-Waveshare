@@ -1,6 +1,6 @@
 {
   "translations": {
-    "cfgmods.poollogic.pool.label": "Caractéristiques du bassin",
+    "cfgmods.poollogic.pool.label": "Bassin",
     "cfgdocs.poollogic.pool.indoor.label": "Piscine intérieure",
     "cfgdocs.poollogic.pool.indoor.help": "Indique si le bassin est installé en intérieur.",
     "cfgdocs.poollogic.pool.automatic_cover.label": "Couverture automatique",

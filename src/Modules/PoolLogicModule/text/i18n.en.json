@@ -1,7 +1,7 @@
 {
   "locale": "en",
   "translations": {
-    "cfgmods.poollogic.pool.label": "Pool characteristics",
+    "cfgmods.poollogic.pool.label": "Pool",
     "cfgdocs.poollogic.pool.indoor.label": "Indoor pool",
     "cfgdocs.poollogic.pool.indoor.help": "Indicates whether the pool is installed indoors.",
     "cfgdocs.poollogic.pool.automatic_cover.label": "Automatic cover",

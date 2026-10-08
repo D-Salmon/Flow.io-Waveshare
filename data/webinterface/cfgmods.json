@@ -2456,7 +2456,8 @@
     },
     "poollogic/pool": {
       "label_t": "cfgmods.poollogic.pool.label",
-      "label": "Caractéristiques du bassin",
+      "tree_order": 0,
+      "label": "Bassin",
       "label_i18n": "cfgmods.poollogic.pool.label"
     },
     "poollogic/swg/swg_control_mode": {

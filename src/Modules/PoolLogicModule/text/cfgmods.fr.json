@@ -6,7 +6,8 @@
   },
   "docs": {
     "poollogic/pool": {
-      "label_t": "cfgmods.poollogic.pool.label"
+      "label_t": "cfgmods.poollogic.pool.label",
+      "tree_order": 0
     },
     "poollogic/filtr_start_clc": {
       "enum_set": "hours_of_day"

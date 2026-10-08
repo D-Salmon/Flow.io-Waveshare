@@ -194,6 +194,7 @@ def main() -> int:
         path.unlink()
 
     modules_index: Dict[str, str] = {}
+    module_payloads: Dict[str, dict] = {}
     for module_key in sorted(modules.keys()):
         file_name = _safe_module_file_name(module_key)
         payload = {
@@ -205,6 +206,30 @@ def main() -> int:
         out_file = CFGDOC_DIR / file_name
         out_file.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         modules_index[module_key] = file_name
+        module_payloads[module_key] = payload
+
+    # Prebuilt groups use the existing hashed module asset route. Keep individual
+    # chunks intact for Configuration and put the same payloads in each group.
+    bundles_index: Dict[str, dict] = {}
+    for group in ("poollogic",):
+        members = [key for key in sorted(modules) if key == group or key.startswith(group + "/")]
+        if not members:
+            continue
+        members = [key for key in ("__root", "__wildcard") if key in modules] + members
+        bundle_module = "__bundle_" + group
+        file_name = _safe_module_file_name(bundle_module)
+        payload = {
+            "ok": True,
+            "module": bundle_module,
+            "docs": {},
+            "meta": {},
+            "modules": {key: module_payloads[key] for key in members},
+        }
+        (CFGDOC_DIR / file_name).write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+        )
+        modules_index[bundle_module] = file_name
+        bundles_index[group] = {"module": bundle_module, "members": members}
 
     i18n_by_locale = _collect_consolidated_i18n()
     locales = sorted(i18n_by_locale.keys())
@@ -236,6 +261,7 @@ def main() -> int:
         "meta": combined_meta,
         "docs": tree_docs,
         "modules": modules_index,
+        "bundles": bundles_index,
         "locales": locales,
     }
     (CFGDOC_DIR / "i.j").write_text(

@@ -1,6 +1,9 @@
 {
   "locale": "fr",
   "translations": {
+    "activity.pageLoadFailed": "Chargement du journal impossible. Rouvrez la page pour réessayer.",
+    "users.pageLoadFailed": "Chargement des comptes impossible. Rouvrez la page pour réessayer.",
+    "updates.pageLoadFailed": "Chargement des mises à jour impossible. Rouvrez la page pour réessayer.",
     "menu.dashboard": "Tableau de bord",
     "menu.io": "Entrées/Sorties",
     "menu.calibration": "Étalonnage",

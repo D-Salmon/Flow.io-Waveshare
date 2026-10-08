@@ -44,11 +44,6 @@
     const flowWebThemeStorageKey = 'flow_web_theme';
     const deferredVisualAssetsStateKey = 'flow_web_deferred_visual_assets';
     const upgradeUiSessionStorageKey = 'flow_upgrade_ui_session';
-    const upgradeStatusPollActiveMs = 900;
-    const upgradeStatusPollReconnectMs = 5000;
-    const upgradeStatusPollDoneMs = 7000;
-    const upgradeStatusPollIdleMs = 15000;
-    const upgradeStatusPollErrorMs = 10000;
     const rebootActionDelaySeconds = 5;
     const deferredMenuAssetStartDelayMs = 520;
     const deferredMenuAssetStepMs = 140;
@@ -79,11 +74,13 @@
     const flowStatusDebugEnabled = true;
     let webAssetVersion = '';
     let loadedWebAssetVersion = '';
-    let supervisorFirmwareVersion = '-';
-    let nextionDisplayVersion = '';
-    let nextionDisplayDetected = false;
-    let nextionDisplayModel = '';
-    let nextionDisplayCompatibility = '';
+    const webDeviceMeta = {
+      firmwareVersion: '-',
+      nextionVersion: '',
+      nextionDetected: false,
+      nextionModel: '',
+      nextionCompatibility: '',
+    };
     let supervisorUptimeMs = 0;
     let supervisorHeap = {};
     let webProfileName = 'Supervisor';
@@ -660,7 +657,7 @@
       webAssetVersion = getStorageValue(localStorage, flowWebAssetVersionStorageKey);
     }
 
-    supervisorFirmwareVersion = resolveSupervisorFirmwareVersion();
+    webDeviceMeta.firmwareVersion = resolveSupervisorFirmwareVersion();
     try {
       const initialMeta = window.__FLOW_WEB_META__;
       if (initialMeta && typeof initialMeta === 'object') {
@@ -1052,17 +1049,17 @@
         if (typeof data.firmware_version === 'string') {
           const trimmed = data.firmware_version.trim();
           if (trimmed) {
-            supervisorFirmwareVersion = trimmed;
+            webDeviceMeta.firmwareVersion = trimmed;
           }
         }
         const rawNextionVersion = String(data.nextion_display_version || '').trim();
-        nextionDisplayVersion = rawNextionVersion && rawNextionVersion !== '0' ? rawNextionVersion : '';
-        nextionDisplayDetected = data.nextion_display_detected === true;
-        nextionDisplayModel = String(data.nextion_display_model || '').trim();
-        nextionDisplayCompatibility = String(data.nextion_display_compatibility || '').trim();
+        webDeviceMeta.nextionVersion = rawNextionVersion && rawNextionVersion !== '0' ? rawNextionVersion : '';
+        webDeviceMeta.nextionDetected = data.nextion_display_detected === true;
+        webDeviceMeta.nextionModel = String(data.nextion_display_model || '').trim();
+        webDeviceMeta.nextionCompatibility = String(data.nextion_display_compatibility || '').trim();
         supervisorUptimeMs = Number(data.upms) || 0;
         supervisorHeap = (data.heap && typeof data.heap === 'object') ? data.heap : {};
-        renderUpgradeCatalog();
+        if (updatesPage) updatesPage.renderCatalog();
         refreshAppHeader(getActivePageId());
         if (isPageActive('page-status')) {
           refreshFlowStatus(false).catch(() => {});
@@ -1693,7 +1690,7 @@
       if (time) {
         syncHeaderTimeSourceFromSystemDomain();
       }
-      const fullFirmware = systemDomain ? fmtFlowStatusVal(systemDomain.fw) : (supervisorFirmwareVersion || '-');
+      const fullFirmware = systemDomain ? fmtFlowStatusVal(systemDomain.fw) : (webDeviceMeta.firmwareVersion || '-');
       const firmwareParts = splitInfoFirmwareVersion(fullFirmware);
       const currentMac = wifiDomain ? normalizeInfoMac(wifi.mac) : '-';
       if (currentMac !== '-') infoLastMac = currentMac;
@@ -1736,44 +1733,6 @@
       if (isMobileLayout()) {
         setMobileDrawerOpen(false);
       }
-    }
-
-    function currentUpgradeStatusPollDelayMs() {
-      const current = readUpgradeUiSession();
-      const phase = String(current && current.phase ? current.phase : 'idle');
-      if (current && (current.awaitingReconnect || phase === 'reboot' || phase === 'reconnect')) {
-        return upgradeStatusPollReconnectMs;
-      }
-      if (phase === 'target' || phase === 'download' || phase === 'flash') {
-        return upgradeStatusPollActiveMs;
-      }
-      if (phase === 'done') return upgradeStatusPollDoneMs;
-      if (phase === 'error') return upgradeStatusPollErrorMs;
-      return upgradeStatusPollIdleMs;
-    }
-
-    function scheduleNextUpgradeStatusPoll(delayMs) {
-      if (document.hidden || getActivePageId() !== 'page-system') return;
-      const nextDelay = Math.max(0, Number.isFinite(delayMs) ? delayMs : currentUpgradeStatusPollDelayMs());
-      upgradeStatusPoller.schedule(nextDelay);
-    }
-
-    async function pollUpgradeStatusTick() {
-      if (document.hidden || getActivePageId() !== 'page-system') return;
-      await refreshUpgradeStatus();
-      scheduleNextUpgradeStatusPoll();
-    }
-
-    function startUpgradeStatusPolling(immediate) {
-      if (immediate) {
-        scheduleNextUpgradeStatusPoll(0);
-        return;
-      }
-      scheduleNextUpgradeStatusPoll();
-    }
-
-    function stopUpgradeStatusPolling() {
-      upgradeStatusPoller.stop();
     }
 
     function isInfoPageVisible() {
@@ -1915,6 +1874,7 @@
       } else {
         stopPoolMeasuresTimer();
         stopPoolAiPreviewPolling();
+        stopPoolConfigAssignmentsWait();
       }
       if (pageId === 'page-io-summary') {
         schedulePageTask(pageId, pageToken, deferredHeavyMs, () => onIoSummaryPageShown());
@@ -2024,44 +1984,8 @@
     const logsOverlay = document.getElementById('logsOverlay');
     const openLogsOverlayBtn = document.getElementById('openLogsOverlay');
     const closeLogsOverlayBtn = document.getElementById('closeLogsOverlay');
-    const activityLogList = document.getElementById('activityLogList');
-    const activityLogStatus = document.getElementById('activityLogStatus');
-    const activityRefreshBtn = document.getElementById('activityRefreshBtn');
-    const activityPurgeBtn = document.getElementById('activityPurgeBtn');
-    const activityPrevBtn = document.getElementById('activityPrevBtn');
-    const activityNextBtn = document.getElementById('activityNextBtn');
-    const activityRangeText = document.getElementById('activityRangeText');
-    const activityFilterBtns = Array.from(document.querySelectorAll('[data-activity-filter]'));
-    const activitySelectVisibleBtn = document.getElementById('activitySelectVisibleBtn');
-    const activityPeriodScope = document.getElementById('activityPeriodScope');
-    const activityDeleteConfirmation = document.getElementById('activityDeleteConfirmation');
-    let activityConfirmationSequences = null;
-    let activityShowWholeJournal = true;
     let autoScrollEnabled = true;
     let logsOverlayOpen = false;
-    let activityFilter = 'all';
-    let activityWindowShiftHours = 0;
-    let activityRequestToken = 0;
-    let activityAbortController = null;
-    let activityLoadedEvents = [];
-    const activitySelectedSequences = new Set();
-    let activityDeleting = false;
-    let activityLoadedStats = null;
-
-    const checkUpdatesBtn = document.getElementById('checkUpdates');
-    const localReleaseFileInput = document.getElementById('localReleaseFile');
-    const localReleaseSelectBtn = document.getElementById('localReleaseSelect');
-    const localReleaseSummary = document.getElementById('localReleaseSummary');
-    const cancelUpgradeUiBtn = document.getElementById('cancelUpgradeUi');
-    const upgradeTableBody = document.getElementById('upgradeTableBody');
-    const upgradeProgressBar = document.getElementById('upgradeProgressBar');
-    const upgradePct = document.getElementById('upgradePct');
-    const upgradeJourneyLabel = document.getElementById('upgradeJourneyLabel');
-    const upgradeSteps = document.getElementById('upgradeSteps');
-    const upgradeFooterStatus = document.getElementById('upgradeFooterStatus');
-    const upgradeProgressPanel = document.getElementById('upgradeProgressPanel');
-    const upStatusChip = document.getElementById('upStatusChip');
-
     const rebootDeviceTargetSelect = document.getElementById('rebootDeviceTarget');
     const rebootDeviceActionBtn = document.getElementById('rebootDeviceAction');
     const factoryResetDeviceActionBtn = document.getElementById('factoryResetDeviceAction');
@@ -2134,6 +2058,7 @@
     const cfgDocWildcardModuleKey = '__wildcard';
     const flowCfgDocModuleCache = new Map();
     const flowCfgDocModuleLoadPromises = new Map();
+    const flowCfgDocBundleLoadPromises = new Map();
     let flowCfgDocIndexPromise = null;
     let flowCfgDocI18nLocale = '';
     let flowCfgDocI18nMap = {};
@@ -2148,7 +2073,6 @@
     let flowCfgLoadedOnce = false;
     let flowCfgSelectionSeq = 0;
     let flowCfgModuleReqSeq = 0;
-    let upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '', nextion: null };
     let cfgTreeAliases = [];
     let cfgTreeVirtualBranches = [];
     let cfgTreeNodeTextNames = {};
@@ -2252,6 +2176,7 @@
     let poolDashboardSlotsGeneration = 0;
     let poolConfigLoadedOnce = false;
     let poolConfigReqSeq = 0;
+    let poolConfigAssignmentsWait = null;
     let poolConfigModulesCache = null;
     let poolConfigEditRevision = 0;
     let poolAiPreviewLoadedOnce = false;
@@ -2335,41 +2260,6 @@
         note: 'Dosage hebdomadaire calculé depuis le volume du bassin, la charge et la température.'
       })
     ]);
-    const upgradeReconnectFetchTimeoutMs = 1400;
-    const upgradeTargetDefs = {
-      flowios3: { manifestKey: 'flowios3', target: 'flowios3', endpoint: '/fwupdate/waveshare', label: 'FlowIOS3', order: 10 },
-      waveshare: { manifestKey: 'waveshare', target: 'waveshare', endpoint: '/fwupdate/waveshare', label: 'Waveshare', order: 10 },
-      esp32s3: { manifestKey: 'esp32s3', target: 'esp32s3', endpoint: '/fwupdate/waveshare', label: 'ESP32-S3', order: 11 },
-      'flowios3-spiffs': { manifestKey: 'flowios3-spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'SPIFFS FlowIOS3', order: 39 },
-      'esp32s3-spiffs': { manifestKey: 'esp32s3-spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'SPIFFS ESP32-S3', order: 39 },
-      'waveshare-spiffs': { manifestKey: 'waveshare-spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'SPIFFS Waveshare', order: 39 },
-      nextion: { manifestKey: 'nextion', target: 'nextion', endpoint: '/fwupdate/nextion', label: 'Nextion', order: 30 },
-      spiffs: { manifestKey: 'spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'SPIFFS', order: 40 }
-    };
-    const upgradeComponentDefs = [
-      {
-        key: 'flowio',
-        title: 'FlowIOS3',
-        subtitle: 'Firmware Waveshare',
-        icon: 'layers',
-        tone: 'blue'
-      },
-      {
-        key: 'spiffs',
-        title: 'SPIFFS',
-        subtitle: 'Fichiers système',
-        icon: 'memory',
-        tone: 'green'
-      },
-      {
-        key: 'nextion',
-        title: 'Nextion',
-        subtitle: 'Unknown',
-        icon: 'display_settings',
-        tone: 'orange'
-      }
-    ];
-
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
     const logSocketPath = '/wslog';
     const logSourceMeta = {
@@ -2378,12 +2268,8 @@
     };
     let logSource = 'supervisor';
     let logSocket = null;
-    let upgradeUiStatusMuted = false;
-    const upgradeStatusPoller = createTimeoutRunner(() => pollUpgradeStatusTick());
     const infoRuntimePoller = createIntervalRunner(() => pollInfoRuntimeTick(), infoRefreshActiveMs);
     const infoSupervisorPoller = createIntervalRunner(() => pollInfoSupervisorTick(), infoSupervisorRefreshMs);
-    const upgradeReconnectStageTimer = createTimeoutRunner(() => enterUpgradeReconnectPhase());
-    const upgradeReconnectMonitor = createIntervalRunner(() => probeUpgradeReconnect(), 1500);
     const dashboardLiveUpdates = createDashboardLiveUpdates({
       isActive: () => getActivePageId() === 'page-dashboard' && !document.hidden,
       canStream: () => webLocalRuntime && webRuntimeEventsAvailable && typeof EventSource === 'function',
@@ -2600,325 +2486,6 @@
       setWsStatusText(tr('terminal.inactive', 'inactif'));
     }
 
-    function activityEventDate(ev) {
-      const epoch = Number(ev && ev.epoch_s) || 0;
-      if (epoch > 0) return new Date(epoch * 1000);
-      return null;
-    }
-
-    function formatActivityTime(date) {
-      if (!date) return '--:--:--';
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-
-    function formatActivityDay(date) {
-      if (!date) return 'Date inconnue';
-      const dayText = date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
-      const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-      const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const dayOffset = Math.round((startOfToday - startOfDay) / 86400000);
-      if (dayOffset === 0) return 'Aujourd’hui · ' + dayText;
-      if (dayOffset === 1) return 'Hier · ' + dayText;
-      return dayText;
-    }
-
-    function formatActivityActor(ev) {
-      if (ev && ev.actor_kind === 'remote') return 'Remote (MQTT)';
-      if (ev && String(ev.actor_kind || '') === 'user' && ev.actor) {
-        return 'par ' + String(ev.actor);
-      }
-      return 'Système';
-    }
-
-    function formatActivityRelative(date) {
-      if (!date) return 'heure non synchronisée';
-      const diffSec = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
-      if (diffSec < 60) return diffSec <= 3 ? 'Maintenant' : ('Il y a ' + diffSec + ' secondes');
-      const diffMin = Math.round(diffSec / 60);
-      if (diffMin < 60) return 'Il y a ' + diffMin + ' min';
-      const diffHour = Math.round(diffMin / 60);
-      if (diffHour < 24) return 'Il y a ' + diffHour + ' h';
-      const diffDay = Math.round(diffHour / 24);
-      return 'Il y a ' + diffDay + ' j';
-    }
-
-    function activityMatchesCategory(ev) {
-      if (activityFilter === 'all') return true;
-      if (activityFilter === 'poollogic') return ev.domain_name === 'poollogic' || ev.domain_name === 'pooldevice';
-      if (activityFilter === 'manual') return ev.source_name === 'manual';
-      if (activityFilter === 'safety') return ev.domain_name === 'alarm' || ev.source_name === 'safety' || ev.severity_name === 'warning' || ev.severity_name === 'alarm';
-      if (activityFilter === 'system') return ev.domain_name === 'system';
-      return true;
-    }
-
-    function activityMatchesFilter(ev) {
-      if (!activityMatchesCategory(ev)) return false;
-      if (activityShowWholeJournal) return true;
-      const date = activityEventDate(ev);
-      if (date) {
-        const end = Date.now() - (activityWindowShiftHours * 3 * 3600000);
-        const start = end - (3 * 3600000);
-        const ts = date.getTime();
-        if (ts < start || ts > end) return false;
-      } else if (activityWindowShiftHours !== 0) {
-        return false;
-      }
-      return true;
-    }
-
-    function setActivityPeriodScope(showWholeJournal) {
-      activityShowWholeJournal = showWholeJournal;
-      if (activityPeriodScope) activityPeriodScope.value = showWholeJournal ? 'all' : 'period';
-    }
-
-    function updateActivityRangeText() {
-      if (!activityRangeText) return;
-      if (activityShowWholeJournal) {
-        activityRangeText.textContent = 'Toutes les dates du journal conservé';
-        return;
-      }
-      const end = new Date(Date.now() - (activityWindowShiftHours * 3 * 3600000));
-      const start = new Date(end.getTime() - (3 * 3600000));
-      activityRangeText.textContent =
-        start.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ' à ' +
-        start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' - ' +
-        end.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ' à ' +
-        end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    function cancelActivityLogRefresh() {
-      activityRequestToken += 1;
-      const controller = activityAbortController;
-      activityAbortController = null;
-      if (controller) controller.abort();
-    }
-
-    function updateActivitySelection() {
-      const busy = activityDeleting || !!activityAbortController || !!activityConfirmationSequences;
-      if (activityPurgeBtn) activityPurgeBtn.disabled = busy || !activitySelectedSequences.size;
-      if (activitySelectVisibleBtn) activitySelectVisibleBtn.disabled = busy;
-      if (activityRefreshBtn) activityRefreshBtn.disabled = activityDeleting || !!activityConfirmationSequences;
-      if (activityPeriodScope) activityPeriodScope.disabled = busy;
-      if (activityPrevBtn) activityPrevBtn.disabled = busy || activityShowWholeJournal;
-      if (activityNextBtn) activityNextBtn.disabled = busy || activityShowWholeJournal || activityWindowShiftHours === 0;
-      activityFilterBtns.forEach(button => { button.disabled = busy; });
-      const count = document.getElementById('activitySelectionCount');
-      if (count) count.textContent = 'Supprimer la sélection (' + activitySelectedSequences.size + ')';
-    }
-
-    function renderActivityLog(events, stats) {
-      if (!activityLogList) return;
-      activityLogList.innerHTML = '';
-      updateActivityRangeText();
-      updateActivitySelection();
-      const filtered = (Array.isArray(events) ? events : [])
-        .filter(activityMatchesFilter)
-        .sort((a, b) => {
-          const ae = Number(a.epoch_s) || 0;
-          const be = Number(b.epoch_s) || 0;
-          if (ae !== be) return be - ae;
-          return (Number(b.seq) || 0) - (Number(a.seq) || 0);
-        });
-      if (!filtered.length) {
-        const empty = document.createElement('div');
-        empty.className = 'activity-empty';
-        empty.textContent = 'Aucune activité pour ce filtre.';
-        activityLogList.appendChild(empty);
-        if (activityLogStatus) {
-          if (stats) {
-            activityLogStatus.textContent =
-              '0/' + (Number(stats.entries) || 0) +
-              ' événement(s)';
-          } else {
-            activityLogStatus.textContent = 'Aucune activité.';
-          }
-        }
-        return;
-      }
-      let currentDay = '';
-      let currentDayEvents = null;
-      filtered.forEach((ev) => {
-        const date = activityEventDate(ev);
-        const day = formatActivityDay(date);
-        if (day !== currentDay) {
-          currentDay = day;
-          const daySection = document.createElement('section');
-          daySection.className = 'activity-day';
-          const dayNode = document.createElement('div');
-          dayNode.className = 'activity-day-title';
-          dayNode.textContent = day;
-          currentDayEvents = document.createElement('div');
-          currentDayEvents.className = 'activity-day-events';
-          daySection.appendChild(dayNode);
-          daySection.appendChild(currentDayEvents);
-          activityLogList.appendChild(daySection);
-        }
-        const row = document.createElement('article');
-        row.className = 'activity-row activity-severity-' + String(ev.severity_name || 'info');
-        const time = document.createElement('time');
-        time.className = 'activity-row-time';
-        time.textContent = formatActivityTime(date);
-        if (date) time.dateTime = date.toISOString();
-        const rail = document.createElement('div');
-        rail.className = 'activity-row-rail';
-        const icon = document.createElement('span');
-        icon.className = 'ui-msr activity-row-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = String(ev.icon || 'history');
-        rail.appendChild(icon);
-        const selection = document.createElement('input');
-        selection.type = 'checkbox';
-        selection.className = 'activity-row-selection';
-        selection.dataset.sequence = String(ev.seq);
-        selection.checked = activitySelectedSequences.has(Number(ev.seq));
-        selection.disabled = activityDeleting || !!activityConfirmationSequences || authSession.role !== 'admin';
-        selection.setAttribute('aria-label', 'Sélectionner : ' + String(ev.title || 'Activité'));
-        selection.addEventListener('change', () => {
-          if (selection.checked) activitySelectedSequences.add(Number(ev.seq));
-          else activitySelectedSequences.delete(Number(ev.seq));
-          updateActivitySelection();
-        });
-        rail.appendChild(selection);
-        const main = document.createElement('div');
-        main.className = 'activity-row-main';
-        const title = document.createElement('div');
-        title.className = 'activity-row-title';
-        const strong = document.createElement('strong');
-        strong.textContent = String(ev.title || 'Activité');
-        title.appendChild(strong);
-        const meta = document.createElement('div');
-        meta.className = 'activity-row-meta';
-        meta.textContent = formatActivityRelative(date) + ' · ' + formatActivityActor(ev);
-        main.appendChild(title);
-        if (ev.detail) {
-          const detail = document.createElement('div');
-          detail.className = 'activity-row-detail';
-          detail.textContent = String(ev.detail);
-          main.appendChild(detail);
-        }
-        main.appendChild(meta);
-        row.appendChild(time);
-        row.appendChild(rail);
-        row.appendChild(main);
-        currentDayEvents.appendChild(row);
-      });
-      activityLogList.querySelectorAll('.activity-day-events').forEach((dayEvents) => {
-        const rows = dayEvents.querySelectorAll('.activity-row');
-        if (!rows.length) return;
-        rows[0].classList.add('is-first');
-        rows[rows.length - 1].classList.add('is-last');
-      });
-      if (activityLogStatus && stats) {
-        activityLogStatus.textContent =
-          filtered.length + '/' + (Number(stats.entries) || filtered.length) +
-          ' événement(s)';
-      }
-    }
-
-    async function refreshActivityLog(showBusy) {
-      if (!activityLogList) return;
-      if (showBusy && activityLogStatus) activityLogStatus.textContent = 'Chargement du journal...';
-
-      if (activityAbortController) activityAbortController.abort();
-      const controller = new AbortController();
-      activityAbortController = controller;
-      updateActivitySelection();
-      const requestToken = ++activityRequestToken;
-      const limit = 32;
-      let offset = 0;
-      const events = [];
-      const seenSequences = new Set();
-      let stats = null;
-
-      try {
-        while (true) {
-          const url =
-            '/api/activity/logs?order=desc&offset=' + encodeURIComponent(offset) +
-            '&limit=' + limit;
-          const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
-          if (!response.ok) throw new Error('HTTP ' + response.status);
-          const page = await response.json();
-          if (requestToken !== activityRequestToken) return;
-
-          stats = page;
-          const pageEvents = Array.isArray(page.events) ? page.events : [];
-          pageEvents.forEach((event) => {
-            const sequence = Number(event && event.seq) || 0;
-            if (sequence > 0 && seenSequences.has(sequence)) return;
-            if (sequence > 0) seenSequences.add(sequence);
-            events.push(event);
-          });
-
-          if (page.complete || page.next == null || Number(page.count) === 0) break;
-
-          offset = Number(page.next);
-          if (!Number.isFinite(offset) || offset < 0 || events.length >= 768) break;
-        }
-
-        if (requestToken !== activityRequestToken) return;
-        activityLoadedEvents = events;
-        activityLoadedStats = stats;
-        renderActivityLog(activityLoadedEvents, activityLoadedStats);
-      } catch (err) {
-        if (err && err.name === 'AbortError') return;
-        throw err;
-      } finally {
-        if (activityAbortController === controller) {
-          activityAbortController = null;
-          updateActivitySelection();
-        }
-      }
-    }
-
-    async function purgeActivityLog(sequences) {
-      if (!sequences || !sequences.length || activityDeleting) return;
-      activityDeleting = true;
-      let deletionMessage = '';
-      updateActivitySelection();
-      try {
-        for (let offset = 0; offset < sequences.length; offset += 128) {
-          const batch = sequences.slice(offset, offset + 128);
-          const payload = await fetchOkJson('/api/activity/delete', createFormPostOptions({sequences:JSON.stringify(batch)}), 'suppression refusée', fetch);
-          if (!payload || !payload.delete_id) throw new Error('Confirmation de suppression absente.');
-          const deadline = Date.now() + 60000;
-          while (true) {
-            if (Date.now() >= deadline) throw new Error('Délai dépassé : la suppression reste à vérifier.');
-            await new Promise(resolve => setTimeout(resolve, 300));
-            const state = await fetchJsonResponse('/api/activity/status', {cache:'no-store'});
-            if (!state.res.ok || !state.data) throw new Error('État de suppression indisponible.');
-            if (Number(state.data.delete_id) !== Number(payload.delete_id)) throw new Error('Suppression interrompue ou remplacée.');
-            if (Number(state.data.delete_state) === 3) throw new Error('Écriture impossible : la suppression peut être partielle.');
-            if (Number(state.data.delete_state) === 2) break;
-            if (activityLogStatus) activityLogStatus.textContent = 'Suppression en cours : ' + offset + '/' + sequences.length + ' message(s) vérifiés…';
-          }
-          batch.forEach(seq => activitySelectedSequences.delete(seq));
-        }
-        await refreshActivityLog(false);
-        deletionMessage = 'Sélection supprimée.';
-      } catch (err) {
-        await refreshActivityLog(false).catch(() => {});
-        deletionMessage = 'Suppression impossible : ' + (err.message || String(err));
-      } finally {
-        activityDeleting = false;
-        renderActivityLog(activityLoadedEvents, activityLoadedStats);
-        updateActivitySelection();
-        if (activityLogStatus) activityLogStatus.textContent = deletionMessage;
-      }
-    }
-    if (activitySelectVisibleBtn) activitySelectVisibleBtn.addEventListener('click', () => {
-      if (activityDeleting) return;
-      const visible = activityLoadedEvents.filter(activityMatchesFilter);
-      const allSelected = visible.length && visible.every(ev => activitySelectedSequences.has(Number(ev.seq)));
-      visible.forEach(ev => { if (allSelected) activitySelectedSequences.delete(Number(ev.seq)); else activitySelectedSequences.add(Number(ev.seq)); });
-      renderActivityLog(activityLoadedEvents, activityLoadedStats);
-    });
-    if (activityPeriodScope) activityPeriodScope.addEventListener('change', () => {
-      setActivityPeriodScope(activityPeriodScope.value === 'all');
-      activitySelectedSequences.clear();
-      renderActivityLog(activityLoadedEvents, activityLoadedStats);
-    });
-
     function setLogSource(source) {
       let normalized = String(source || '').trim().toLowerCase();
       if (webLocalRuntime && normalized === 'flowio') {
@@ -2991,84 +2558,11 @@
     document.addEventListener('keydown', (ev) => {
       if (ev.key === 'Escape' && logsOverlayOpen) closeLogsOverlay();
     });
-    if (activityRefreshBtn) {
-      activityRefreshBtn.addEventListener('click', () => refreshActivityLog(true).catch((err) => {
-        if (activityLogStatus) activityLogStatus.textContent = 'Journal indisponible: ' + (err && err.message ? err.message : String(err));
-      }));
-    }
-    if (activityPurgeBtn) {
-      activityPurgeBtn.addEventListener('click', () => {
-        if (activityDeleting || !activitySelectedSequences.size || !activityDeleteConfirmation) return;
-        activityConfirmationSequences = [...activitySelectedSequences];
-        const question = document.getElementById('activityDeleteQuestion');
-        if (question) question.textContent = 'Supprimer uniquement les ' + activityConfirmationSequences.length + ' message(s) sélectionné(s) ? Cette suppression est définitive.';
-        activityDeleteConfirmation.hidden = false;
-        renderActivityLog(activityLoadedEvents, activityLoadedStats);
-      });
-    }
-    const activityDeleteConfirmBtn = document.getElementById('activityDeleteConfirmBtn');
-    const activityDeleteCancelBtn = document.getElementById('activityDeleteCancelBtn');
-    if (activityDeleteConfirmBtn) activityDeleteConfirmBtn.addEventListener('click', () => {
-      const sequences = activityConfirmationSequences;
-      activityConfirmationSequences = null;
-      if (activityDeleteConfirmation) activityDeleteConfirmation.hidden = true;
-      purgeActivityLog(sequences).catch(err => {
-        if (activityLogStatus) activityLogStatus.textContent = 'Suppression impossible : ' + (err.message || String(err));
-      });
-    });
-    if (activityDeleteCancelBtn) activityDeleteCancelBtn.addEventListener('click', () => {
-      activityConfirmationSequences = null;
-      if (activityDeleteConfirmation) activityDeleteConfirmation.hidden = true;
-      renderActivityLog(activityLoadedEvents, activityLoadedStats);
-    });
-    if (activityPrevBtn) {
-      activityPrevBtn.addEventListener('click', () => {
-        activityWindowShiftHours += 1;
-        activitySelectedSequences.clear();
-        updateActivityRangeText();
-        refreshActivityLog(false).catch(() => {});
-      });
-    }
-    if (activityNextBtn) {
-      activityNextBtn.addEventListener('click', () => {
-        activityWindowShiftHours = Math.max(0, activityWindowShiftHours - 1);
-        activitySelectedSequences.clear();
-        updateActivityRangeText();
-        refreshActivityLog(false).catch(() => {});
-      });
-    }
-    activityFilterBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        activityFilter = String(btn.dataset.activityFilter || 'all');
-        setActivityPeriodScope(true);
-        activitySelectedSequences.clear();
-        activityFilterBtns.forEach((el) => el.classList.toggle('is-active', el === btn));
-        renderActivityLog(activityLoadedEvents, activityLoadedStats);
-      });
-    });
     applyLogSourceUi();
     refreshAutoscrollUi();
     logSource = 'supervisor';
     setWsStatusText(tr('terminal.inactive', 'inactif'));
     if (flowCfgApplyBtn) flowCfgApplyBtn.disabled = true;
-
-    function setUpgradeProgress(value) {
-      const p = Math.max(0, Math.min(100, Number(value) || 0));
-      if (upgradeProgressBar) {
-        upgradeProgressBar.style.width = p + '%';
-        upgradeProgressBar.classList.toggle('is-complete', p >= 100);
-      }
-      if (upgradePct) {
-        upgradePct.textContent = p + '%';
-      }
-    }
-
-    function setUpgradeMessage(text) {
-      const message = String(text || '').trim() || tr('updates.none', 'Aucune opération en cours.');
-      if (upgradeFooterStatus) {
-        upgradeFooterStatus.innerHTML = '<span class="sdot"></span>' + message;
-      }
-    }
 
     function readUpgradeUiSession() {
       const raw = getStorageValue(sessionStorage, upgradeUiSessionStorageKey);
@@ -3079,1141 +2573,6 @@
       } catch (err) {
         return null;
       }
-    }
-
-    function writeUpgradeUiSession(session) {
-      if (!session || typeof session !== 'object') return;
-      setStorageValue(sessionStorage, upgradeUiSessionStorageKey, JSON.stringify(session));
-    }
-
-    function clearUpgradeUiSession() {
-      stopUpgradeReconnectFlow();
-      try {
-        sessionStorage.removeItem(upgradeUiSessionStorageKey);
-      } catch (err) {
-      }
-    }
-
-    function upgradeTargetLabel(target) {
-      const key = String(target || '').trim().toLowerCase();
-      if (key === 'flowios3' || key === 'esp32s3') return 'FlowIOS3';
-      if (key === 'waveshare') return 'FlowIOS3';
-      if (key === 'spiffs') return 'SPIFFS';
-      if (key === 'nextion') return 'Nextion';
-      if (key === 'release') return 'Flow.IO';
-      return 'Firmware';
-    }
-
-    function upgradeUsesReconnect(target) {
-      const key = String(target || '').trim().toLowerCase();
-      return key === 'flowios3' || key === 'esp32s3' || key === 'waveshare' || key === 'spiffs' || key === 'nextion';
-    }
-
-    function upgradeStepDefinitions(target) {
-      return [
-        { id: 'target', label: tr('updates.step.target', 'Initialisation') },
-        { id: 'download', label: tr('updates.step.download', 'Connexion') },
-        { id: 'flash', label: tr('updates.step.flash', 'Mise à jour') },
-        { id: 'reboot', label: tr('updates.step.reboot', 'Redémarrage') },
-        { id: 'reconnect', label: tr('updates.step.reconnect', 'Reconnexion') }
-      ];
-    }
-
-    function upgradePhaseIndex(phase) {
-      if (phase === 'target') return 0;
-      if (phase === 'download') return 1;
-      if (phase === 'flash') return 2;
-      if (phase === 'reboot') return 3;
-      if (phase === 'reconnect') return 4;
-      if (phase === 'done') return 5;
-      return -1;
-    }
-
-    function upgradePhasePercent(session) {
-      const phase = String(session && session.phase ? session.phase : 'idle');
-      const progress = Math.max(0, Math.min(100, Number(session && session.backendProgress) || 0));
-      const reconnectProgress = Math.max(0, Math.min(100, Number(session && session.reconnectProgress) || 0));
-      if (phase === 'target') return 1;
-      if (phase === 'download') return 1 + Math.round(progress * 0.04);
-      if (phase === 'flash') return 5 + Math.round(progress * 0.90);
-      if (phase === 'reboot') return 97;
-      if (phase === 'reconnect') return 97 + Math.round(reconnectProgress * 0.03);
-      if (phase === 'done') return 100;
-      if (phase === 'error') return Math.max(6, Math.min(96, Number(session && session.lastPercent) || 12));
-      return 0;
-    }
-
-    function upgradeStepProgress(stepId, state, session) {
-      if (state === 'done') return 100;
-      if (state !== 'active') return null;
-      const phase = String(session && session.phase ? session.phase : '');
-      if (stepId !== phase) return null;
-      if (phase === 'target') return 100;
-      if (phase === 'download' || phase === 'flash') {
-        return Math.max(0, Math.min(100, Number(session && session.backendProgress) || 0));
-      }
-      if (phase === 'reboot') return 100;
-      if (phase === 'reconnect') {
-        return Math.max(0, Math.min(100, Number(session && session.reconnectProgress) || 0));
-      }
-      if (phase === 'done') return 100;
-      return null;
-    }
-
-    function upgradeStepStatusLabel(stepId, state, session) {
-      if (state === 'done') return tr('updates.step.status.done', 'Terminé');
-      const progress = upgradeStepProgress(stepId, state, session);
-      if (state === 'active') {
-        return progress !== null
-          ? tr('updates.step.status.inProgressPct', 'En cours ({pct}%)').replace('{pct}', String(progress))
-          : tr('updates.step.status.inProgress', 'En cours');
-      }
-      if (state === 'pending') return tr('updates.step.status.pending', 'En attente');
-      if (state === 'error') return tr('updates.step.status.error', 'Erreur');
-      return tr('updates.step.status.pending', 'En attente');
-    }
-
-    function upgradeStepState(stepId, session) {
-      const phase = String(session && session.phase ? session.phase : 'idle');
-      if (phase === 'idle') return 'pending';
-      if (phase === 'error') {
-        const failedStep = String(session && session.failedStep ? session.failedStep : 'flash');
-        const failedIndex = upgradePhaseIndex(failedStep);
-        const stepIndex = upgradePhaseIndex(stepId);
-        if (stepIndex < failedIndex) return 'done';
-        if (stepId === failedStep) return 'error';
-        return 'pending';
-      }
-      const activeIndex = upgradePhaseIndex(phase);
-      const stepIndex = upgradePhaseIndex(stepId);
-      if (stepIndex < activeIndex) return 'done';
-      if (stepIndex === activeIndex) return phase === 'done' ? 'done' : 'active';
-      return 'pending';
-    }
-
-    function renderUpgradeSteps(session) {
-      if (!upgradeSteps) return;
-      const defs = upgradeStepDefinitions(session && session.target);
-      upgradeSteps.innerHTML = '';
-      defs.forEach((step) => {
-        const state = upgradeStepState(step.id, session);
-        const row = document.createElement('div');
-        row.className = 'step-row';
-
-        const icon = document.createElement('span');
-        icon.className = 'step-ic ' + state;
-        if (state === 'active') {
-          const activeDot = document.createElement('span');
-          activeDot.className = 'step-active-dot';
-          activeDot.setAttribute('aria-hidden', 'true');
-          icon.appendChild(activeDot);
-        } else if (state === 'done') {
-          const doneIcon = document.createElement('span');
-          doneIcon.className = 'ui-msr';
-          doneIcon.setAttribute('aria-hidden', 'true');
-          doneIcon.textContent = 'check';
-          icon.appendChild(doneIcon);
-        } else if (state === 'error') {
-          const errIcon = document.createElement('span');
-          errIcon.className = 'ui-msr';
-          errIcon.setAttribute('aria-hidden', 'true');
-          errIcon.textContent = 'close';
-          icon.appendChild(errIcon);
-        } else {
-          const pendingIcon = document.createElement('span');
-          pendingIcon.className = 'ui-msr';
-          pendingIcon.setAttribute('aria-hidden', 'true');
-          pendingIcon.textContent = 'radio_button_unchecked';
-          icon.appendChild(pendingIcon);
-        }
-        row.appendChild(icon);
-
-        const meta = document.createElement('span');
-        meta.className = 'step-meta';
-
-        const label = document.createElement('span');
-        label.className = 'step-lbl ' + state;
-        label.textContent = step.label;
-        meta.appendChild(label);
-
-        const sub = document.createElement('span');
-        sub.className = 'step-sub ' + state;
-        sub.textContent = upgradeStepStatusLabel(step.id, state, session);
-        meta.appendChild(sub);
-
-        row.appendChild(meta);
-
-        upgradeSteps.appendChild(row);
-      });
-    }
-
-    function isUpgradeUiCancelable(session) {
-      const phase = String(session && session.phase ? session.phase : 'idle');
-      return !!(session && (session.awaitingReconnect || phase === 'target' || phase === 'download' || phase === 'flash' || phase === 'reboot' || phase === 'reconnect'));
-    }
-
-    function syncUpgradeCancelButton(session) {
-      if (!cancelUpgradeUiBtn) return;
-      const canCancel = isUpgradeUiCancelable(session);
-      cancelUpgradeUiBtn.hidden = !canCancel;
-      cancelUpgradeUiBtn.disabled = !canCancel;
-    }
-
-    function renderUpgradeJourney(session) {
-      const safeSession = session && typeof session === 'object' ? session : { phase: 'idle', target: '' };
-      const phase = String(safeSession.phase || 'idle');
-      const detail = String(safeSession.detail || '');
-      const targetLabel = upgradeTargetLabel(safeSession.target);
-      if (upgradeProgressPanel) {
-        const progressVisible = phase === 'target' || phase === 'download' || phase === 'flash'
-          || phase === 'reboot' || phase === 'reconnect';
-        upgradeProgressPanel.hidden = !progressVisible;
-      }
-      const stateLabel = phase === 'idle'
-        ? tr('updates.phase.idle', 'Prêt')
-        : phase === 'target'
-          ? tr('updates.phase.target', 'Cible sélectionnée')
-          : phase === 'download'
-            ? tr('updates.phase.download', 'Téléchargement')
-            : phase === 'flash'
-              ? tr('updates.phase.flash', 'Mise à jour')
-              : phase === 'reboot'
-                ? tr('updates.phase.reboot', 'Redémarrage')
-                : phase === 'reconnect'
-                  ? tr('updates.phase.reconnect', 'Attente de Reconnection')
-                  : phase === 'done'
-                    ? tr('updates.phase.done', 'Mise à jour terminée')
-                    : tr('updates.phase.error', 'Erreur');
-
-      if (upgradeJourneyLabel) {
-        upgradeJourneyLabel.textContent = safeSession.target
-          ? (tr('updates.progress', 'Statut de l’upgrade') + ' · ' + targetLabel)
-          : tr('updates.progress', 'Statut de l’upgrade');
-      }
-      setUpgradeProgress(upgradePhasePercent(safeSession));
-      setUpgradeMessage(detail || (phase === 'idle' ? tr('updates.none', 'Aucune opération en cours.') : stateLabel));
-      renderUpgradeSteps(safeSession);
-      if (upStatusChip) {
-        upStatusChip.textContent = stateLabel;
-      }
-      syncUpgradeCancelButton(safeSession);
-    }
-
-    function updateUpgradeUiSession(patch) {
-      const current = readUpgradeUiSession() || {
-        phase: 'idle',
-        target: '',
-        detail: tr('updates.none', 'Aucune opération en cours.'),
-        backendProgress: 0,
-        lastPercent: 0,
-        awaitingReconnect: false,
-        reconnectShown: false,
-        reconnectProgress: 0,
-        operationId: 0,
-        bootId: 0
-      };
-      const next = Object.assign({}, current, patch || {});
-      next.lastPercent = upgradePhasePercent(next);
-      writeUpgradeUiSession(next);
-      renderUpgradeJourney(next);
-      return next;
-    }
-
-    function startUpgradeUiSession(target) {
-      stopUpgradeReconnectFlow();
-      upgradeUiStatusMuted = false;
-      return updateUpgradeUiSession({
-        phase: 'target',
-        target: target,
-        detail: tr('updates.detail.targetSelected', 'Sélection de la cible {target}.')
-          .replace('{target}', upgradeTargetLabel(target)),
-        backendProgress: 0,
-        awaitingReconnect: false,
-        reconnectShown: false,
-        reconnectProgress: 0,
-        operationId: 0,
-        bootId: 0,
-        failedStep: ''
-      });
-    }
-
-    function cancelUpgradeUiSession() {
-      upgradeUiStatusMuted = true;
-      stopUpgradeStatusPolling();
-      clearUpgradeUiSession();
-      renderUpgradeJourney({
-        phase: 'idle',
-        target: '',
-        detail: tr('updates.none', 'Aucune opération en cours.')
-      });
-    }
-
-    function stopUpgradeReconnectFlow() {
-      upgradeReconnectStageTimer.stop();
-      upgradeReconnectMonitor.stop();
-    }
-
-    function scheduleUpgradeReconnectPhase(delayMs) {
-      upgradeReconnectStageTimer.schedule(Math.max(0, Number(delayMs) || 0));
-    }
-
-    function startUpgradeReconnectMonitor() {
-      upgradeReconnectMonitor.start();
-    }
-
-    function markUpgradeUiAwaitingReconnect() {
-      const current = readUpgradeUiSession();
-      if (!current || !current.awaitingReconnect) return null;
-      return updateUpgradeUiSession({
-        phase: 'reconnect',
-        detail: tr('updates.detail.awaitReconnect', 'Attente de Reconnection.'),
-        reconnectShown: true,
-        reconnectProgress: Math.max(5, Math.min(95, Number(current.reconnectProgress) || 0))
-      });
-    }
-
-    function markUpgradeUiCompletedAfterReceipt(target) {
-      const current = readUpgradeUiSession();
-      if (!current) return null;
-      stopUpgradeReconnectFlow();
-      return updateUpgradeUiSession({
-        phase: 'done',
-        target: target || current.target,
-        detail: tr('updates.detail.done', 'Mise à jour terminée.'),
-        backendProgress: 100,
-        awaitingReconnect: false,
-        reconnectShown: true,
-        reconnectProgress: 100,
-        failedStep: ''
-      });
-    }
-
-    function incrementUpgradeReconnectProgress() {
-      const current = readUpgradeUiSession();
-      if (!current || !current.awaitingReconnect) return null;
-      const nextProgress = Math.max(5, Math.min(95, (Number(current.reconnectProgress) || 0) + 12));
-      return updateUpgradeUiSession({
-        phase: 'reconnect',
-        detail: tr('updates.detail.awaitReconnect', 'Attente de Reconnection.'),
-        reconnectShown: true,
-        reconnectProgress: nextProgress
-      });
-    }
-
-    function enterUpgradeReconnectPhase() {
-      const current = readUpgradeUiSession();
-      if (!current || !current.awaitingReconnect) return null;
-      markUpgradeUiAwaitingReconnect();
-      startUpgradeReconnectMonitor();
-      return readUpgradeUiSession();
-    }
-
-    async function fetchUpgradeReconnectHeartbeat() {
-      const supportsAbort = typeof AbortController === 'function';
-      const controller = supportsAbort ? new AbortController() : null;
-      const timeoutId = controller
-        ? setTimeout(() => {
-            try {
-              controller.abort();
-            } catch (err) {
-            }
-          }, upgradeReconnectFetchTimeoutMs)
-        : null;
-      try {
-        return await fetchOkJson('/api/fwupdate/status', {
-          cache: 'no-store',
-          signal: controller ? controller.signal : undefined
-        }, 'état de mise à jour indisponible');
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-    }
-
-    async function probeUpgradeReconnect() {
-      const current = readUpgradeUiSession();
-      if (!current || !current.awaitingReconnect) {
-        stopUpgradeReconnectFlow();
-        return;
-      }
-      try {
-        updateUpgradeView(await fetchUpgradeReconnectHeartbeat());
-      } catch (err) {
-        incrementUpgradeReconnectProgress();
-      }
-    }
-
-    function resumeUpgradeReconnectFlow() {
-      const current = readUpgradeUiSession();
-      if (!current || !current.awaitingReconnect) return;
-      if (current.reconnectShown || current.phase === 'reconnect') {
-        startUpgradeReconnectMonitor();
-        return;
-      }
-      scheduleUpgradeReconnectPhase(700);
-    }
-
-    function localReleaseOverallProgress(current, target, progress) {
-      const filesystemTotal = Number(current && current.releaseFilesystemTotal) || 0;
-      const firmwareTotal = Number(current && current.releaseFirmwareTotal) || 0;
-      const total = filesystemTotal + firmwareTotal;
-      const percent = Math.max(0, Math.min(100, Number(progress) || 0));
-      if (total <= 0) return percent;
-      if (String(target || '').trim().toLowerCase() === 'spiffs') {
-        return Math.round((percent / 100) * filesystemTotal / total * 100);
-      }
-      return Math.round((filesystemTotal + (percent / 100) * firmwareTotal) / total * 100);
-    }
-
-    function updateUpgradeView(data) {
-      if (!data || data.ok !== true) return;
-      const current = readUpgradeUiSession();
-      const state = String(data.state || 'idle');
-      const target = String(data.target || (current && current.target) || '').trim().toLowerCase();
-      const progress = Math.max(0, Math.min(100, Number(data.progress) || 0));
-      const msg = String(data.msg || '').trim();
-      const operationId = Number(data.operation_id) > 0 ? Number(data.operation_id) : 0;
-      const bootId = Number(data.boot_id) > 0 ? Number(data.boot_id) : 0;
-      const currentOperationId = Number(current && current.operationId) > 0
-        ? Number(current.operationId)
-        : 0;
-      const receipt = data.last_operation && typeof data.last_operation === 'object'
-        ? data.last_operation
-        : null;
-      const receiptOperationId = Number(receipt && receipt.operation_id) > 0
-        ? Number(receipt.operation_id)
-        : 0;
-      const receiptMatches = currentOperationId > 0 && receiptOperationId === currentOperationId;
-      const receiptResult = receiptMatches ? String(receipt.result || '') : '';
-
-      if (receiptResult === 'succeeded') {
-        markUpgradeUiCompletedAfterReceipt(String(receipt.target || target));
-        return;
-      }
-      if (receiptResult === 'failed' || receiptResult === 'interrupted') {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'error',
-          target: String(receipt.target || target),
-          detail: receiptResult === 'interrupted'
-            ? tr('updates.err.interrupted', 'La mise à jour a été interrompue avant sa finalisation.')
-            : normalizeUpgradeHttpErrorMessage(msg, tr('updates.err.updateGeneric', 'Erreur de mise à jour.')),
-          backendProgress: progress,
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          failedStep: current && current.phase && current.phase !== 'idle' ? current.phase : 'flash',
-          bootId: bootId
-        });
-        return;
-      }
-
-      if (currentOperationId > 0 && operationId > 0 && operationId !== currentOperationId) {
-        return;
-      }
-
-      if (upgradeUiStatusMuted) {
-        if (state !== 'idle' && state !== 'done' && state !== 'error') return;
-        upgradeUiStatusMuted = false;
-      }
-
-      const isLocalRelease = String(current && current.target || '').trim().toLowerCase() === 'release';
-      if (isLocalRelease && !(current && current.awaitingReconnect)
-          && (state === 'queued' || state === 'downloading' || state === 'flashing' || state === 'done')) {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: state === 'queued' ? 'target' : 'flash',
-          target: 'release',
-          detail: state === 'queued'
-            ? tr('updates.detail.targetSelected', 'Sélection de la cible {target}.')
-              .replace('{target}', upgradeTargetLabel('release'))
-            : tr('updates.phase.flash', 'Mise à jour') + (state === 'done' ? '…' : '.'),
-          backendProgress: localReleaseOverallProgress(current, target, progress),
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          operationId: operationId || currentOperationId,
-          bootId: bootId,
-          failedStep: ''
-        });
-        return;
-      }
-
-      if (state === 'idle') {
-        if (currentOperationId > 0 && current && current.phase !== 'done' && current.phase !== 'error') {
-          stopUpgradeReconnectFlow();
-          updateUpgradeUiSession({
-            phase: 'error',
-            detail: tr('updates.err.resultUnavailable', 'Le résultat de la mise à jour n’est pas disponible après reconnexion.'),
-            awaitingReconnect: false,
-            reconnectShown: false,
-            reconnectProgress: 0,
-            failedStep: current.phase || 'reconnect',
-            bootId: bootId
-          });
-        } else if (!current || current.phase === 'idle') {
-          clearUpgradeUiSession();
-          renderUpgradeJourney({ phase: 'idle', target: '', detail: tr('updates.none', 'Aucune opération en cours.') });
-        }
-        return;
-      }
-
-      if (state === 'queued') {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'target',
-          target: target,
-          detail: tr('updates.detail.targetSelected', 'Sélection de la cible {target}.')
-            .replace('{target}', upgradeTargetLabel(target)),
-          backendProgress: progress,
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          operationId: operationId || currentOperationId,
-          bootId: bootId,
-          failedStep: ''
-        });
-        return;
-      }
-
-      if (state === 'downloading') {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'download',
-          target: target,
-          detail: 'Connexion au serveur.',
-          backendProgress: progress,
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          operationId: operationId || currentOperationId,
-          bootId: bootId,
-          failedStep: ''
-        });
-        return;
-      }
-
-      if (state === 'flashing') {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'flash',
-          target: target,
-          detail: 'Mise à jour en cours.',
-          backendProgress: progress,
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          operationId: operationId || currentOperationId,
-          bootId: bootId,
-          failedStep: ''
-        });
-        return;
-      }
-
-      if (state === 'rebooting') {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'reboot',
-          target: target,
-          detail: 'Redémarrage.',
-          backendProgress: 100,
-          awaitingReconnect: true,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          operationId: operationId || currentOperationId,
-          bootId: bootId,
-          failedStep: ''
-        });
-        scheduleUpgradeReconnectPhase(900);
-        return;
-      }
-
-      if (state === 'done') {
-        if (upgradeUsesReconnect(target)) {
-          stopUpgradeReconnectFlow();
-          updateUpgradeUiSession({
-            phase: 'reboot',
-            target: target,
-            detail: tr('updates.phase.reboot', 'Redémarrage') + '.',
-            backendProgress: 100,
-            awaitingReconnect: true,
-            reconnectShown: false,
-            reconnectProgress: 0,
-            operationId: operationId || currentOperationId,
-            bootId: bootId,
-            failedStep: ''
-          });
-          scheduleUpgradeReconnectPhase(900);
-        } else {
-          stopUpgradeReconnectFlow();
-          updateUpgradeUiSession({
-            phase: 'done',
-            target: target,
-            detail: tr('updates.detail.done', 'Mise à jour terminée.'),
-            backendProgress: 100,
-            awaitingReconnect: false,
-            reconnectShown: true,
-            reconnectProgress: 100,
-            operationId: operationId || currentOperationId,
-            bootId: bootId,
-            failedStep: ''
-          });
-        }
-        return;
-      }
-
-      if (state === 'error') {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'error',
-          target: target,
-          detail: normalizeUpgradeHttpErrorMessage(msg, tr('updates.err.updateGeneric', 'Erreur de mise à jour.')),
-          backendProgress: progress,
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          operationId: operationId || currentOperationId,
-          bootId: bootId,
-          failedStep: current && current.phase && current.phase !== 'idle' ? current.phase : 'flash'
-        });
-      }
-    }
-
-    function normalizeFirmwareVersionForCompare(value) {
-      return String(value || '').trim().split('+')[0].replace(/^v/i, '');
-    }
-
-    function compareFirmwareVersions(a, b) {
-      const left = normalizeFirmwareVersionForCompare(a).split(/[.-]/).map((part) => Number.parseInt(part, 10));
-      const right = normalizeFirmwareVersionForCompare(b).split(/[.-]/).map((part) => Number.parseInt(part, 10));
-      const len = Math.max(left.length, right.length);
-      for (let i = 0; i < len; ++i) {
-        const av = Number.isFinite(left[i]) ? left[i] : 0;
-        const bv = Number.isFinite(right[i]) ? right[i] : 0;
-        if (av > bv) return 1;
-        if (av < bv) return -1;
-      }
-      return 0;
-    }
-
-    function manifestArtifactList(manifest, key) {
-      if (!manifest || typeof manifest !== 'object') return [];
-      const artifacts = (manifest.artifacts && typeof manifest.artifacts === 'object') ? manifest.artifacts : manifest;
-      const artifact = artifacts[key];
-      if (Array.isArray(artifact)) {
-        return artifact.filter((entry) => entry && typeof entry === 'object');
-      }
-      if (artifact && typeof artifact === 'object' && Array.isArray(artifact.versions)) {
-        return artifact.versions
-          .filter((entry) => entry && typeof entry === 'object')
-          .map((entry) => Object.assign({}, artifact, entry, { versions: undefined }));
-      }
-      if (artifact && typeof artifact === 'object' && (artifact.version || artifact.path || artifact.url)) {
-        return [artifact];
-      }
-      if (artifact && typeof artifact === 'object') {
-        return Object.keys(artifact)
-          .map((version) => {
-            const entry = artifact[version];
-            return entry && typeof entry === 'object' ? Object.assign({ version: version }, entry) : null;
-          })
-          .filter(Boolean);
-      }
-      return [];
-    }
-
-    function manifestBaseUrl(manifestUrl) {
-      const url = String(manifestUrl || '').trim();
-      const idx = url.lastIndexOf('/');
-      return idx >= 0 ? url.slice(0, idx + 1) : '';
-    }
-
-    function joinManifestArtifactUrl(baseUrl, artifact) {
-      if (!artifact || typeof artifact !== 'object') return '';
-      const raw = String(artifact.url || artifact.path || '').trim();
-      if (!raw) return '';
-      if (/^https?:\/\//i.test(raw)) return raw;
-      return String(baseUrl || '') + raw.replace(/^\/+/, '');
-    }
-
-    function formatManifestBuildDate(artifact) {
-      if (!artifact || typeof artifact !== 'object') return '';
-      return String(artifact.build_date || artifact.built_at || artifact.date || '').trim();
-    }
-
-    function endpointForUpgradeTarget(target) {
-      const key = String(target || '').trim().toLowerCase();
-      if (key === 'flowios3' || key === 'esp32s3') return '/fwupdate/waveshare';
-      if (key === 'waveshare') return '/fwupdate/waveshare';
-      if (key === 'spiffs') return '/fwupdate/spiffs';
-      if (key === 'nextion') return '/fwupdate/nextion';
-      return '';
-    }
-
-    function manifestTargetDef(key) {
-      return upgradeTargetDefs[String(key || '').trim().toLowerCase()] || null;
-    }
-
-    function manifestCategoryVisibleForProfile(category) {
-      const key = String(category || '').trim().toLowerCase();
-      if (!key) return false;
-      if (isSupervisorProfile()) {
-        return key === 'flowios3' || key === 'esp32s3' || key === 'waveshare'
-          || key === 'spiffs' || key === 'flowios3-spiffs' || key === 'esp32s3-spiffs' || key === 'waveshare-spiffs'
-          || key === 'nextion';
-      }
-      if (isWaveshareProfile()) {
-        return key === 'flowios3' || key === 'esp32s3' || key === 'waveshare'
-          || key === 'spiffs' || key === 'flowios3-spiffs' || key === 'esp32s3-spiffs' || key === 'waveshare-spiffs'
-          || key === 'nextion';
-      }
-      if (isFlowIOProfile()) {
-        return key === 'flowio';
-      }
-      return true;
-    }
-
-    function resolveArtifactTarget(category, artifact) {
-      const explicit = String(artifact && (artifact.target || artifact.update_target) ? (artifact.target || artifact.update_target) : '').trim().toLowerCase();
-      if (explicit) return explicit;
-      const def = manifestTargetDef(category);
-      return def && def.target ? def.target : String(category || '').trim().toLowerCase();
-    }
-
-    function resolveArtifactEndpoint(category, artifact, target) {
-      const categoryKey = String(category || '').trim().toLowerCase();
-      if (categoryKey === 'flowios3' || categoryKey === 'esp32s3' || categoryKey === 'waveshare') {
-        return '/fwupdate/waveshare';
-      }
-      const explicit = String(artifact && (artifact.route || artifact.endpoint || artifact.update_route) ? (artifact.route || artifact.endpoint || artifact.update_route) : '').trim();
-      if (explicit) {
-        if (/^\/fwupdate\//.test(explicit)) return explicit;
-        if (/^fwupdate\//.test(explicit)) return '/' + explicit;
-        return endpointForUpgradeTarget(explicit);
-      }
-      const def = manifestTargetDef(category);
-      return def && def.endpoint ? def.endpoint : endpointForUpgradeTarget(target);
-    }
-
-    function formatManifestArtifactTitle(category, artifact) {
-      const def = manifestTargetDef(category);
-      const title = String(artifact && (artifact.title || artifact.name) ? (artifact.title || artifact.name) : '').trim();
-      if (title) return title;
-      const label = String(artifact && artifact.label ? artifact.label : '').trim();
-      if (label) return label;
-      return def && def.label ? def.label : String(category || 'Firmware');
-    }
-
-    function manifestArtifactEntries(manifest, manifestUrl) {
-      if (!manifest || typeof manifest !== 'object') return [];
-      const baseUrl = manifestBaseUrl(manifestUrl);
-      const artifacts = (manifest.artifacts && typeof manifest.artifacts === 'object') ? manifest.artifacts : manifest;
-      return Object.keys(artifacts)
-        .reduce((entries, category) => {
-          if (!manifestCategoryVisibleForProfile(category)) return entries;
-          const def = manifestTargetDef(category);
-          const orderBase = def && Number.isFinite(def.order) ? def.order : 1000;
-          manifestArtifactList(manifest, category)
-            .filter((artifact) => joinManifestArtifactUrl(baseUrl, artifact))
-            .sort((a, b) => compareFirmwareVersions(String(b.version || ''), String(a.version || '')))
-            .forEach((artifact, index) => {
-              const target = resolveArtifactTarget(category, artifact);
-              entries.push({
-                category: category,
-                artifact: artifact,
-                title: formatManifestArtifactTitle(category, artifact),
-                version: String(artifact.version || '').trim() || 'version inconnue',
-                buildDate: formatManifestBuildDate(artifact) || '-',
-                notes: String(artifact.notes || artifact.release_notes || '').trim() || 'Notes de version indisponibles.',
-                url: joinManifestArtifactUrl(baseUrl, artifact),
-                target: target,
-                endpoint: resolveArtifactEndpoint(category, artifact, target),
-                order: orderBase + index / 100
-              });
-            });
-          return entries;
-        }, [])
-        .sort((a, b) => {
-          if (a.order !== b.order) return a.order - b.order;
-          return compareFirmwareVersions(String(b.version || ''), String(a.version || ''));
-        });
-    }
-
-    function setUpgradeCardsEmpty(text) {
-      renderUpgradeCatalog();
-      if (text) setUpgradeMessage(text);
-    }
-
-    function setUpgradeCardsError(detail) {
-      renderUpgradeCatalog({ error: detail || tr('updates.err.checkGeneric', 'Échec de la vérification.') });
-    }
-
-    function splitUpgradeVersionStamp(rawVersion, fallbackBuildDate) {
-      const raw = String(rawVersion || '').trim();
-      const plusIndex = raw.indexOf('+');
-      const main = (plusIndex >= 0 ? raw.slice(0, plusIndex) : raw).trim();
-      const plusBuild = plusIndex >= 0 ? raw.slice(plusIndex + 1).trim() : '';
-      return {
-        version: main || '-',
-        build: formatUpgradeBuildStamp(plusBuild || fallbackBuildDate || '')
-      };
-    }
-
-    function formatUpgradeBuildStamp(rawValue) {
-      const raw = String(rawValue || '').trim();
-      if (!raw || raw === '-') return '-';
-      const compact = raw.match(/^(\d{4})(\d{2})(\d{2})[._-]?(\d{2})(\d{2})(\d{2})$/);
-      if (compact) {
-        return compact[3] + '/' + compact[2] + '/' + compact[1] + ' ' + compact[4] + ':' + compact[5] + ':' + compact[6];
-      }
-      const parsed = Date.parse(raw);
-      if (Number.isFinite(parsed)) {
-        const d = new Date(parsed);
-        return d.toLocaleDateString(currentWebLocaleTag()) + ' ' + d.toLocaleTimeString(currentWebLocaleTag(), {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        });
-      }
-      return raw;
-    }
-
-    function upgradeBuildStampValue(rawValue) {
-      const raw = String(rawValue || '').trim();
-      if (!raw || raw === '-') return 0;
-      const compact = raw.match(/^(\d{4})(\d{2})(\d{2})[._-]?(\d{2})(\d{2})(\d{2})$/);
-      if (compact) {
-        return Number(compact[1] + compact[2] + compact[3] + compact[4] + compact[5] + compact[6]);
-      }
-      const parsed = Date.parse(raw);
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-
-    function compareUpgradeArtifacts(a, b) {
-      const versionCompare = compareFirmwareVersions(String(a && a.version ? a.version : ''), String(b && b.version ? b.version : ''));
-      if (versionCompare !== 0) return versionCompare;
-      const aStamp = splitUpgradeVersionStamp(a && a.version, formatManifestBuildDate(a)).build;
-      const bStamp = splitUpgradeVersionStamp(b && b.version, formatManifestBuildDate(b)).build;
-      const dateCompare = upgradeBuildStampValue(aStamp) - upgradeBuildStampValue(bStamp);
-      if (dateCompare > 0) return 1;
-      if (dateCompare < 0) return -1;
-      return 0;
-    }
-
-    function buildUpgradeEntry(category, artifact, baseUrl) {
-      const target = resolveArtifactTarget(category, artifact);
-      const split = splitUpgradeVersionStamp(artifact.version, formatManifestBuildDate(artifact));
-      return {
-        category: category,
-        artifact: artifact,
-        title: formatManifestArtifactTitle(category, artifact),
-        version: split.version,
-        buildDate: split.build,
-        url: joinManifestArtifactUrl(baseUrl, artifact),
-        target: target,
-        endpoint: resolveArtifactEndpoint(category, artifact, target)
-      };
-    }
-
-    function upgradeManifestKeysForComponent(componentKey) {
-      const key = String(componentKey || '').trim().toLowerCase();
-      if (key === 'flowio') {
-        return ['flowios3', 'waveshare', 'esp32s3'];
-      }
-      if (key === 'spiffs') {
-        return ['spiffs', 'flowios3-spiffs', 'esp32s3-spiffs', 'waveshare-spiffs'];
-      }
-      return [key];
-    }
-
-    function latestUpgradeEntryForComponent(componentKey, manifest, manifestUrl) {
-      if (!manifest || typeof manifest !== 'object') return null;
-      const baseUrl = manifestBaseUrl(manifestUrl);
-      const entries = [];
-      const nextionSelection = componentKey === 'nextion' && upgradeManifestState
-        && upgradeManifestState.nextion && typeof upgradeManifestState.nextion === 'object'
-        ? upgradeManifestState.nextion
-        : null;
-      const selectedNextionPath = nextionSelection && nextionSelection.artifact_selected === true
-        ? String(nextionSelection.artifact_path || '').trim()
-        : '';
-      upgradeManifestKeysForComponent(componentKey).forEach((category) => {
-        manifestArtifactList(manifest, category)
-          .filter((artifact) => joinManifestArtifactUrl(baseUrl, artifact))
-          .filter((artifact) => componentKey !== 'nextion'
-            || (!!selectedNextionPath && String(artifact.path || '').trim() === selectedNextionPath))
-          .forEach((artifact) => {
-            entries.push(buildUpgradeEntry(category, artifact, baseUrl));
-          });
-      });
-      if (!entries.length) return null;
-      entries.sort((a, b) => compareUpgradeArtifacts(b.artifact, a.artifact));
-      return entries[0];
-    }
-
-    function nextionRecoveryEntries(manifest, manifestUrl) {
-      if (!manifest || typeof manifest !== 'object') return [];
-      const baseUrl = manifestBaseUrl(manifestUrl);
-      const latestByCompatibility = new Map();
-      manifestArtifactList(manifest, 'nextion')
-        .filter((artifact) => String(artifact.display_compatibility || '').trim())
-        .filter((artifact) => joinManifestArtifactUrl(baseUrl, artifact))
-        .forEach((artifact) => {
-          const entry = buildUpgradeEntry('nextion', artifact, baseUrl);
-          if (entry.target !== 'nextion' || entry.endpoint !== '/fwupdate/nextion') return;
-          entry.compatibility = String(artifact.display_compatibility || '').trim();
-          entry.recovery = true;
-          const previous = latestByCompatibility.get(entry.compatibility);
-          if (!previous || compareUpgradeArtifacts(entry.artifact, previous.artifact) > 0) {
-            latestByCompatibility.set(entry.compatibility, entry);
-          }
-        });
-      return Array.from(latestByCompatibility.values())
-        .sort((left, right) => left.compatibility.localeCompare(right.compatibility));
-    }
-
-    function formatDetectedNextionVersion(rawValue) {
-      const raw = String(rawValue || '').trim();
-      if (!raw || raw === '0') return '-';
-      if (raw.indexOf('.') >= 0) return raw;
-      const n = Number.parseInt(raw, 10);
-      if (!Number.isFinite(n) || n <= 0) return raw;
-      if (n >= 100) {
-        return Math.floor(n / 100) + '.' + (Math.floor(n / 10) % 10) + '.' + (n % 10);
-      }
-      return raw;
-    }
-
-    function currentUpgradeVersionForComponent(componentKey) {
-      const key = String(componentKey || '').trim().toLowerCase();
-      if (key === 'nextion') {
-        return splitUpgradeVersionStamp(formatDetectedNextionVersion(nextionDisplayVersion), '');
-      }
-      const supervisor = String(supervisorFirmwareVersion || '').trim();
-      const flow = String(window.__flowIoFirmwareVersion || '').trim();
-      const firmware = supervisor && supervisor !== '-' ? supervisor : flow;
-      return splitUpgradeVersionStamp(firmware && firmware !== '-' ? firmware : '-', '');
-    }
-
-    function buildUpgradeComponentRows() {
-      const manifest = upgradeManifestState && upgradeManifestState.manifest;
-      const manifestUrl = upgradeManifestState && upgradeManifestState.manifestUrl;
-      const hasManifest = !!(manifest && typeof manifest === 'object');
-      return upgradeComponentDefs.map((def) => {
-        const current = currentUpgradeVersionForComponent(def.key);
-        const latest = latestUpgradeEntryForComponent(def.key, manifest, manifestUrl);
-        const recoveryRequired = def.key === 'nextion' && !nextionDisplayDetected;
-        const recoveryEntries = recoveryRequired
-          ? nextionRecoveryEntries(manifest, manifestUrl)
-          : [];
-        const available = latest
-          ? { version: latest.version, build: latest.buildDate }
-          : { version: '-', build: '-' };
-        const nextionUnavailable = hasManifest && def.key === 'nextion' && nextionDisplayDetected && !latest;
-        const comparableCurrent = current.version && current.version !== '-';
-        const comparableAvailable = available.version && available.version !== '-';
-        const updateAvailable = !recoveryRequired && !nextionUnavailable
-          && comparableAvailable
-          && (!comparableCurrent || compareFirmwareVersions(available.version, current.version) > 0);
-        const unavailableMessage = nextionDisplayDetected
-          ? tr('updates.nextion.noCompatibleArtifact', 'Aucun firmware Nextion compatible')
-          : tr('updates.nextion.notDetected', 'Nextion non détecté');
-        const statusMessage = recoveryRequired
-          ? tr('updates.nextion.manualSelection', 'Écran non détecté : sélectionnez son modèle')
-          : (nextionUnavailable ? unavailableMessage : '');
-        const statusKnown = recoveryRequired || hasManifest;
-        return Object.assign({}, def, {
-          subtitle: def.key === 'nextion'
-            ? (nextionDisplayCompatibility || def.subtitle)
-            : def.subtitle,
-          current: current,
-          available: available,
-          updateAvailable: updateAvailable,
-          statusKnown: statusKnown,
-          // Nextion remains actionable in recovery mode. A compatible model is
-          // selected explicitly instead of disabling the whole row.
-          unavailable: false,
-          unavailableMessage: '',
-          statusMessage: statusMessage,
-          recoveryRequired: recoveryRequired,
-          recoveryEntries: recoveryEntries,
-          entry: recoveryRequired ? null : latest
-        });
-      });
-    }
-
-    function appendUpgradeVersionCell(parent, versionInfo) {
-      const wrap = document.createElement('div');
-      wrap.className = 'update-version-stack';
-      const version = document.createElement('strong');
-      version.textContent = (versionInfo && versionInfo.version) || '-';
-      const build = document.createElement('span');
-      build.textContent = (versionInfo && versionInfo.build) || '-';
-      wrap.appendChild(version);
-      wrap.appendChild(build);
-      parent.appendChild(wrap);
-    }
-
-    function createUpgradeComponentBadge(row, sizeClass) {
-      const badge = document.createElement('span');
-      badge.className = 'update-component-badge update-component-' + row.tone + (sizeClass ? ' ' + sizeClass : '');
-      const icon = document.createElement('span');
-      icon.className = 'ui-msr';
-      icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = row.icon;
-      badge.appendChild(icon);
-      return badge;
-    }
-
-    function upgradeStatusLabel(row) {
-      if (!row || !row.statusKnown) return '';
-      if (row.statusMessage) return row.statusMessage;
-      if (row.unavailable) return row.unavailableMessage;
-      if (row.updateAvailable) return tr('updates.status.available', 'Mise à jour disponible');
-      return tr('updates.status.current', 'À jour');
-    }
-
-    function createUpgradeStatusBadge(row) {
-      if (!row || !row.statusKnown) return null;
-      const badge = document.createElement('span');
-      badge.className = 'update-status-badge ' + (row.statusMessage
-        ? 'is-unavailable'
-        : (row.unavailable
-        ? 'is-unavailable'
-        : (row.updateAvailable ? 'is-available' : 'is-current')));
-      badge.textContent = upgradeStatusLabel(row);
-      return badge;
-    }
-
-    function createUpgradeActionControl(row) {
-      const control = document.createElement('div');
-      control.className = 'update-action-control';
-      let selectedEntry = row && row.entry;
-
-      if (row && row.recoveryRequired && row.recoveryEntries.length > 0) {
-        const select = document.createElement('select');
-        select.className = 'update-nextion-model-select';
-        select.setAttribute('aria-label', tr('updates.nextion.selectModel', 'Sélectionner le modèle Nextion'));
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = tr('updates.nextion.selectModel', 'Sélectionner le modèle Nextion');
-        select.appendChild(placeholder);
-        row.recoveryEntries.forEach((entry, index) => {
-          const option = document.createElement('option');
-          option.value = String(index);
-          option.textContent = entry.compatibility + ' · v' + entry.version;
-          select.appendChild(option);
-        });
-        select.addEventListener('change', () => {
-          const index = Number.parseInt(select.value, 10);
-          selectedEntry = Number.isInteger(index) ? row.recoveryEntries[index] : null;
-        });
-        control.appendChild(select);
-      }
-
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'update-action-btn';
-      const icon = document.createElement('span');
-      icon.className = 'ui-msr';
-      icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = 'system_update_alt';
-      const label = document.createElement('span');
-      label.textContent = tr('updates.updateButton', 'Mettre à jour');
-      button.appendChild(icon);
-      button.appendChild(label);
-      const isNextion = row && row.key === 'nextion';
-      button.disabled = !isNextion && (!!(row && row.unavailable) || !(selectedEntry && selectedEntry.endpoint && selectedEntry.url));
-      button.title = tr('updates.updateButton', 'Mettre à jour');
-      bindClickAction(button, () => {
-        if (!selectedEntry || !selectedEntry.endpoint || !selectedEntry.url) {
-          if (row && row.recoveryRequired && row.recoveryEntries.length > 0) {
-            setUpgradeMessage(tr('updates.nextion.selectModelRequired', 'Sélectionnez le modèle Nextion avant de continuer.'));
-            const select = control.querySelector('select');
-            if (select) select.focus();
-            return;
-          }
-          return checkFirmwareUpdates();
-        }
-        if (!confirmUpgradeLaunch(selectedEntry)) return;
-        return startUpgrade(selectedEntry.target, selectedEntry.url, selectedEntry.endpoint);
-      });
-      control.appendChild(button);
-      return control;
-    }
-
-    function renderUpgradeTable(rows) {
-      if (!upgradeTableBody) return;
-      upgradeTableBody.innerHTML = '';
-      rows.forEach((row) => {
-        const trEl = document.createElement('tr');
-        if (row.unavailable) {
-          trEl.className = 'is-disabled';
-        }
-
-        const componentCell = document.createElement('td');
-        const component = document.createElement('div');
-        component.className = 'update-component-cell';
-        component.appendChild(createUpgradeComponentBadge(row, ''));
-        const copy = document.createElement('div');
-        const title = document.createElement('strong');
-        title.textContent = row.title;
-        const sub = document.createElement('span');
-        sub.textContent = '(' + row.subtitle + ')';
-        copy.appendChild(title);
-        copy.appendChild(sub);
-        component.appendChild(copy);
-        componentCell.appendChild(component);
-        trEl.appendChild(componentCell);
-
-        const currentCell = document.createElement('td');
-        appendUpgradeVersionCell(currentCell, row.current);
-        trEl.appendChild(currentCell);
-
-        const availableCell = document.createElement('td');
-        appendUpgradeVersionCell(availableCell, row.available);
-        trEl.appendChild(availableCell);
-
-        const statusCell = document.createElement('td');
-        const statusBadge = createUpgradeStatusBadge(row);
-        if (statusBadge) statusCell.appendChild(statusBadge);
-        trEl.appendChild(statusCell);
-
-        const actionCell = document.createElement('td');
-        actionCell.appendChild(createUpgradeActionControl(row));
-        trEl.appendChild(actionCell);
-
-        upgradeTableBody.appendChild(trEl);
-      });
-    }
-
-    function renderUpgradeCatalog(options) {
-      const rows = buildUpgradeComponentRows();
-      renderUpgradeTable(rows);
-      if (options && options.error) {
-        setUpgradeMessage(tr('updates.err.checkGeneric', 'Échec de la vérification.') + ' : ' + options.error);
-      }
-    }
-
-    function resetUpgradeManifestSelections(text) {
-      upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '', nextion: null };
-      setUpgradeCardsEmpty(text || tr('updates.empty', 'Cliquez sur « Vérifier les mises à jour ».'));
-    }
-
-    function confirmUpgradeLaunch(entry) {
-      const version = String(entry && entry.version ? entry.version : 'x.x.x').trim() || 'x.x.x';
-      const target = upgradeTargetLabel(entry && entry.target ? entry.target : '');
-      if (entry && entry.recovery) {
-        return confirm(
-          tr('updates.nextion.confirmRecovery', 'Écran non détecté. Confirmer la mise à jour du modèle {model} vers la version {version} ? Vérifiez soigneusement le modèle sélectionné.')
-            .replace('{model}', String(entry.compatibility || 'Nextion'))
-            .replace('{version}', version)
-        );
-      }
-      return confirm(
-        tr('updates.confirmLaunch', 'Confirmer la mise à jour de {target} vers la version {version} ?')
-          .replace('{target}', target)
-          .replace('{version}', version)
-      );
     }
 
     function confirmRebootLaunch(selectedAction) {
@@ -4228,282 +2587,83 @@
       return confirm(messages[action] || messages.supervisor);
     }
 
-    function populateUpgradeManifestSelections(data) {
-      const manifest = data && data.manifest && typeof data.manifest === 'object' ? data.manifest : null;
-      const manifestUrl = String(data && data.manifest_url ? data.manifest_url : '').trim();
-      const nextion = data && data.nextion && typeof data.nextion === 'object' ? data.nextion : null;
-      upgradeManifestState = {
-        manifest: manifest,
-        manifestUrl: manifestUrl,
-        baseUrl: manifestBaseUrl(manifestUrl),
-        nextion: nextion
-      };
-      if (nextion) {
-        nextionDisplayDetected = nextion.display_detected === true;
-        nextionDisplayModel = String(nextion.model || '').trim();
-        nextionDisplayCompatibility = String(nextion.compatibility || '').trim();
-      }
-      renderUpgradeCatalog();
+    let activityPage = null;
+    let usersPage = null;
+    let updatesPage = null;
+    let activityPageVisit = 0;
+
+    function cancelActivityLogRefresh() {
+      ++activityPageVisit;
+      if (activityPage) activityPage.hide();
     }
 
-    function describeManifestUpdates(data) {
-      const manifest = data && data.manifest && typeof data.manifest === 'object' ? data.manifest : null;
-      if (!manifest) return 'Manifest indisponible.';
-      const rows = buildUpgradeComponentRows();
-      const available = rows
-        .filter((row) => row.updateAvailable)
-        .map((row) => row.title + ' ' + row.current.version + ' -> ' + row.available.version);
-      const listed = rows
-        .filter((row) => row.available.version && row.available.version !== '-')
-        .map((row) => row.title + ' ' + row.available.version);
-      if (available.length > 0) {
-        return 'Mise(s) à jour disponible(s) : ' + available.join(', ') + '.';
-      }
-      if (listed.length > 0) {
-        return 'Manifest vérifié. Versions disponibles : ' + listed.join(', ') + '.';
-      }
-      return 'Manifest vérifié, aucun firmware listé.';
-    }
-
-    async function checkFirmwareUpdates() {
-      if (checkUpdatesBtn) {
-        checkUpdatesBtn.disabled = true;
-        checkUpdatesBtn.classList.add('is-pending');
-      }
+    async function refreshActivityLog(showBusy) {
+      const visit = ++activityPageVisit;
       try {
-        setUpgradeCardsEmpty(tr('updates.checking', 'Vérification du manifest...'));
-        setUpgradeMessage(tr('updates.checking', 'Vérification du manifest...'));
-        const started = await fetchOkJson(
-          '/api/fwupdate/check',
-          { method: 'POST', cache: 'no-store' },
-          'échec lancement vérification'
-        );
-        const requestId = Number(started && started.request_id);
-        if (!Number.isFinite(requestId) || requestId <= 0) {
-          throw new Error('identifiant de vérification invalide');
-        }
-
-        const maxPollAttempts = 215;
-        let data = null;
-        for (let attempt = 0; attempt < maxPollAttempts; ++attempt) {
-          data = await fetchOkJson(
-            '/api/fwupdate/check?request_id=' + encodeURIComponent(String(requestId)),
-            { cache: 'no-store' },
-            'échec vérification'
-          );
-          if (data && data.state === 'ready') break;
-          if (!data || (data.state !== 'queued' && data.state !== 'downloading')) {
-            throw new Error('état de vérification inattendu');
-          }
-          await waitMs(400);
-        }
-        if (!data || data.state !== 'ready') {
-          throw new Error('délai de vérification du manifest dépassé');
-        }
-        populateUpgradeManifestSelections(data);
-        setUpgradeMessage(describeManifestUpdates(data));
+        const module = await window.FlowWebCore.loadPageModule('activity');
+        if (visit !== activityPageVisit || getActivePageId() !== 'page-activity-log') return;
+        if (!activityPage) activityPage = module.create({ getSession: () => authSession,
+          createFormPostOptions, fetchJsonResponse, fetchOkJson });
+        await activityPage.refresh(showBusy);
       } catch (err) {
-        const errMsg = normalizeUpgradeHttpErrorMessage(String(err || ''), tr('updates.err.checkGeneric', 'Échec de la vérification.'));
-        setUpgradeCardsError(errMsg);
-        setUpgradeMessage(tr('updates.err.checkGeneric', 'Échec de la vérification.') + ' : ' + errMsg);
-      } finally {
-        if (checkUpdatesBtn) {
-          checkUpdatesBtn.disabled = false;
-          checkUpdatesBtn.classList.remove('is-pending');
+        if (visit === activityPageVisit && getActivePageId() === 'page-activity-log') {
+          document.getElementById('activityLogStatus').textContent = tr('activity.pageLoadFailed', 'Chargement du journal impossible. Rouvrez la page pour réessayer.');
         }
       }
     }
 
-    async function refreshUpgradeStatus() {
+    async function getUsersPage() {
+      const module = await window.FlowWebCore.loadPageModule('users');
+      if (!usersPage) usersPage = module.create({ bindClickAction, extractApiErrorMessage,
+        fetchWithBusyRetry, logoutSession, normalizeRole, roleLabel, tr });
+      return usersPage;
+    }
+
+    async function refreshUsersList() {
+      const visit = pageLoadToken;
       try {
-        updateUpgradeView(await fetchOkJson('/api/fwupdate/status', { cache: 'no-store' }, 'échec lecture état'));
+        const page = await getUsersPage();
+        if (visit === pageLoadToken && getActivePageId() === 'page-users') await page.refresh();
       } catch (err) {
-        const current = readUpgradeUiSession();
-        const phase = String(current && current.phase ? current.phase : 'idle');
-        if (current && (current.awaitingReconnect || phase === 'target' || phase === 'download' || phase === 'flash' || phase === 'reboot' || phase === 'reconnect')) {
-          if (!current.awaitingReconnect) {
-            updateUpgradeUiSession({
-              phase: 'reconnect',
-              detail: tr('updates.detail.awaitReconnect', 'Attente de Reconnection.'),
-              awaitingReconnect: true,
-              reconnectShown: true,
-              reconnectProgress: Math.max(5, Number(current.reconnectProgress) || 0)
-            });
-          }
-          enterUpgradeReconnectPhase();
-          return;
+        if (visit === pageLoadToken && getActivePageId() === 'page-users') {
+          document.getElementById('usersListStatus').textContent = tr('users.pageLoadFailed', 'Chargement des comptes impossible. Rouvrez la page pour réessayer.');
         }
-        setUpgradeMessage('Échec de lecture de l\'état : ' + err);
       }
     }
 
-    async function startUpgrade(target, url, endpoint) {
+    async function openAccountDialog() {
+      try { (await getUsersPage()).openAccount(); }
+      catch (err) { alert(tr('users.pageLoadFailed', 'Chargement des comptes impossible. Rouvrez la page pour réessayer.')); }
+    }
+
+    async function getUpdatesPage() {
+      const module = await window.FlowWebCore.loadPageModule('updates');
+      if (!updatesPage) updatesPage = module.create({ bindClickAction, createFormPostOptions,
+        currentWebLocaleTag, getActivePageId, getStorageValue, isFlowIOProfile, isSupervisorProfile,
+        isWaveshareProfile, loadWebMeta, normalizeUpgradeHttpErrorMessage, readUpgradeUiSession,
+        runAsyncTaskSafely, setStorageValue, tr, upgradeUiSessionStorageKey, waitMs,
+        createTimeoutRunner, createIntervalRunner, webDeviceMeta, fetchOkJson });
+      return updatesPage;
+    }
+
+    async function onUpgradePageShown() {
+      const visit = pageLoadToken;
       try {
-        startUpgradeUiSession(target);
-        startUpgradeStatusPolling(true);
-        const selectedUrl = String(url || '').trim();
-        if (!selectedUrl) {
-          throw new Error('aucune image sélectionnée, lancez Vérifier');
-        }
-        const route = String(endpoint || endpointForUpgradeTarget(target)).trim();
-        if (!route) {
-          throw new Error('route de mise à jour indisponible');
-        }
-        const started = await fetchOkJson(route, createFormPostOptions({ url: selectedUrl }), 'échec démarrage');
-        const operationId = Number(started && started.operation_id);
-        if (!Number.isFinite(operationId) || operationId <= 0) {
-          throw new Error('identifiant d’opération invalide');
-        }
-        updateUpgradeUiSession({ operationId: operationId });
-        await refreshUpgradeStatus();
+        const page = await getUpdatesPage();
+        if (visit === pageLoadToken && getActivePageId() === 'page-system') await page.show();
       } catch (err) {
-        stopUpgradeReconnectFlow();
-        updateUpgradeUiSession({
-          phase: 'error',
-          target: target,
-          detail: 'Échec de la mise à jour : ' + err,
-          backendProgress: 0,
-          awaitingReconnect: false,
-          reconnectShown: false,
-          reconnectProgress: 0,
-          failedStep: 'target'
-        });
-        setUpgradeMessage('Échec de la mise à jour : ' + err);
+        if (visit === pageLoadToken && getActivePageId() === 'page-system') {
+          document.getElementById('upgradeFooterStatus').textContent = tr('updates.pageLoadFailed', 'Chargement des mises à jour impossible. Rouvrez la page pour réessayer.');
+        }
       }
     }
 
-    async function readStoredReleaseZip(file) {
-      const decoder = new TextDecoder('utf-8');
-      const entries = new Map();
-      let offset = 0;
-      while (offset + 4 <= file.size) {
-        const prefix = new DataView(await file.slice(offset, offset + 4).arrayBuffer());
-        const signature = prefix.getUint32(0, true);
-        if (signature === 0x02014b50 || signature === 0x06054b50) break;
-        if (signature !== 0x04034b50 || offset + 30 > file.size) {
-          throw new Error('structure ZIP invalide');
-        }
-        const header = new DataView(await file.slice(offset, offset + 30).arrayBuffer());
-        const flags = header.getUint16(6, true);
-        const method = header.getUint16(8, true);
-        const compressedSize = header.getUint32(18, true);
-        const uncompressedSize = header.getUint32(22, true);
-        const nameLength = header.getUint16(26, true);
-        const extraLength = header.getUint16(28, true);
-        if ((flags & 0x0009) !== 0 || method !== 0 || compressedSize !== uncompressedSize) {
-          throw new Error('le package ZIP doit être un package Flow.IO non compressé');
-        }
-        const nameStart = offset + 30;
-        const dataStart = nameStart + nameLength + extraLength;
-        const dataEnd = dataStart + compressedSize;
-        if (dataEnd > file.size) throw new Error('entrée ZIP tronquée');
-        const name = decoder.decode(await file.slice(nameStart, nameStart + nameLength).arrayBuffer());
-        if (!name || entries.has(name)) throw new Error('entrée ZIP invalide ou dupliquée');
-        entries.set(name, file.slice(dataStart, dataEnd, 'application/octet-stream'));
-        offset = dataEnd;
-      }
-      const required = ['manifest.json', 'firmware.bin', 'spiffs.bin'];
-      if (entries.size !== required.length || required.some((name) => !entries.has(name))) {
-        throw new Error('le ZIP doit contenir uniquement manifest.json, firmware.bin et spiffs.bin');
-      }
-      return entries;
+    function startUpgradeStatusPolling(immediate) {
+      if (updatesPage) updatesPage.startPolling(immediate);
     }
 
-    function uploadReleaseBlob(url, blob, onProgress) {
-      return new Promise((resolve, reject) => {
-        const request = new XMLHttpRequest();
-        request.open('POST', url, true);
-        request.setRequestHeader('Content-Type', 'application/octet-stream');
-        request.upload.onprogress = (event) => {
-          if (event.lengthComputable && typeof onProgress === 'function') {
-            onProgress(Math.round((event.loaded * 100) / event.total));
-          }
-        };
-        request.onerror = () => reject(new Error('connexion interrompue pendant l’upload'));
-        request.onload = () => {
-          let payload = null;
-          try { payload = request.responseText ? JSON.parse(request.responseText) : null; } catch (_) {}
-          if (request.status < 200 || request.status >= 300 || (payload && payload.ok === false)) {
-            const detail = payload && payload.err ? (payload.err.msg || payload.err.code) : request.responseText;
-            reject(new Error(detail || 'upload refusé'));
-            return;
-          }
-          resolve(payload || { ok: true });
-        };
-        request.send(blob);
-      });
-    }
-
-    async function installLocalRelease(file) {
-      let transactionId = 0;
-      if (localReleaseSelectBtn) localReleaseSelectBtn.disabled = true;
-      try {
-        const entries = await readStoredReleaseZip(file);
-        const manifestText = await entries.get('manifest.json').text();
-        const manifest = JSON.parse(manifestText);
-        const firmware = entries.get('firmware.bin');
-        const filesystem = entries.get('spiffs.bin');
-        if (!manifest || manifest.format !== 1 || manifest.product !== 'Flow.IO' ||
-            manifest.hardware !== 'WaveshareESP32S3' || !manifest.version ||
-            !manifest.firmware || !manifest.filesystem ||
-            manifest.firmware.file !== 'firmware.bin' || manifest.filesystem.file !== 'spiffs.bin' ||
-            Number(manifest.firmware.size) !== firmware.size ||
-            Number(manifest.filesystem.size) !== filesystem.size) {
-          throw new Error('manifest de release incompatible');
-        }
-        const description = 'Flow.IO ' + manifest.version + '\nFirmware : ' + firmware.size +
-          ' octets\nFilesystem : ' + filesystem.size + ' octets';
-        if (localReleaseSummary) localReleaseSummary.textContent = description.replace(/\n/g, ' · ');
-        if (!confirm(description + '\n\nInstaller cette release puis redémarrer ?')) return;
-
-        startUpgradeUiSession('release');
-        updateUpgradeUiSession({
-          releaseFilesystemTotal: Number(manifest.filesystem && manifest.filesystem.size) || 0,
-          releaseFirmwareTotal: Number(manifest.firmware && manifest.firmware.size) || 0
-        });
-        setUpgradeMessage('Préparation de la release ' + manifest.version + '…');
-        const started = await fetchOkJson('/api/upgrade/begin', {
-          method: 'POST',
-          cache: 'no-store',
-          headers: { 'Content-Type': 'application/json' },
-          body: manifestText
-        }, 'échec de préparation du package');
-        transactionId = Number(started && started.transaction_id);
-        if (!Number.isFinite(transactionId) || transactionId <= 0) {
-          throw new Error('identifiant de transaction invalide');
-        }
-        const query = '?transaction_id=' + encodeURIComponent(String(transactionId));
-        await uploadReleaseBlob('/api/upgrade/filesystem' + query, filesystem, (progress) => {
-          setUpgradeMessage('Installation du filesystem : ' + progress + '%');
-        });
-        await uploadReleaseBlob('/api/upgrade/firmware' + query, firmware, (progress) => {
-          setUpgradeMessage('Installation du firmware : ' + progress + '%');
-        });
-        await fetchOkJson('/api/upgrade/commit' + query,
-                          { method: 'POST', cache: 'no-store' },
-                          'échec de validation de la release');
-        transactionId = 0;
-        updateUpgradeUiSession({
-          phase: 'reboot',
-          target: 'release',
-          detail: 'Release installée. Flow.IO redémarre…',
-          backendProgress: 100,
-          awaitingReconnect: true
-        });
-        setUpgradeMessage('Release installée. Flow.IO redémarre…');
-        enterUpgradeReconnectPhase();
-      } catch (err) {
-        if (transactionId > 0) {
-          await fetch('/api/upgrade/abort?transaction_id=' + encodeURIComponent(String(transactionId)), {
-            method: 'POST', cache: 'no-store'
-          }).catch(() => {});
-        }
-        updateUpgradeUiSession({ phase: 'error', target: 'release', detail: String(err), backendProgress: 0 });
-        setUpgradeMessage('Échec du package local : ' + err);
-      } finally {
-        if (localReleaseSelectBtn) localReleaseSelectBtn.disabled = false;
-        if (localReleaseFileInput) localReleaseFileInput.value = '';
-      }
+    function stopUpgradeStatusPolling() {
+      if (updatesPage) updatesPage.hide();
     }
 
     let networkPage = null;
@@ -5320,7 +3480,7 @@
       const supervisorHeapFree = ('free' in supervisorHeap) ? supervisorHeap.free : null;
       const supervisorHeapMin = ('min_free' in supervisorHeap) ? supervisorHeap.min_free : null;
       const supervisorReady =
-        supervisorFirmwareVersion !== '-' ||
+        webDeviceMeta.firmwareVersion !== '-' ||
         supervisorUptimeMs > 0 ||
         supervisorHeapFree !== null;
       const poolMetricRows = [
@@ -5481,7 +3641,7 @@
         ok: supervisorReady,
         iconLabel: supervisorReady ? 'Superviseur disponible' : 'Superviseur indisponible',
         rows: [
-          ['Firmware', supervisorFirmwareVersion],
+          ['Firmware', webDeviceMeta.firmwareVersion],
           ['Uptime', createFlowLiveValue('uptime', supervisorUptimeMs, Date.now())],
           ['Heap libre', fmtFlowBytes(supervisorHeapFree)],
           ['Heap min', fmtFlowBytes(supervisorHeapMin)]
@@ -9201,12 +7361,7 @@
     }
 
     async function poolConfigEnsureDocs() {
-      const modules = poolConfigModuleDefs.map((def) => def.module)
-        .concat(poolDisinfectionModeDefs.map((def) => def.module));
-      await ensureCfgDocsForModule('');
-      for (let offset = 0; offset < modules.length; offset += 2) {
-        await Promise.allSettled(modules.slice(offset, offset + 2).map(ensureCfgDocsForModule));
-      }
+      await loadCfgDocBundle('poollogic');
     }
 
     async function poolConfigFetchModules(moduleNames, requestSeq) {
@@ -9870,6 +8025,7 @@
     }
 
     async function loadPoolConfig(forceRefresh) {
+      stopPoolConfigAssignmentsWait();
       const reqSeq = ++poolConfigReqSeq;
       const startedAt = performance.now();
       let primaryRendered = false;
@@ -9889,6 +8045,8 @@
         primaryRendered = true;
         poolConfigLoadedOnce = true;
         console.debug('flow.io dashboard primary ready', { ms: Math.round(performance.now() - startedAt) });
+
+        if (!await waitForPoolConfigAssignments(reqSeq)) return;
 
         const extraModules = ['poollogic/devices', 'io/drivers/ds18b20',
           'io/drivers/ads1115_int', 'io/drivers/ads1115_ext',
@@ -9910,6 +8068,32 @@
           poolConfigRenderError(err);
         }
       }
+    }
+
+    function stopPoolConfigAssignmentsWait() {
+      if (poolConfigAssignmentsWait) poolConfigAssignmentsWait.finish(false);
+    }
+
+    function waitForPoolConfigAssignments(requestSeq) {
+      if (requestSeq !== poolConfigReqSeq || getActivePageId() !== 'page-dashboard') return Promise.resolve(false);
+      const target = poolConfigGrid?.querySelector('[data-pool-assignments-status]');
+      if (!target) return Promise.resolve(false);
+      if (typeof window.IntersectionObserver !== 'function') return Promise.resolve(true);
+      return new Promise(resolve => {
+        const waiting = {
+          observer: null,
+          finish(visible) {
+            waiting.observer.disconnect();
+            if (poolConfigAssignmentsWait === waiting) poolConfigAssignmentsWait = null;
+            resolve(visible && requestSeq === poolConfigReqSeq && getActivePageId() === 'page-dashboard');
+          }
+        };
+        waiting.observer = new IntersectionObserver(entries => {
+          if (entries.some(entry => entry.isIntersecting)) waiting.finish(true);
+        }, { rootMargin: '200px 0px' });
+        poolConfigAssignmentsWait = waiting;
+        waiting.observer.observe(target);
+      });
     }
 
     function stopPoolAiPreviewPolling() {
@@ -10133,15 +8317,6 @@
         loadPoolConfig(!!forceRefresh || !poolConfigLoadedOnce),
         loadPoolAiPreview(true, 0)
       ]);
-    }
-
-    async function onUpgradePageShown() {
-      renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: tr('updates.none', 'Aucune opération en cours.') });
-      renderUpgradeCatalog();
-      resumeUpgradeReconnectFlow();
-      await loadWebMeta().catch(() => {});
-      await refreshUpgradeStatus();
-      startUpgradeStatusPolling();
     }
 
     function nettoyerNomFlowCfg(moduleName) {
@@ -10954,7 +9129,8 @@
             ? data.meta
             : ((data && data._meta && typeof data._meta === 'object') ? data._meta : {});
           const modules = (data && data.modules && typeof data.modules === 'object') ? data.modules : {};
-          flowCfgDocIndex = { docs: docs, meta: meta, modules: modules };
+          const bundles = data && data.bundles && typeof data.bundles === 'object' ? data.bundles : {};
+          flowCfgDocIndex = { docs: docs, meta: meta, modules: modules, bundles: bundles };
           flowCfgDocIndexUnavailable = false;
           return flowCfgDocIndex;
         } catch (err) {
@@ -10981,6 +9157,12 @@
       const loadPromise = (async () => {
         try {
           const index = await loadCfgDocIndex();
+          for (const [name, pending] of flowCfgDocBundleLoadPromises) {
+            if (index.bundles[name]?.members.includes(cacheKey)) {
+              await pending;
+              return flowCfgDocModuleCache.get(cacheKey) || null;
+            }
+          }
           const relativePath = (index && index.modules && typeof index.modules[cacheKey] === 'string')
             ? String(index.modules[cacheKey]).trim()
             : '';
@@ -11012,6 +9194,10 @@
       await loadCfgDocI18nBundle(webUiLocale, false);
       await getCfgDocForModule(moduleName);
       await getCfgDocForModule(cfgDocWildcardModuleKey);
+      rebuildCfgDocSources();
+    }
+
+    function rebuildCfgDocSources() {
       const baseSources = [];
       if (flowCfgDocIndex) {
         const idxSource = normalizeDocSource({ docs: flowCfgDocIndex.docs || {}, meta: flowCfgDocIndex.meta || {} });
@@ -11023,6 +9209,39 @@
       }
       cfgDocSources = baseSources;
       chargerCfgTreeMetaDepuisDocs();
+    }
+
+    async function loadCfgDocBundle(name) {
+      const [index] = await Promise.all([
+        loadCfgDocIndex(), loadCfgDocI18nBundle(webUiLocale, false)
+      ]);
+      const bundle = index.bundles[name];
+      if (!bundle || !Array.isArray(bundle.members) || !bundle.members.length ||
+          !index.modules[bundle.module]) throw new Error('cfgdoc_bundle_unavailable');
+      if (bundle.members.every(key => flowCfgDocModuleCache.has(key))) {
+        rebuildCfgDocSources();
+        return;
+      }
+      if (flowCfgDocBundleLoadPromises.has(name)) return flowCfgDocBundleLoadPromises.get(name);
+      const pending = (async () => {
+        const payload = await fetchOkJson(
+          assetUrl('/api/cfgdoc/module?name=' + encodeURIComponent(bundle.module)),
+          { cache: 'default' }, 'documentation groupée indisponible pour ' + name
+        );
+        const modules = payload && payload.modules;
+        if (!modules || typeof modules !== 'object' || Array.isArray(modules) ||
+            Object.keys(modules).length !== bundle.members.length) throw new Error('cfgdoc_bundle_incomplete');
+        const sources = bundle.members.map(key => {
+          const source = modules[key];
+          if (!source || source.module !== key || !source.docs || typeof source.docs !== 'object' ||
+              Array.isArray(source.docs)) throw new Error('cfgdoc_bundle_incomplete');
+          return [key, normalizeDocSource(source)];
+        });
+        sources.forEach(([key, source]) => flowCfgDocModuleCache.set(key, source));
+        rebuildCfgDocSources();
+      })().finally(() => flowCfgDocBundleLoadPromises.delete(name));
+      flowCfgDocBundleLoadPromises.set(name, pending);
+      return pending;
     }
 
     async function chargerFlowCfgDocs() {
@@ -13081,7 +11300,7 @@
           version: flowCfgBackupVersion,
           created_at_utc: createdAt.toISOString(),
           meta: {
-            firmware: supervisorFirmwareVersion || '-',
+            firmware: webDeviceMeta.firmwareVersion || '-',
             profile: webProfileName || ''
           },
           store: {
@@ -13360,24 +11579,6 @@
       };
 
       tick();
-    }
-
-    function initUpgradeBindings() {
-      bindClickAction(checkUpdatesBtn, () => checkFirmwareUpdates());
-      bindClickAction(cancelUpgradeUiBtn, () => cancelUpgradeUiSession());
-      bindClickAction(localReleaseSelectBtn, () => {
-        if (!localReleaseFileInput) return;
-        localReleaseFileInput.value = '';
-        localReleaseFileInput.click();
-      });
-      if (localReleaseFileInput) {
-        localReleaseFileInput.addEventListener('change', () => {
-          const file = localReleaseFileInput.files && localReleaseFileInput.files[0]
-            ? localReleaseFileInput.files[0]
-            : null;
-          if (file) runAsyncTaskSafely(() => installLocalRelease(file));
-        });
-      }
     }
 
     function initStatusBindings() {
@@ -13686,238 +11887,23 @@
       });
     }
 
-    // ---- Users management ----
-    let userFormEditingUsername = '';
-
-    function usersFormBody(data) {
-      const body = new URLSearchParams();
-      Object.keys(data).forEach((k) => {
-        if (data[k] !== undefined && data[k] !== null) body.set(k, data[k]);
-      });
-      return body;
-    }
-
-    function usersListEl() { return document.getElementById('usersList'); }
-    function usersListStatusEl() { return document.getElementById('usersListStatus'); }
-    function userFormCardEl() { return document.getElementById('userFormCard'); }
-    function userFormTitleEl() { return document.getElementById('userFormTitle'); }
-    function userUsernameEl() { return document.getElementById('userUsername'); }
-    function userPasswordEl() { return document.getElementById('userPassword'); }
-    function userRoleSelectEl() { return document.getElementById('userRoleSelect'); }
-    function userFormStatusEl() { return document.getElementById('userFormStatus'); }
-    function ownPasswordEl() { return document.getElementById('ownPassword'); }
-    function ownPasswordStatusEl() { return document.getElementById('ownPasswordStatus'); }
-
-    async function refreshUsersList() {
-      const list = usersListEl();
-      const status = usersListStatusEl();
-      if (!list) return;
-      try {
-        const res = await fetchWithBusyRetry('/api/auth/users', { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || data.ok !== true) {
-          if (status) status.textContent = extractApiErrorMessage(data, tr('users.status.error', 'Erreur'));
-          if (list) list.innerHTML = '';
-          return;
-        }
-        const accounts = Array.isArray(data.accounts) ? data.accounts : [];
-        if (status) status.textContent = '';
-        if (list) {
-          if (accounts.length === 0) {
-            list.innerHTML = '<div class="users-empty">' + tr('users.empty', 'Aucun compte enregistré.') + '</div>';
-          } else {
-            list.innerHTML = '';
-            const administratorCount = accounts.filter(account => normalizeRole(account.role) === 'admin').length;
-            accounts.forEach((account) => list.appendChild(buildUsersRow(account, administratorCount)));
-          }
-        }
-      } catch (err) {
-        if (status) status.textContent = tr('users.status.error', 'Erreur');
-      }
-    }
-
-    function buildUsersRow(account, administratorCount) {
-      const row = document.createElement('div');
-      row.className = 'users-row';
-
-      const avatar = document.createElement('span');
-      avatar.className = 'users-avatar';
-      avatar.textContent = account.username ? String(Array.from(String(account.username))[0]).toUpperCase() : '?';
-
-      const copy = document.createElement('div');
-      copy.className = 'users-copy';
-      const uname = document.createElement('div');
-      uname.className = 'users-username';
-      uname.textContent = account.username;
-      const roleNode = document.createElement('div');
-      roleNode.className = 'users-role';
-      const roleValue = normalizeRole(account.role);
-      const badge = document.createElement('span');
-      badge.className = 'role-badge' + (roleValue === 'admin' ? ' admin' : '');
-      badge.textContent = roleLabel(roleValue);
-      roleNode.appendChild(badge);
-      copy.appendChild(uname);
-      copy.appendChild(roleNode);
-
-      const actions = document.createElement('div');
-      actions.className = 'users-actions';
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'btn-tonal';
-      editBtn.textContent = tr('users.actions.edit', 'Modifier');
-      editBtn.addEventListener('click', () => openUserForm(account.username, roleValue));
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'btn-tonal danger-action';
-      delBtn.textContent = tr('users.actions.delete', 'Supprimer');
-      delBtn.addEventListener('click', () => deleteUser(account.username));
-      actions.appendChild(editBtn);
-      if (roleValue !== 'admin' || administratorCount > 1) actions.appendChild(delBtn);
-
-      row.appendChild(avatar);
-      row.appendChild(copy);
-      row.appendChild(actions);
-      return row;
-    }
-
-    function openUserForm(username, roleValue) {
-      const card = userFormCardEl();
-      if (!card) return;
-      userFormEditingUsername = username || '';
-      if (userFormTitleEl()) {
-        userFormTitleEl().textContent = userFormEditingUsername
-          ? tr('users.form.edit', 'Modifier le compte')
-          : tr('users.form.add', 'Ajouter un compte');
-      }
-      if (userUsernameEl()) {
-        userUsernameEl().value = userFormEditingUsername;
-        userUsernameEl().disabled = !!userFormEditingUsername;
-      }
-      if (userPasswordEl()) userPasswordEl().value = '';
-      if (userRoleSelectEl()) userRoleSelectEl().value = roleValue || 'operator';
-      if (userFormStatusEl()) userFormStatusEl().textContent = '';
-      card.hidden = false;
-    }
-
-    function closeUserForm() {
-      userFormEditingUsername = '';
-      const card = userFormCardEl();
-      if (card) card.hidden = true;
-    }
-
-    async function saveUser() {
-      const username = userUsernameEl() ? String(userUsernameEl().value || '').trim() : '';
-      const password = userPasswordEl() ? String(userPasswordEl().value || '') : '';
-      const role = userRoleSelectEl() ? userRoleSelectEl().value : 'operator';
-      const status = userFormStatusEl();
-      if (!username) {
-        if (status) status.textContent = tr('users.form.username', 'Identifiant');
-        return;
-      }
-      const body = usersFormBody({ username: username, password: password, role: role });
-      let res;
-      try {
-        res = await fetchWithBusyRetry('/api/auth/users', { method: 'POST', body: body, cache: 'no-store' });
-      } catch (err) {
-        if (status) status.textContent = tr('users.status.error', 'Erreur');
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && data.ok === true) {
-        if (status) status.textContent = tr('users.status.saved', 'Compte enregistré.');
-        closeUserForm();
-        refreshUsersList();
-      } else if (status) {
-        status.textContent = extractApiErrorMessage(data, tr('users.status.error', 'Erreur'));
-      }
-    }
-
-    async function deleteUser(username) {
-      const label = tr('users.confirmDelete', 'Supprimer le compte ?').replace('{username}', username);
-      if (!window.confirm(label)) return;
-      const body = usersFormBody({ username: username });
-      try {
-        const res = await fetchWithBusyRetry('/api/auth/users/delete', { method: 'POST', body: body, cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data && data.ok === true) {
-          refreshUsersList();
-        } else {
-          const status = usersListStatusEl();
-          if (status) status.textContent = extractApiErrorMessage(data, tr('users.status.error', 'Erreur'));
-        }
-      } catch (err) {
-        const status = usersListStatusEl();
-        if (status) status.textContent = tr('users.status.error', 'Erreur');
-      }
-    }
-
-    async function changeOwnPassword() {
-      const password = ownPasswordEl() ? String(ownPasswordEl().value || '') : '';
-      const status = ownPasswordStatusEl();
-      if (!password) return;
-      const body = usersFormBody({ password: password });
-      try {
-        const res = await fetchWithBusyRetry('/api/auth/password', { method: 'POST', body: body, cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data && data.ok === true) {
-          if (status) status.textContent = tr('users.status.passwordChanged', 'Mot de passe mis à jour.');
-          if (ownPasswordEl()) ownPasswordEl().value = '';
-        } else if (status) {
-          status.textContent = extractApiErrorMessage(data, tr('users.status.error', 'Erreur'));
-        }
-      } catch (err) {
-        if (status) status.textContent = tr('users.status.error', 'Erreur');
-      }
-    }
-
-    function openAccountDialog() {
-      const dialog = document.getElementById('accountDialog');
-      if (!dialog) return;
-      if (ownPasswordEl()) ownPasswordEl().value = '';
-      if (ownPasswordStatusEl()) ownPasswordStatusEl().textContent = '';
-      if (typeof dialog.showModal === 'function') {
-        dialog.showModal();
-      } else {
-        dialog.setAttribute('open', 'open');
-      }
-    }
-
-    function closeAccountDialog() {
-      const dialog = document.getElementById('accountDialog');
-      if (!dialog) return;
-      if (typeof dialog.close === 'function' && dialog.open) {
-        dialog.close();
-      } else {
-        dialog.removeAttribute('open');
-      }
-    }
-
-    function initUsersBindings() {
-      bindClickAction(document.getElementById('usersAddBtn'), () => openUserForm('', 'operator'));
-      bindClickAction(document.getElementById('userCancelBtn'), closeUserForm);
-      bindClickAction(document.getElementById('userSaveBtn'), saveUser);
-      bindClickAction(document.getElementById('ownPasswordBtn'), changeOwnPassword);
-      bindClickAction(document.getElementById('accountProfile'), openAccountDialog);
-      bindClickAction(document.getElementById('accountDialogClose'), closeAccountDialog);
-      bindClickAction(document.getElementById('accountLogout'), logoutSession);
-    }
-
-    initUpgradeBindings();
     initStatusBindings();
     initInfoBindings();
     initSystemBindings();
     initConfigBindings();
     initGlobalUiBindings();
-    initUsersBindings();
+    bindClickAction(document.getElementById('accountProfile'), openAccountDialog);
     initSessionRefresh();
     const authReady = initAuth().catch(() => {});
 
     applyThemePreference(currentThemePreference(), false);
     applyWebUiLocale(webUiLocale);
     syncMenuIconFallbacks();
-    renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: tr('updates.none', 'Aucune opération en cours.') });
     refreshWebUiLocale(true).catch(() => {});
-    resumeUpgradeReconnectFlow();
+    const pendingUpgradeSession = readUpgradeUiSession();
+    if (pendingUpgradeSession && pendingUpgradeSession.awaitingReconnect) {
+      getUpdatesPage().then(page => page.resume()).catch(() => {});
+    }
     startAppHeaderClock();
     startHeaderReachabilityProbe();
     const startInitialUi = async () => {

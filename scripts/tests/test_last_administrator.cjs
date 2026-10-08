@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
  try {
   const page = await browser.newPage();
   await page.setContent('<div id="usersList"></div><div id="usersListStatus"></div>');
-  const source = fs.readFileSync(path.resolve(__dirname, '../../data/webinterface/app.js'), 'utf8');
+  const source = fs.readFileSync(path.resolve(__dirname, '../../data/webinterface/users.js'), 'utf8');
   const fragment = source.slice(source.indexOf('    async function refreshUsersList()'), source.indexOf('    function openUserForm('));
   await page.addScriptTag({content: `const tr = (key, fallback) => fallback;
    const normalizeRole = raw => String(raw || '').trim().toLowerCase();

@@ -56,7 +56,7 @@ const server = http.createServer((req, res) => {
         const webUiI18n = {};
         let flowCfgDocIndex, flowCfgDocIndexPromise, flowCfgDocIndexUnavailable = false;
         let flowCfgDocI18nLocale, flowCfgDocI18nMap = {}, flowCfgDocI18nPromise;
-        const flowCfgDocModuleCache = new Map(), flowCfgDocModuleLoadPromises = new Map();
+        const flowCfgDocModuleCache = new Map(), flowCfgDocModuleLoadPromises = new Map(), flowCfgDocBundleLoadPromises = new Map();
         const normalizeWebUiLocale = locale => locale, cfgDocKeyFromModuleName = name => name;
         const normalizeDocSource = source => source, cfgI18nDebugLog = () => {};
         const nettoyerNomFlowCfg = name => name.trim(), tr = (key, fallback) => fallback;

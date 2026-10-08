@@ -308,7 +308,10 @@
     var assets = {
       network: { script: '/webinterface/network.js', style: '/webinterface/network.css' },
       history: { script: '/webinterface/history.js' },
-      calibration: { script: '/webinterface/calibration.js' }
+      calibration: { script: '/webinterface/calibration.js' },
+      activity: { script: '/webinterface/activity.js' },
+      users: { script: '/webinterface/users.js' },
+      updates: { script: '/webinterface/updates.js' }
     };
     var page = assets[name];
     if (!page) throw new Error('unknown_page_module');

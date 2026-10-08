@@ -2,7 +2,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'); const path=require('node:path'); const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'../..'); const app=fs.readFileSync(path.join(root,'data/webinterface/app.js'),'utf8');
 const start=app.indexOf('    function poolConfigRenderAssignments('); const end=app.indexOf('    function poolConfigRenderGeneralCards(',start); assert(start>=0&&end>start);
-const code=app.slice(start,end);
+const applyStart=app.indexOf('    async function poolConfigApplyPatch(');
+const applyEnd=app.indexOf('    function poolConfigUpdateFieldEditors(',applyStart);
+const code=app.slice(start,end)+app.slice(applyStart,applyEnd);
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.FLOWIO_TEST_BROWSER?{executablePath:process.env.FLOWIO_TEST_BROWSER}:{})});
  try {
@@ -11,6 +13,8 @@ const code=app.slice(start,end);
   window.poolConfigGrid=document.querySelector('#grid'); window.isAdminSession=()=>true; window.toBool=v=>v===true||v===1||v==='1';
   window.invalidatePoolDashboardSlots=()=>{}; window.createFormPostOptions=x=>x; window.fetchWithBusyRetry=()=>{}; window.formatFlowCfgApplyError=()=> 'Erreur'; window.patches=[]; window.reboots=[]; let ioTopologyCache={}; let flowCfgChildrenCache={}; const fetchOkJson=async (url)=>{window.reboots.push(url);return {ok:true};}; const poolConfigDisinfectionLabel=value=>['Chlore / Brome','Électrolyse','Oxygène actif','Désactivé'][Number(value)];
   window.fetchJsonResponse=async(url,x)=>{patches.push(JSON.parse(x.patch));return {res:{ok:true},data:{ok:true}};};
+  let poolConfigEditRevision=0, poolConfigModulesCache=null, flowCfgCurrentModule='';
+  const poolConfigUpdateEditorLists=()=>{};
   const modules={'poollogic/sensors':{psi_io_id:194,wat_temp_io_id:196,air_temp_io_id:197,psi_monitoring:false,flow_switch_enabled:false,filtr_fb_io_id:65535,swg_fb_io_id:65535},'poollogic/safety':{sensor_hold_wat:true},'poollogic/modes':{disinfection_type:1},'io/drivers/ds18b20':{water_transport:1,air_transport:0},'io/drivers/ads1115_int':{address:72},'io/input/a02':{binding_port:110},'io/drivers/bme680':{enabled:true},'io/drivers/bmp280':{enabled:true},'io/input/i01':{binding_port:201,counter_total:1234}};
   for(let i=0;i<8;i++) modules['io/output/d'+String(i).padStart(2,'0')]={binding_port:300+i};
   eval(code); poolConfigRenderAssignments(modules);

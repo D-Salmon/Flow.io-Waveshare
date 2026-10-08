@@ -1,6 +1,9 @@
 {
   "locale": "en",
   "translations": {
+    "activity.pageLoadFailed": "Activity log could not be loaded. Reopen the page to try again.",
+    "users.pageLoadFailed": "Accounts could not be loaded. Reopen the page to try again.",
+    "updates.pageLoadFailed": "Updates could not be loaded. Reopen the page to try again.",
     "menu.dashboard": "Dashboard",
     "menu.io": "Input/Output",
     "menu.calibration": "Calibration",

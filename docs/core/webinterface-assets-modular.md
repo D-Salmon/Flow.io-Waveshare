@@ -15,10 +15,25 @@ Réduire le pic mémoire/IO au chargement de l'interface locale Waveshare sur ES
 
 Le runtime charge un unique CSS global au boot.
 
+Les modules `history.js`, `calibration.js`, `activity.js`, `users.js` et `updates.js`
+sont chargés à l’ouverture de leur page via `FlowWebCore.loadPageModule`. Le profil
+utilisateur réutilise `users.js`. Une mise à jour en attente de reconnexion peut
+charger `updates.js` au démarrage pour reprendre son suivi, même sur une autre page.
+`network.js` et `network.css` sont chargés lorsque le sélecteur Wi-Fi de
+Configuration est utilisé. Chaque module fournit une fabrique `create(dependencies)` ;
+les instances sont réutilisées. Les lectures dépendantes d’une page ne commencent
+pas si celle-ci a été quittée pendant le téléchargement.
+
 ## cfgdocs segmenté
 Les docs de configuration sont segmentées dans `data/wc/` avec des noms courts compatibles SPIFFS:
 - `i.j` (index)
 - `mXXXXXXXX.j` (module)
+
+L’index expose également `bundles.poollogic` : le groupe précompilé regroupe les
+descriptions individuelles de PoolLogic et les descriptions communes, sans modifier
+leur contenu. Il est lu par la même route `/api/cfgdoc/module` avec le nom de module
+publié dans l’index. Le client vérifie tous les membres avant de remplir le cache des
+modules individuels. Le groupe participe à l’empreinte de contenu de `wc/v.j`.
 
 Génération:
 - `scripts/generate_cfgdoc_chunks.py`

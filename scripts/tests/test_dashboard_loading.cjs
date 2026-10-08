@@ -13,9 +13,10 @@ function extract(name) {
   return app.slice(start, start + 1 + end);
 }
 const definitions = app.slice(app.indexOf('    const poolPressureFieldVisibility ='),
-  app.indexOf('    const upgradeReconnectFetchTimeoutMs ='));
+  app.indexOf('    const wsProto ='));
 const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
-  'poolConfigRenderAssignmentsStatus', 'poolConfigRender', 'loadPoolConfig'].map(extract).join('\n');
+  'poolConfigRenderAssignmentsStatus', 'poolConfigRender', 'loadPoolConfig',
+  'stopPoolConfigAssignmentsWait','waitForPoolConfigAssignments'].map(extract).join('\n');
 
 (async () => {
   const browser = await chromium.launch({headless: true,
@@ -26,6 +27,9 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
     await page.evaluate(({definitions, functions}) => {
       window.poolConfigGrid = document.querySelector('#grid');
       window.poolConfigReqSeq = 0; window.poolConfigLoadedOnce = false;
+      window.poolConfigAssignmentsWait = null;
+      window.activePageId = 'page-dashboard';
+      window.getActivePageId = () => activePageId;
       window.poolConfigModulesCache = null;
       window.tr = (key, fallback) => fallback;
       window.invalidatePoolDashboardSlots = () => {};
@@ -36,6 +40,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
       window.poolConfigRenderGeneralCards = modules => {
         window.primaryRenderCount++;
         const card = document.createElement('article'); card.id = 'primary';
+        if (window.assignmentsOffscreen) card.style.minHeight = '1400px';
         const input = document.createElement('input'); input.id = 'draft';
         input.value = String(modules['poollogic/regulation'].dly_pid_min);
         card.append(input); poolConfigGrid.replaceChildren(card);
@@ -54,13 +59,16 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
       eval(definitions + functions + `
         const primaryNames = new Set(poolConfigModuleDefs.concat(poolDisinfectionModeDefs).map(def => def.module).concat('poollogic/sensors', 'poollogic/pool'));
         window.reset = () => {
+          stopPoolConfigAssignmentsWait();
           poolConfigReqSeq = 0; poolConfigLoadedOnce = false; poolConfigModulesCache = null;
+          activePageId = 'page-dashboard'; assignmentsOffscreen = false;
           primaryError = ''; primaryRenderCount = 0; assignmentsRenderCount = 0;
           reads = []; batches = []; activeReads = 0; peakReads = 0; activeDocs = 0; peakDocs = 0;
           assignmentGateOpen = false; pendingAssignments = []; failure = '';
           poolConfigGrid.replaceChildren();
         };
-        window.ensureCfgDocsForModule = async () => {
+        window.loadCfgDocBundle = async name => {
+          if (name !== 'poollogic') throw new Error('Unexpected documentation bundle');
           activeDocs++; peakDocs = Math.max(peakDocs, activeDocs);
           await new Promise(resolve => setTimeout(resolve, 5)); activeDocs--;
         };
@@ -76,6 +84,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
               ? {enabled: true, dly_pid_min: 6} : {binding_port: 300}]));
           } finally { activeReads--; }
         };
+        window.cancelAssignmentsWait = stopPoolConfigAssignmentsWait;
         window.load = loadPoolConfig;
         window.fetchModules = poolConfigFetchModules;
         window.releaseAssignments = () => { assignmentGateOpen = true; pendingAssignments.splice(0).forEach(resolve => resolve()); };
@@ -106,7 +115,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
     assert.equal(await page.evaluate(() => batches.length), 6, 'The 43 modules require six HTTP requests');
     assert.equal(await page.evaluate(() => Math.max(...batches.map(batch => batch.length))), 8);
     assert.equal(await page.evaluate(() => peakReads), 1);
-    assert.equal(await page.evaluate(() => peakDocs), 2);
+    assert.equal(await page.evaluate(() => peakDocs), 1);
     await page.evaluate(() => { reset(); failure = 'io/input/a00'; loading = load(false); });
     await page.waitForFunction(() => primaryRenderCount === 1);
     await page.evaluate(() => { releaseAssignments(); });
@@ -115,6 +124,23 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
     assert.equal(await page.locator('#assignments').count(), 0);
     assert.equal(await page.locator('[data-pool-assignments-status]').getAttribute('aria-busy'), 'false');
     assert.match(await page.locator('[data-pool-assignments-status]').textContent(), /Simulated read failure/);
+    await page.evaluate(() => { reset(); assignmentsOffscreen = true; loading = load(false); });
+    await page.waitForFunction(() => primaryRenderCount === 1 && poolConfigAssignmentsWait !== null);
+    assert.equal(await page.evaluate(() => reads.length), 12, 'Offscreen assignments cause no reads');
+    assert.equal(await page.evaluate(() => batches.length), 2);
+    await page.locator('#draft').fill('9');
+    await page.locator('[data-pool-assignments-status]').scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => pendingAssignments.length === 1);
+    await page.evaluate(() => { releaseAssignments(); });
+    await page.evaluate(() => loading);
+    assert.equal(await page.locator('#draft').inputValue(), '9');
+    assert.equal(await page.evaluate(() => reads.length), 43);
+    await page.evaluate(() => { window.scrollTo(0, 0); reset(); assignmentsOffscreen = true; loading = load(false); });
+    await page.waitForFunction(() => primaryRenderCount === 1 && poolConfigAssignmentsWait !== null);
+    await page.evaluate(() => { activePageId = 'page-info'; cancelAssignmentsWait(); });
+    await page.evaluate(() => loading);
+    assert.equal(await page.evaluate(() => reads.length), 12, 'Leaving cancels the visibility wait');
+    assert.equal(await page.evaluate(() => poolConfigAssignmentsWait), null);
     await page.evaluate(() => {
       reset(); const oldSeq = ++poolConfigReqSeq;
       window.stale = fetchModules(Array.from({length: 12}, (_, i) => 'io/input/a' + i), oldSeq);

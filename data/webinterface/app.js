@@ -11069,7 +11069,7 @@
 
       const cached = cfgTreeNodeTextNames[cleanPath];
       if (typeof cached !== 'undefined') {
-        return (typeof cached === 'string' && cached.length > 0) ? (ref + ' [' + cached + ']') : ref;
+        return (typeof cached === 'string' && cached.length > 0) ? (ref + ' [' + ioSummaryLocalizedName(cached) + ']') : ref;
       }
       fetchCfgTreeNodeTextName(cleanPath).catch(() => {});
       return ref;

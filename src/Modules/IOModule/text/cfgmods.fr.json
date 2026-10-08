@@ -38,6 +38,12 @@
     "io/input": {
       "label_t": "cfgmods.io.input.label"
     },
+    "io/output": {
+      "label_t": "cfgmods.io.output.label"
+    },
+    "io/drivers": {
+      "label_t": "cfgmods.io.drivers.label"
+    },
     "io/input/analog": {
       "label_t": "cfgmods.io.input.analog.label"
     },

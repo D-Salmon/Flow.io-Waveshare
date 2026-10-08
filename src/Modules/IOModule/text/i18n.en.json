@@ -68,6 +68,8 @@
     "cfgmods.io.input.analog.label": "Analog inputs",
     "cfgmods.io.input.digital.label": "Digital inputs",
     "cfgmods.io.input.label": "Inputs",
+    "cfgmods.io.output.label": "Outputs",
+    "cfgmods.io.drivers.label": "Drivers",
     "cfgdocs.io.input.a00.a00_c0.help": "Calibration multiplier coefficient for A00. Adjusts raw measurement scale before publish. Formula: value = c0 * input + c1.",
     "cfgdocs.io.input.a00.a00_c0.label": "C0 Coefficient A00",
     "cfgdocs.io.input.a00.a00_c1.help": "Calibration offset for A00. Adds an offset to converted measurement to correct zero or apply translation. Formula: value = c0 * input + c1.",

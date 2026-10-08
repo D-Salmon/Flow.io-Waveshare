@@ -1733,6 +1733,11 @@
       "label_i18n": "cfgmods.hmi.tft.sensors.label"
     },
     "hmi/venice": {},
+    "io/drivers": {
+      "label_t": "cfgmods.io.drivers.label",
+      "label": "Pilotes",
+      "label_i18n": "cfgmods.io.drivers.label"
+    },
     "io/drivers/ads1115_ext/address": {
       "display_format": "hex"
     },
@@ -2135,6 +2140,11 @@
       "label_i18n": "cfgmods.io.input.i12.mode.label",
       "help": "Choisit le type de fonctionnement de I12 (Etat ou Compteur d'Impulsion). Changement pris en compte au redémarrage.",
       "help_i18n": "cfgmods.io.input.i12.mode.help"
+    },
+    "io/output": {
+      "label_t": "cfgmods.io.output.label",
+      "label": "Sorties",
+      "label_i18n": "cfgmods.io.output.label"
     },
     "log/levels": {
       "apply_per_field": true

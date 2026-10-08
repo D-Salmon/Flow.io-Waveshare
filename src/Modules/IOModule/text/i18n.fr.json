@@ -68,6 +68,8 @@
     "cfgmods.io.input.analog.label": "Entrées analogiques",
     "cfgmods.io.input.digital.label": "Entrées digitales",
     "cfgmods.io.input.label": "Entrées",
+    "cfgmods.io.output.label": "Sorties",
+    "cfgmods.io.drivers.label": "Pilotes",
     "cfgdocs.io.input.a00.a00_c0.help": "Coefficient multiplicateur de calibration pour A00. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
     "cfgdocs.io.input.a00.a00_c0.label": "Coefficient C0 A00",
     "cfgdocs.io.input.a00.a00_c1.help": "Offset de calibration pour A00. Il ajoute un décalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",

@@ -85,3 +85,5 @@ Firmware et fichiers web ont été compilés et flashés avec conservation de NV
 Les huit relais intégrés sont présentés comme CH1 à CH8 dans les listes de ports physiques et dans la topologie Entrées/sorties. Les ports 300 à 307, les indices matériels et les constantes internes restent identiques. Un slot logique `dXX` peut commander un autre relais après réaffectation : `d05` ne signifie donc pas nécessairement CH6.
 
 Le nom par défaut du relais libre devient « Relais libre », sans numéro de canal figé. Les noms personnalisés déjà enregistrés restent éditables dans Configuration → io → output ; une mise à jour du firmware ne les écrase pas.
+
+L’arborescence Configuration utilise le même dictionnaire de noms IO que la page Entrées/sorties : les noms standards des équipements sont traduits selon la langue de l’interface et « Chlorine Pump » est présenté comme « Désinfection » en français. Les noms personnalisés sans traduction sont conservés. Les branches `io/output` et `io/drivers` sont affichées comme « Sorties » et « Pilotes » en français ; les chemins de configuration restent inchangés.

@@ -7618,7 +7618,10 @@
       if (metrics.childNodes.length) detail.appendChild(metrics);
       if (selectedDef.key !== 'none' && selectedDef.module && isAdminSession()) {
         const fields = document.createElement('div');
-        const status = document.createElement('p'); status.setAttribute('role', 'status');
+        const status = document.createElement('p');
+        status.className = 'pool-field-save-status';
+        status.setAttribute('role', 'status');
+        status.hidden = true;
         const settings = Object.fromEntries(Object.entries(data).filter(([key]) => !['protocol_state','last_dose_day','weekly_done_ml','pending_ml'].includes(key)));
         const fieldOptions = {perFieldApply: true, onApplyField: async (input, button) => {
           button.disabled = true;
@@ -7627,7 +7630,11 @@
             const patch = {[input.dataset.module]: {[input.dataset.key]: value}};
             await poolConfigApplyPatch(patch);
             await loadPoolConfig(true);
-          } catch (error) { status.textContent = error.message || String(error); button.disabled = false; }
+          } catch (error) {
+            status.textContent = error.message || String(error);
+            status.hidden = false;
+            button.disabled = false;
+          }
         }};
         renderConfigFields(fields, selectedDef.module, settings, fieldOptions);
         // Electrolysis follows the same persistent ORP target as chlorine dosing.

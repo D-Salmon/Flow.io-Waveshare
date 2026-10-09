@@ -162,3 +162,7 @@ Dans Protections, « Seuil maintien hors gel » précède « Sonde température 
 Le seuil de démarrage hiver est masqué hors mode hiver. Le maintien hors gel
 reste visible, car il protège une filtration déjà en marche indépendamment de
 ce mode ; les descriptions précisent que les deux seuils utilisent l'air ambiant.
+
+Le cadre Traitement de l'eau suit la hauteur de ses réglages : la zone de
+message est masquée lorsqu'elle est vide et apparaît en cas d'erreur de
+validation. Le contrôle du tableau de bord avec les assets livrés est réussi.

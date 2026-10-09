@@ -5,6 +5,7 @@
  */
 
 #include "PoolDeviceModule.h"
+#include "PoolDeviceCommandError.h"
 #include "Core/ErrorCodes.h"
 #include "Domain/Pool/PoolIds.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
@@ -252,7 +253,7 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
         else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
         else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
         else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
-        writeCmdErrorSlot_(reply, replyLen, "pooldevice.write", code, slot);
+        writePoolDeviceCommandError(reply, replyLen, code, "pooldevice.write", slot, &poolSvc_);
         return false;
     }
 

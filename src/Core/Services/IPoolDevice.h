@@ -33,6 +33,8 @@ struct PoolDeviceSvcMeta {
     uint8_t enabled = 0;
     PoolInterlockState interlockState = PoolInterlockState::Ready;
     uint8_t blockReason = 0;
+    /** Equipment that must be running before this device can start. */
+    uint16_t dependsOnMask = 0;
     IoId ioId = IO_ID_INVALID;
     PoolDeviceCapabilities capabilities{};
     bool driverReady = false;

@@ -55,7 +55,7 @@ async function main() {
           if (testState.failAfterCommand) testState.failList = true;
         }
         return { ok: !testState.failCommand, json: async () => testState.failCommand
-          ? { ok: false, error: 'Équipement inconnu' } : { ok: true } };
+          ? { ok: false, err: {code:'UnknownSlot'} } : { ok: true } };
       };
 
     });
@@ -136,12 +136,12 @@ async function main() {
 
     await page.evaluate(() => { testState.delay = 0; testState.failCommand = true; });
     await confirmReset('Filtration (pd0)');
-    assert.match(await feedback.textContent(), /Équipement inconnu/);
+    assert.match(await feedback.textContent(), /Équipement introuvable/);
     assert(await resetDevice('Filtration (pd0)').isEnabled(), 'A rejected command can be retried');
 
     const switchDevice = row('COMP08 (pd15)').getByRole('switch');
     await switchDevice.click();
-    assert.match(await feedback.textContent(), /Équipement inconnu/);
+    assert.match(await feedback.textContent(), /Équipement introuvable/);
     assert(!(await switchDevice.isChecked()), 'A refused start keeps the confirmed Off state');
     assert(await switchDevice.isEnabled(), 'A refused switch command can be retried');
     await page.evaluate(() => { testState.failCommand = false; testState.delay = 700; });

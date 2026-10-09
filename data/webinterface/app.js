@@ -2196,12 +2196,12 @@
       } }),
       Object.freeze({ module: 'poollogic/refill', titleKey: 'pool.card.refill.title', title: 'Remplissage', icon: 'water_drop', noteKey: 'pool.card.refill.note', note: 'Le remplissage garde une durée minimale pour éviter les cycles trop courts.' }),
       Object.freeze({ module: 'poollogic/safety', titleKey: 'pool.card.safety.title', title: 'Protections', icon: 'health_and_safety', noteKey: 'pool.card.safety.note', note: 'Seuils de pression, hors gel et bascule hiver utilisés par les automatismes.',
-        fieldOrder: ['flow_start_dly_s', 'psi_start_dly_s', 'psi_high_th', 'psi_low_th', 'winter_start_t', 'sensor_hold_wat', 'freeze_hold_t'], editableFields: {
+        fieldOrder: ['flow_start_dly_s', 'psi_start_dly_s', 'psi_high_th', 'psi_low_th', 'winter_start_t', 'freeze_hold_t', 'sensor_hold_wat'], editableFields: {
           flow_start_dly_s: { type: 'number', visibleWhen: { module: 'poollogic/sensors', enabled: 'flow_switch_enabled', input: 'flow_switch_io_id' } },
           psi_start_dly_s: { type: 'number', visibleWhen: poolPressureFieldVisibility },
           psi_high_th: { type: 'number', visibleWhen: poolPressureFieldVisibility },
           psi_low_th: { type: 'number', visibleWhen: poolPressureFieldVisibility },
-          winter_start_t: { type: 'number' },
+          winter_start_t: { type: 'number', visibleWhen: {module: 'poollogic/modes', enabled: 'winter_mode'} },
           sensor_hold_wat: { type: 'boolean' },
           freeze_hold_t: { type: 'number' }
         }
@@ -5053,6 +5053,37 @@
       }
     }
 
+    function runtimeActionErrorDetail(data, status) {
+      if (status === 401 || status === 403) return tr('dashboard.action.reason.permission',
+        'Connectez-vous avec un compte autorisé à commander les équipements.');
+      const error = data?.err || {};
+      const dependency = error.dependency;
+      if (error.code === 'InterlockBlocked' && dependency?.name) {
+        const name = ioSummaryLocalizedName(dependency.name);
+        const key = dependency.state === 'off' ? 'dependencyOff' : 'dependencyUnavailable';
+        const fallback = dependency.state === 'off'
+          ? '{equipment} doit être en marche avant de démarrer cet équipement.'
+          : 'L’état de {equipment} est indisponible. Vérifiez cet équipement avant de démarrer.';
+        return tr('dashboard.action.reason.' + key, fallback).replace('{equipment}', name);
+      }
+      const reasons = {
+        InterlockBlocked: ['safety', 'Une sécurité bloque cette commande. Vérifiez les alarmes et les équipements requis.'],
+        MaxUptimeReached: ['maxUptime', 'Durée maximale quotidienne atteinte. Vérifiez les compteurs dans « Gérer les équipements » et l’alarme associée.'],
+        NotReady: ['notReady', 'Équipement pas encore prêt. Vérifiez l’activation de son pilote et la disponibilité de ses sorties.'],
+        Disabled: ['disabled', 'Équipement désactivé. Activez-le dans Configuration avant de le commander.'],
+        IoError: ['ioError', 'La commande du relais a échoué. Vérifiez le pilote, le câblage et les sorties dans Entrées/sorties.'],
+        UnknownSlot: ['unknownDevice', 'Équipement introuvable. Vérifiez son affectation dans Configuration.'],
+        BadSlot: ['unknownDevice', 'Équipement introuvable. Vérifiez son affectation dans Configuration.'],
+        MissingValue: ['invalidValue', 'Valeur de commande manquante ou invalide. Rechargez la page puis réessayez.'],
+        BadCmdJson: ['invalidValue', 'Valeur de commande manquante ou invalide. Rechargez la page puis réessayez.'],
+        Unauthorized: ['permission', 'Connectez-vous avec un compte autorisé à commander les équipements.'],
+        Forbidden: ['permission', 'Connectez-vous avec un compte autorisé à commander les équipements.']
+      };
+      const [key, fallback] = reasons[error.code] ||
+        ['failed', 'La carte n’a pas pu appliquer la commande. Consultez le journal d’activité pour plus de détails.'];
+      return tr('dashboard.action.reason.' + key, fallback);
+    }
+
     async function executeRuntimeAction(entry, action, inputValue, targetValue) {
       const actionKey = runtimeActionKey(entry, action, inputValue, targetValue);
       if (!actionKey || runtimeActionBusyKey) return false;
@@ -5073,12 +5104,11 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
           body: body.toString()
-        });
+        }).catch(() => { throw new Error(tr('dashboard.action.reason.connection',
+          'La carte ne répond pas. Vérifiez la connexion réseau puis réessayez.')); });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data || data.ok !== true) {
-          throw new Error(
-            extractApiErrorMessage(data, '') || tr('dashboard.action.error', 'Commande refusée')
-          );
+          throw new Error(runtimeActionErrorDetail(data, response.status));
         }
 
         const refreshDomains = runtimeActionRefreshDomains(entry, action);
@@ -7163,7 +7193,7 @@
       const source = modules?.[condition.module];
       const id = Number(source?.[condition.input]);
       return !!source && toBool(source[condition.enabled]) &&
-        Number.isInteger(id) && id >= 0 && id < 65535;
+        (!condition.input || (Number.isInteger(id) && id >= 0 && id < 65535));
     }
 
     function poolConfigUpdateAssignmentControls(modules) {

@@ -38,7 +38,7 @@ const server = http.createServer((request, response) => {
         }
       }
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify(failCommand ? { ok: false, error: 'Sauvegarde impossible' } : { ok: true }));
+      response.end(JSON.stringify(failCommand ? { ok: false, err: {code:'Failed'} } : { ok: true }));
     });
   } else {
     response.writeHead(200, { 'Content-Type': 'text/html' });
@@ -103,7 +103,7 @@ async function main() {
     assert.equal(await panel.count(), 0);
     assert(await open.evaluate(node => node === document.activeElement));
     failCommand = true; await open.click(); await apply.click();
-    await page.waitForFunction(() => document.querySelector('dialog .runtime-action-dialog-feedback').textContent.includes('Sauvegarde impossible'));
+    await page.waitForFunction(() => document.querySelector('dialog .runtime-action-dialog-feedback').textContent.includes('La carte n’a pas pu appliquer la commande'));
     assert.equal(device.control_mode, 'guided');
     assert.equal(await panel.count(), 1, 'A rejected command preserves the editor');
     failCommand = false;

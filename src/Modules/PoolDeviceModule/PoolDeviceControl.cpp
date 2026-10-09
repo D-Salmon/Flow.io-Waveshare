@@ -72,6 +72,7 @@ PoolDeviceSvcStatus PoolDeviceModule::svcMetaImpl_(uint8_t slot, PoolDeviceSvcMe
     outMeta->type = s.def.type;
     outMeta->enabled = s.def.enabled ? 1U : 0U;
     outMeta->blockReason = s.blockReason;
+    outMeta->dependsOnMask = s.def.dependsOnMask;
     outMeta->interlockState = s.interlockState;
     outMeta->ioId = s.ioId;
     outMeta->capabilities = s.driverConfig.capabilities;

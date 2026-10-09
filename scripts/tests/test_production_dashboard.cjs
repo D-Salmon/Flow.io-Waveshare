@@ -17,15 +17,16 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const page = await browser.newPage();
     const errors = [], writes = [], shippedAssets = new Set();
     const modules = {
-      'poollogic/modes': {auto_mode:true, ph_auto_mode:true, orp_auto_mode:true, disinfection_type:1},
+      'poollogic/modes': {auto_mode:true, ph_auto_mode:true, orp_auto_mode:true, disinfection_type:1, winter_mode:false},
       'poollogic/heater': {heater_auto_mode:true, heater_setpoint:28.5},
       'poollogic/swg': {swg_control_mode:0, dly_elec_min:2, secure_elec_t:15},
       'poollogic/chlorine': {dis_setpoint:700, dis_auto_mode:true},
       'poollogic/regulation': {enabled:true, dly_pid_min:2, pid_min_on_ms:1000, pid_sample_ms:10000},
+      'poollogic/safety': {winter_start_t:-2, freeze_hold_t:2, sensor_hold_wat:false},
       'poollogic/sensors': {},
       'io/drivers/expander00': {enabled:true, address:32, secondary_address:0, mask_default:0}
     };
-    let lighting = false;
+    let lighting = false, actionFailure = null;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://flowio.local/**', async route => {
       const request = route.request(), url = new URL(request.url()), name = url.pathname;
@@ -49,7 +50,9 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
           {value:6,domainSlot:22,name:'Lights',controllable:true,actualOn:lighting,desiredOn:lighting}]};
         if (name === '/api/runtime/action') {
           const fields = Object.fromEntries(new URLSearchParams(request.postData()));
-          writes.push({name,fields}); lighting = fields.input === 'true';
+          writes.push({name,fields});
+          if (actionFailure) body = {ok:false,err:actionFailure};
+          else lighting = fields.input === 'true';
         }
         if (name === '/api/cfgdoc/index') body = index;
         if (name === '/api/cfgdoc/module') body = json('wc/' + index.modules[url.searchParams.get('name')]);
@@ -83,11 +86,22 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await apply.click();
     await page.waitForFunction(() => document.querySelector('[data-key="heater_setpoint"]').dataset.initialValue === '29');
     assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/heater':{heater_setpoint:29}}});
+    const winterThreshold = page.locator('[data-key="winter_start_t"]');
+    assert(await winterThreshold.isHidden(),'Winter start threshold is hidden outside winter mode');
+    assert(await page.locator('[data-key="freeze_hold_t"]').isVisible(),'Freeze hold remains visible year round');
+    assert.deepEqual(await page.locator('[data-module="poollogic/safety"] .control-row input, [data-module="poollogic/safety"] .control-row select')
+      .evaluateAll(fields => fields.map(field => field.dataset.key)), ['winter_start_t','freeze_hold_t','sensor_hold_wat']);
     const orpSelector = '#poolDisinfectionModes [data-module="poollogic/chlorine"][data-key="dis_setpoint"]';
     const orp = page.locator(orpSelector);
     await orp.waitFor();
     assert.equal(await orp.inputValue(),'700');
     assert.match(await orp.locator('..').locator('..').innerText(), /Consigne ORP \(mV\)/);
+    await orp.focus();
+    await orp.press('ArrowUp');
+    assert.equal(await orp.inputValue(),'701','ORP increments by one millivolt');
+    await orp.press('ArrowDown');
+    assert.equal(await orp.inputValue(),'700','ORP decrements by one millivolt');
+    assert.equal(writes.length,0,'Using ORP arrows still requires validation');
     await orp.fill('720');
     await orp.blur();
     assert.equal(writes.length,0,'ORP editing and blur cannot save configuration');
@@ -115,6 +129,12 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const equipment = manifest.values.find(entry => entry.displayConfig?.actionDialog?.layout === 'equipment-management');
     const column = equipment.displayConfig.actionDialog.columns.find(column => column.type === 'switch');
     assert.deepEqual(writes.shift(),{name:'/api/runtime/action',fields:{runtime_id:String(equipment.id),action_id:column.action,input:'true',target:'6'}});
+    actionFailure = {code:'InterlockBlocked',where:'poollogic.ph_pump.write',dependency:{name:'Filtration Pump',state:'off',slot:0}};
+    await lightingButton.click();
+    await page.waitForFunction(() => document.querySelector('#poolLightingControl').textContent.includes('Pompe de filtration doit être en marche'));
+    assert(!(await page.locator('#poolLightingControl').innerText()).includes('InterlockBlocked'));
+    assert((await page.locator('#poolLightingControl button').innerText()).includes('Allumé'),'A rejected command preserves the actual state');
+    writes.shift();
     assert.equal(writes.length,0,'Commands cannot cause unrelated writes');
     assert(shippedAssets.has('/webinterface/app.js') && shippedAssets.has('/webinterface/app-core.js'));
     assert.deepEqual(errors,[]);

@@ -141,3 +141,24 @@ applique la valeur. Le mode continu masque le champ sans effacer sa consigne.
 Le test du tableau de bord avec les fichiers minifiés vérifie ces transitions et
 le module destinataire de chaque enregistrement. Seule l'image SPIFFS doit être
 mise à jour pour ce changement ; le programme et les réglages restent identiques.
+
+La consigne ORP utilise un pas de 1 mV dans les deux éditeurs, défini dans sa
+documentation commune. Le test Chrome vérifie les flèches 700 → 701 → 700 et
+l'absence d'enregistrement avant validation.
+
+Les refus de commandes du tableau de bord, de l'éclairage et des fenêtres de
+gestion disposent de messages français et anglais : sécurité, équipement
+désactivé, pilote indisponible, durée maximale, erreur de sortie ou connexion.
+Lors d'un refus par dépendance, le firmware fournit le nom de l'équipement requis
+observé arrêté ou indisponible, d'après son masque d'affectation réel. Les erreurs
+et les règles de commande restent identiques ; les diagnostics sont des champs
+JSON supplémentaires. Si la cause ne peut pas être confirmée ou si le tampon est
+trop petit, le refus de sécurité est conservé avec une explication générale,
+sans attribuer une cause non vérifiée. Les tests couvrent une dépendance déplacée
+vers pd8, les états inconnus, les noms contenant des guillemets, les petits
+tampons et la conservation de l'état réel après une commande refusée.
+
+Dans Protections, « Seuil maintien hors gel » précède « Sonde température d'eau ».
+Le seuil de démarrage hiver est masqué hors mode hiver. Le maintien hors gel
+reste visible, car il protège une filtration déjà en marche indépendamment de
+ce mode ; les descriptions précisent que les deux seuils utilisent l'air ambiant.

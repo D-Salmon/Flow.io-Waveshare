@@ -7,6 +7,7 @@
 #include "PoolLogicModule.h"
 #include "ManualDeviceCommand.h"
 #include "Modules/PoolDeviceModule/PoolDeviceModuleDataModel.h"
+#include "Modules/PoolDeviceModule/PoolDeviceCommandError.h"
 #include "Core/CommandRegistry.h"
 #include "Core/ErrorCodes.h"
 #include "Core/SystemLimits.h"
@@ -202,7 +203,7 @@ bool PoolLogicModule::cmdFiltrationWrite_(const CommandRequest& req, char* reply
         else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
         else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
         else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
-        writeCmdError_(reply, replyLen, "poollogic.filtration.write", code);
+        writePoolDeviceCommandError(reply, replyLen, code, "poollogic.filtration.write", filtrationDeviceSlot_, poolSvc_);
         return false;
     }
 
@@ -335,7 +336,7 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
             else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
             else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
             else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
-            writeCmdError_(reply, replyLen, where, code);
+            writePoolDeviceCommandError(reply, replyLen, code, where, slot, poolSvc_);
             return false;
         }
 
@@ -472,7 +473,7 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
             else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
             else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
             else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
-            writeCmdError_(reply, replyLen, where, code);
+            writePoolDeviceCommandError(reply, replyLen, code, where, robotDeviceSlot_, poolSvc_);
             return false;
         }
 

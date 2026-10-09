@@ -1,6 +1,7 @@
 #include "PoolDeviceModule.h"
 #include "Core/ErrorCodes.h"
 #include "Core/PsramJsonAllocator.h"
+#include "PoolDeviceCommandError.h"
 #include "Core/NvsKeys.h"
 #include <esp_timer.h>
 
@@ -205,7 +206,14 @@ bool PoolDeviceModule::cmdOverrideSelect_(void* ctx, const CommandRequest& req, 
 bool PoolDeviceModule::svcOverrideCommandImpl_(const CommandRequest& req, char* reply, size_t replyLen, ActuatorOverrideCommand action)
 {
     if (!lockState_()) { writeErrorJson(reply, replyLen, ErrorCode::NotReady, "pooldevice.override"); return false; }
-    auto fail = [&](ErrorCode code) { unlockState_(); writeErrorJson(reply, replyLen, code, "pooldevice.override"); return false; };
+    uint8_t errorSlot = 0xFF;
+    auto fail = [&](ErrorCode code) {
+        unlockState_();
+        if (errorSlot < POOL_DEVICE_MAX)
+            writePoolDeviceCommandError(reply, replyLen, code, "pooldevice.override", errorSlot, &poolSvc_);
+        else writeErrorJson(reply, replyLen, code, "pooldevice.override");
+        return false;
+    };
     JsonDocument doc(psramOnlyJsonAllocator());
     const char* json = req.args ? req.args : req.json;
     if (json && deserializeJson(doc, json)) return fail(ErrorCode::BadCmdJson);
@@ -229,6 +237,7 @@ bool PoolDeviceModule::svcOverrideCommandImpl_(const CommandRequest& req, char* 
                 if (overrideSupported_(i) && strcmp(args["option"], slots_[i].overrideOption) == 0) { slot = i; break; }
         }
         if (slot >= POOL_DEVICE_MAX || !slots_[slot].used) return fail(ErrorCode::BadSlot);
+        errorSlot = slot;
         auto& s = slots_[slot];
         if (action == ActuatorOverrideCommand::Select) overrideSelection_ = slot;
         else if (action == ActuatorOverrideCommand::Release) {

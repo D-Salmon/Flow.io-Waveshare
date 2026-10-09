@@ -13,10 +13,23 @@ inline bool writePoolDeviceCommandError(char* out, size_t length, ErrorCode code
                                         const PoolDeviceService* service)
 {
     if (!writeErrorJsonWithSlot(out, length, code, where, slot)) return false;
-    if (code != ErrorCode::InterlockBlocked || !service || !service->meta || !service->readActualOn)
+    if (code != ErrorCode::InterlockBlocked || !service || !service->meta)
         return true;
     PoolDeviceSvcMeta target{};
     if (service->meta(service->ctx, slot, &target) != POOLDEV_SVC_OK) return true;
+    if (target.onBlockReasons) {
+        JsonDocument doc(psramOnlyJsonAllocator());
+        if (deserializeJson(doc, out)) return true;
+        auto reasons = doc["err"]["safety_reasons"].to<JsonArray>();
+        for (uint16_t bit = 1; bit != 0; bit <<= 1) {
+            if (!(target.onBlockReasons & bit)) continue;
+            const char* name = actuatorOnBlockName(bit);
+            if (name) reasons.add(name);
+        }
+        if (!doc.overflowed() && measureJson(doc) < length) serializeJson(doc, out, length);
+        return true;
+    }
+    if (!service->readActualOn) return true;
     for (uint8_t dependency = 0; dependency < 16U; ++dependency) {
         if (dependency == slot || !(target.dependsOnMask & (uint16_t(1U) << dependency))) continue;
         uint8_t on = 0;

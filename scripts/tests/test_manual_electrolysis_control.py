@@ -19,12 +19,13 @@ struct Control {
  int swgControlMode_=0;
  static constexpr int SwgControlOrp=0,DisinfectionSwg=1;
  bool request=true;
+ uint16_t observedBlocks=0;
  bool guidedDeviceOn_(unsigned,bool){return request;}
  bool isDisinfectionType_(int){return true;}
  unsigned stateUptimeSec_(Fsm,unsigned){return 0;}
  bool run(){
 '''+block+r'''
- return swgDesired; }
+ observedBlocks=electrolysisBlocks; return swgDesired; }
 };
 int main(){
  Control c;c.filtrationFsm_.on=true;
@@ -32,9 +33,18 @@ int main(){
  c.waterTempFresh=true;c.waterTemp=-5;assert(c.run());
  c.request=false;assert(!c.run());c.request=true;
  c.filtrationFsm_.on=false;assert(!c.run());c.filtrationFsm_.on=true;
- c.pressureMonitoringEnabled_=true;assert(!c.run());c.havePsi=true;c.psi=1;assert(c.run());
- c.psi=2;assert(!c.run());c.psi=1;
- c.flowSwitchEnabled_=true;assert(!c.run());c.haveFlow=true;c.flowPresent=true;assert(c.run());
+ c.pressureMonitoringEnabled_=true;assert(!c.run());assert(c.observedBlocks==ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE);
+ c.havePsi=true;c.psi=1;assert(c.run());
+ c.psi=0;assert(!c.run());assert(c.observedBlocks==ACTUATOR_ON_BLOCK_PRESSURE_LOW);
+ c.psi=2;assert(!c.run());assert(c.observedBlocks==ACTUATOR_ON_BLOCK_PRESSURE_HIGH);c.psi=1;
+ c.flowSwitchEnabled_=true;assert(!c.run());assert(c.observedBlocks==ACTUATOR_ON_BLOCK_FLOW_UNAVAILABLE);
+ c.haveFlow=true;assert(!c.run());assert(c.observedBlocks==ACTUATOR_ON_BLOCK_FLOW_ABSENT);
+ c.flowPresent=true;assert(c.run());
+ c.psi=c.psiLowThreshold_;assert(c.run());c.psi=c.psiHighThreshold_;assert(c.run());
+ c.psi=NAN;assert(!c.run());assert(c.observedBlocks==ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE);c.psi=1;
+ c.havePsi=false;c.flowPresent=false;assert(!c.run());
+ assert(c.observedBlocks==(ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE|ACTUATOR_ON_BLOCK_FLOW_ABSENT));
+ c.pressureMonitoringEnabled_=false;c.flowSwitchEnabled_=false;assert(c.run());
  c.psiError_=true;assert(!c.run());c.psiError_=false;
  c.automationEnabled=true;c.treatmentAutoMode_=true;assert(!c.run());
  c.waterTemp=20;c.orpFresh=true;c.filtrationForcedOn=true;assert(c.run());

@@ -13,14 +13,17 @@ PROGRAM = r'''
 #include <cassert>
 #include <cstring>
 namespace Log { void warn(LogModuleId, const char*, ...) {} }
-struct Fixture { bool on=false; bool available=true; uint16_t mask=1U<<8; };
+struct Fixture { bool on=false; bool available=true; uint16_t mask=1U<<8; uint16_t reasons=0; };
 int main() {
   Fixture fixture;
   PoolDeviceService service{}; service.ctx=&fixture;
   service.meta=[](void* ctx,uint8_t slot,PoolDeviceSvcMeta* meta) {
     if(slot!=1 && slot!=8) return POOLDEV_SVC_ERR_UNKNOWN_SLOT;
     meta->slot=slot; meta->used=1;
-    if(slot==1) meta->dependsOnMask=static_cast<Fixture*>(ctx)->mask;
+    if(slot==1) {
+      meta->dependsOnMask=static_cast<Fixture*>(ctx)->mask;
+      meta->onBlockReasons=static_cast<Fixture*>(ctx)->reasons;
+    }
     else std::strcpy(meta->label,"Filtration \"B\"");
     return POOLDEV_SVC_OK;
   };
@@ -47,6 +50,13 @@ int main() {
   read(small); assert(result["err"]["code"]=="InterlockBlocked" && result["err"]["dependency"].isUnbound());
   assert(writePoolDeviceCommandError(reply,sizeof(reply),ErrorCode::InterlockBlocked,"poollogic.ph_pump.write",1,nullptr));
   read(reply); assert(result["err"]["dependency"].isUnbound());
+  fixture.reasons=ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE | ACTUATOR_ON_BLOCK_FLOW_ABSENT;
+  diagnose();
+  assert(result["err"]["safety_reasons"][0]=="pressure_unavailable");
+  assert(result["err"]["safety_reasons"][1]=="flow_absent");
+  assert(result["err"]["dependency"].isUnbound());
+  assert(writePoolDeviceCommandError(small,sizeof(small),ErrorCode::InterlockBlocked,"poollogic.ph_pump.write",1,&service));
+  read(small); assert(result["err"]["code"]=="InterlockBlocked" && result["err"]["safety_reasons"].isUnbound());
 }
 '''
 

@@ -1367,6 +1367,10 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     }
 
     bool swgDesired = guidedDeviceOn_(swgDeviceSlot_, swgFsm_.on);
+    const uint16_t electrolysisBlocks = manualElectrolysisBlocks(
+        filtrationFsm_.on, pressureMonitoringEnabled_, havePsi && std::isfinite(psi),
+        psi, psiLowThreshold_, psiHighThreshold_, flowSwitchEnabled_, haveFlow, flowPresent,
+        psiError_, flowError_);
     const bool swgAutomatic = automationEnabled && treatmentAutoMode_;
     if (swgAutomatic) {
         swgDesired = false;
@@ -1400,10 +1404,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     } else {
         // A direct ON/OFF request follows the same circulation policy as a timed override.
         // Temperature and ORP are automatic regulation inputs, not manual start conditions.
-        swgDesired = swgDesired && !(psiError_ || flowError_) && manualElectrolysisAllowed(
-            filtrationFsm_.on, pressureMonitoringEnabled_,
-            havePsi && std::isfinite(psi) && psi >= psiLowThreshold_ && psi <= psiHighThreshold_,
-            flowSwitchEnabled_, haveFlow && flowPresent);
+        swgDesired = swgDesired && electrolysisBlocks == ACTUATOR_ON_BLOCK_NONE;
     }
 
     bool heaterDesired = guidedDeviceOn_(heaterDeviceSlot_, heaterFsm_.on);
@@ -1707,24 +1708,23 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     // Temporary requests are resolved in PoolDevice, after the normal targets.
     // Combine role constraints by slot: assigning two roles never weakens safety.
     ActuatorOverridePolicy policies[POOL_DEVICE_MAX]{};
-    auto protect = [&](uint8_t slot, bool automatic, bool allowOn, bool allowOff = true) {
+    auto protect = [&](uint8_t slot, bool automatic, bool allowOn, bool allowOff = true,
+                       uint16_t onBlockReasons = ACTUATOR_ON_BLOCK_NONE) {
         if (slot >= POOL_DEVICE_MAX) return;
         auto& policy = policies[slot];
         policy.automatic = policy.automatic || automatic;
         policy.ready = bootControlReady_;
         policy.allowOn = policy.allowOn && allowOn;
         policy.allowOff = policy.allowOff && allowOff;
+        policy.onBlockReasons |= onBlockReasons;
     };
     const bool flowSafe = !(psiError_ || flowError_);
     const bool freezeHold = filtrationFsm_.on && haveAirTemp && airTemp <= freezeHoldTempC_;
     protect(filtrationDeviceSlot_, autoMode_, !(psiError_ || flowError_), !freezeHold);
     protect(robotDeviceSlot_, autoMode_, flowSafe);
     if (isDisinfectionType_(DisinfectionSwg)) {
-        const bool manualAllowed = manualElectrolysisAllowed(
-            filtrationFsm_.on, pressureMonitoringEnabled_,
-            havePsi && std::isfinite(psi) && psi >= psiLowThreshold_ && psi <= psiHighThreshold_,
-            flowSwitchEnabled_, haveFlow && flowPresent);
-        protect(swgDeviceSlot_, treatmentAutoMode_, flowSafe && manualAllowed);
+        protect(swgDeviceSlot_, treatmentAutoMode_, electrolysisBlocks == ACTUATOR_ON_BLOCK_NONE,
+                true, electrolysisBlocks);
     }
     protect(heaterDeviceSlot_, heaterAutoMode_ && autoMode_, flowSafe && waterTempFresh && std::isfinite(waterTemp));
     protect(phPumpDeviceSlot_, phAutoMode_, flowSafe && phFresh && !phTankLowError_);

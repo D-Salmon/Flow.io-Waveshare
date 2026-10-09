@@ -35,6 +35,7 @@ struct PoolDeviceSvcMeta {
     uint8_t blockReason = 0;
     /** Equipment that must be running before this device can start. */
     uint16_t dependsOnMask = 0;
+    uint16_t onBlockReasons = ACTUATOR_ON_BLOCK_NONE;
     IoId ioId = IO_ID_INVALID;
     PoolDeviceCapabilities capabilities{};
     bool driverReady = false;

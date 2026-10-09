@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Services/IPoolConfiguration.h"
+#include "Core/Services/ActuatorControlState.h"
 
 enum class ManualDosingTarget : uint8_t { None, Ph, Disinfection };
 struct ManualDosingMode {
@@ -18,9 +19,24 @@ constexpr ManualDosingMode manualDosingMode(ManualDosingTarget target, PoolDisin
     }
 }
 
-// Manual electrolysis depends on circulation feedback; temperature is an automatic-only limit.
-constexpr bool manualElectrolysisAllowed(bool filtrationOn, bool pressureEnabled, bool pressureOk,
-                                        bool flowEnabled, bool flowOk)
+// One decision supplies both the manual control gate and its diagnostics.
+// An unavailable optional sensor blocks only when its monitoring is enabled.
+// Temperature and ORP remain automatic regulation inputs, not manual start limits.
+constexpr uint16_t manualElectrolysisBlocks(bool filtrationOn,
+    bool pressureEnabled, bool pressureAvailable, float pressure, float pressureLow, float pressureHigh,
+    bool flowEnabled, bool flowAvailable, bool flowPresent, bool pressureAlarm, bool flowAlarm)
 {
-    return filtrationOn && (!pressureEnabled || pressureOk) && (!flowEnabled || flowOk);
+    uint16_t reasons = filtrationOn ? ACTUATOR_ON_BLOCK_NONE : ACTUATOR_ON_BLOCK_FILTRATION;
+    if (pressureEnabled) {
+        if (!pressureAvailable) reasons |= ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE;
+        else if (pressure < pressureLow) reasons |= ACTUATOR_ON_BLOCK_PRESSURE_LOW;
+        else if (pressure > pressureHigh) reasons |= ACTUATOR_ON_BLOCK_PRESSURE_HIGH;
+    }
+    if (flowEnabled) {
+        if (!flowAvailable) reasons |= ACTUATOR_ON_BLOCK_FLOW_UNAVAILABLE;
+        else if (!flowPresent) reasons |= ACTUATOR_ON_BLOCK_FLOW_ABSENT;
+    }
+    if (pressureAlarm) reasons |= ACTUATOR_ON_BLOCK_PRESSURE_ALARM;
+    if (flowAlarm) reasons |= ACTUATOR_ON_BLOCK_FLOW_ALARM;
+    return reasons;
 }

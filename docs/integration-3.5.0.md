@@ -166,3 +166,14 @@ ce mode ; les descriptions précisent que les deux seuils utilisent l'air ambian
 Le cadre Traitement de l'eau suit la hauteur de ses réglages : la zone de
 message est masquée lorsqu'elle est vide et apparaît en cas d'erreur de
 validation. Le contrôle du tableau de bord avec les assets livrés est réussi.
+
+La désinfection manuelle par électrolyse utilise la même décision de sécurité
+pour son pilotage et ses diagnostics : filtration, pression et débit selon les
+surveillances activées, et alarmes actives. Les mesures absentes et les seuils
+dépassés sont distingués. La température et l'ORP ne bloquent pas cette marche
+manuelle. PoolDevice refuse une demande interdite avant de changer sa cible ou
+son forçage ; le mode automatique de désinfection n'est donc pas désactivé par
+un refus. Les commandes directes et temporisées reçoivent ces causes structurées.
+Le tableau de bord les traduit et conserve le message jusqu'à la prochaine
+tentative. Tests natifs du pilotage, de la transaction et des diagnostics, et
+test navigateur de la tuile Désinfection avec les assets livrés.

@@ -5028,14 +5028,8 @@
     }
 
     function setRuntimeActionFeedback(actionKey, message) {
-      const revision = Date.now();
-      runtimeActionFeedback.set(actionKey, { message: String(message || ''), revision: revision });
-      setTimeout(() => {
-        const current = runtimeActionFeedback.get(actionKey);
-        if (!current || current.revision !== revision) return;
-        runtimeActionFeedback.delete(actionKey);
-        refreshPoolMeasuresView();
-      }, 7000);
+      // Keep the refusal readable through polling, until the next attempt.
+      runtimeActionFeedback.set(actionKey, { message: String(message || '') });
     }
 
     function actuatorControlLabel(control, showGuided = true) {
@@ -5057,6 +5051,21 @@
       if (status === 401 || status === 403) return tr('dashboard.action.reason.permission',
         'Connectez-vous avec un compte autorisé à commander les équipements.');
       const error = data?.err || {};
+      const safetyMessages = {
+        filtration_off: ['filtrationOff', 'La filtration doit être en marche.'],
+        pressure_unavailable: ['pressureUnavailable', 'Surveillance de pression activée, mais mesure de pression indisponible. Vérifiez la sonde et son affectation.'],
+        pressure_low: ['pressureLow', 'La pression est inférieure au seuil minimum configuré.'],
+        pressure_high: ['pressureHigh', 'La pression dépasse le seuil maximum configuré.'],
+        flow_unavailable: ['flowUnavailable', 'Surveillance de débit activée, mais état du détecteur indisponible. Vérifiez le détecteur et son affectation.'],
+        flow_absent: ['flowAbsent', 'Le détecteur ne confirme pas la présence de débit.'],
+        pressure_alarm: ['pressureAlarm', 'Une alarme de pression bloque la commande. Corrigez la cause puis acquittez l’alarme si nécessaire.'],
+        flow_alarm: ['flowAlarm', 'Une alarme de débit bloque la commande. Corrigez la cause puis acquittez l’alarme si nécessaire.']
+      };
+      if (error.code === 'InterlockBlocked' && Array.isArray(error.safety_reasons)) {
+        const messages = error.safety_reasons.map(reason => safetyMessages[reason])
+          .filter(Boolean).map(([key, fallback]) => tr('dashboard.action.reason.' + key, fallback));
+        if (messages.length) return messages.join(' ');
+      }
       const dependency = error.dependency;
       if (error.code === 'InterlockBlocked' && dependency?.name) {
         const name = ioSummaryLocalizedName(dependency.name);

@@ -17,11 +17,11 @@
       "gzip_bytes": 9542
     },
     "app.js": {
-      "source_sha256": "77b3a64034250e414892a33a3d02812f8e58eab1e36013d0fd22ec960bc3aeeb",
-      "gzip_sha256": "08b5058988a51d82ac7f5c2d5b31871efbbaf219c31db994841b1e61d49b2a90",
-      "original_bytes": 529425,
-      "minified_bytes": 317834,
-      "gzip_bytes": 80979
+      "source_sha256": "9b3df468c14dff01c610bd5fc3b423afb06b91d52ffd2b08d575c0897bdf143e",
+      "gzip_sha256": "97762e1464c49ee8adb922673bb8232055274666bfeb363f9487211ecc702487",
+      "original_bytes": 530572,
+      "minified_bytes": 318772,
+      "gzip_bytes": 81237
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -66,18 +66,18 @@
       "gzip_bytes": 9438
     },
     "i18n/fr.json": {
-      "source_sha256": "49db4358ae64bdd31330cc8a3247ab360e4a176d15ff5ccdf3d9214463177ec3",
-      "gzip_sha256": "28b74e55184cac10e0e3c7a847c588dcf2a54b8ddb75e923d73584953ae65cae",
-      "original_bytes": 40875,
-      "minified_bytes": 35915,
-      "gzip_bytes": 10500
+      "source_sha256": "a418207d2ff41b3069e2e2a10b005f0f963542fde9773fa0ad001970abdadd59",
+      "gzip_sha256": "67dd4f9c4d44c59850c3a256aaf76216f199af0e6b053789db8ba9003dda5c0a",
+      "original_bytes": 41894,
+      "minified_bytes": 36878,
+      "gzip_bytes": 10708
     },
     "i18n/en.json": {
-      "source_sha256": "f0efb4f36d2c7b9ef93bbb8dd8b2b7049e357c0c8fe1d3222bba8aee9d8847c4",
-      "gzip_sha256": "6607f947f2daf14dcf4dfe76aa4dcc606d90902b5bbadcd42d82dc6744eb9280",
-      "original_bytes": 35660,
-      "minified_bytes": 31064,
-      "gzip_bytes": 8919
+      "source_sha256": "f1836c1bdf385d3ec98baba5f76a4a7fea005133cedfff7b0ad529cc6f20b4df",
+      "gzip_sha256": "98bdc1cd663b191f3591bd3add7c0a58b5416675aa5158e728de939fb4236f1b",
+      "original_bytes": 36629,
+      "minified_bytes": 31977,
+      "gzip_bytes": 9102
     },
     "app-core.css": {
       "source_sha256": "03594306b7cfb182a077897764f623c773b67ae5f404674466d9b07a1f17c265",

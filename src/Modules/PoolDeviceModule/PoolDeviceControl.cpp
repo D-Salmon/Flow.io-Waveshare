@@ -72,7 +72,8 @@ PoolDeviceSvcStatus PoolDeviceModule::svcMetaImpl_(uint8_t slot, PoolDeviceSvcMe
     outMeta->type = s.def.type;
     outMeta->enabled = s.def.enabled ? 1U : 0U;
     outMeta->blockReason = s.blockReason;
-    outMeta->dependsOnMask = s.def.dependsOnMask;
+    outMeta->dependsOnMask = s.def.dependsOnMask | s.overridePolicy.requiredOnMask;
+    outMeta->onBlockReasons = s.overridePolicy.onBlockReasons;
     outMeta->interlockState = s.interlockState;
     outMeta->ioId = s.ioId;
     outMeta->capabilities = s.driverConfig.capabilities;
@@ -149,7 +150,12 @@ PoolDeviceSvcStatus PoolDeviceModule::setTarget_(uint8_t slot, const PoolDeviceT
     if (target->running) {
         if (!s.def.enabled) return finish(POOLDEV_SVC_ERR_DISABLED);
         if (maxUptimeReached_(s)) return finish(POOLDEV_SVC_ERR_MAX_UPTIME);
-        if (!dependenciesSatisfied_(slot)) {
+        // Direct manual requests use the same controller gate as timed forcing.
+        // Reject before changing the target, lease or automatic mode.
+        if (manual && !s.overridePolicy.ready) return finish(POOLDEV_SVC_ERR_NOT_READY);
+        if (manual && !s.overridePolicy.allowOn)
+            return finish(POOLDEV_SVC_ERR_INTERLOCK);
+        if (!(manual ? overrideDependenciesSatisfied_(slot) : dependenciesSatisfied_(slot))) {
             s.interlockState = PoolInterlockState::StartRejected;
             tickDevices_(millis(), false);
             return finish(POOLDEV_SVC_ERR_INTERLOCK);

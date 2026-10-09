@@ -6,6 +6,32 @@ enum class ActuatorOverrideCommand : uint8_t { FromArgs, On, Off, Release, Durat
 enum class ActuatorControlMode : uint8_t { Guided, Forced, WaitingTime, PersistenceError };
 enum class ActuatorOverrideReason : uint8_t { None, Expired, Released, Safety, Configuration, ClockInvalid };
 
+enum ActuatorOnBlock : uint16_t {
+    ACTUATOR_ON_BLOCK_NONE = 0,
+    ACTUATOR_ON_BLOCK_FILTRATION = 1U << 0,
+    ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE = 1U << 1,
+    ACTUATOR_ON_BLOCK_PRESSURE_LOW = 1U << 2,
+    ACTUATOR_ON_BLOCK_PRESSURE_HIGH = 1U << 3,
+    ACTUATOR_ON_BLOCK_FLOW_UNAVAILABLE = 1U << 4,
+    ACTUATOR_ON_BLOCK_FLOW_ABSENT = 1U << 5,
+    ACTUATOR_ON_BLOCK_PRESSURE_ALARM = 1U << 6,
+    ACTUATOR_ON_BLOCK_FLOW_ALARM = 1U << 7
+};
+
+inline const char* actuatorOnBlockName(uint16_t reason) {
+    switch (reason) {
+        case ACTUATOR_ON_BLOCK_FILTRATION: return "filtration_off";
+        case ACTUATOR_ON_BLOCK_PRESSURE_UNAVAILABLE: return "pressure_unavailable";
+        case ACTUATOR_ON_BLOCK_PRESSURE_LOW: return "pressure_low";
+        case ACTUATOR_ON_BLOCK_PRESSURE_HIGH: return "pressure_high";
+        case ACTUATOR_ON_BLOCK_FLOW_UNAVAILABLE: return "flow_unavailable";
+        case ACTUATOR_ON_BLOCK_FLOW_ABSENT: return "flow_absent";
+        case ACTUATOR_ON_BLOCK_PRESSURE_ALARM: return "pressure_alarm";
+        case ACTUATOR_ON_BLOCK_FLOW_ALARM: return "flow_alarm";
+        default: return nullptr;
+    }
+}
+
 // Controller policy is independent of the temporary request. Hardware interlocks
 // are always checked by PoolDevice after this policy and the lease are applied.
 struct ActuatorOverridePolicy {
@@ -14,6 +40,7 @@ struct ActuatorOverridePolicy {
     bool allowOn = true;
     bool allowOff = true;
     uint16_t requiredOnMask = 0;
+    uint16_t onBlockReasons = ACTUATOR_ON_BLOCK_NONE;
 };
 
 struct ActuatorControlState {

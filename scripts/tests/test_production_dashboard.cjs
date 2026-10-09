@@ -135,6 +135,18 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     assert(!(await page.locator('#poolLightingControl').innerText()).includes('InterlockBlocked'));
     assert((await page.locator('#poolLightingControl button').innerText()).includes('Allumé'),'A rejected command preserves the actual state');
     writes.shift();
+    actionFailure = {code:'InterlockBlocked',where:'poollogic.dis_pump.write',
+      safety_reasons:['pressure_unavailable','flow_absent']};
+    const disinfectionEntry = manifest.values.find(entry => entry.key === 'pool.chlorine_pump_on');
+    const disinfectionSelector = '[data-runtime-value-id="' + disinfectionEntry.id + '"]';
+    const disinfection = page.locator(disinfectionSelector);
+    await disinfection.waitFor();
+    await disinfection.getByRole('switch').click();
+    await page.waitForFunction(selector => document.querySelector(selector)?.textContent.includes('mesure de pression indisponible'),disinfectionSelector);
+    assert((await disinfection.innerText()).includes('ne confirme pas la présence de débit'));
+    await page.waitForTimeout(8000);
+    assert((await disinfection.innerText()).includes('mesure de pression indisponible'),'Refusal survives the former seven-second expiry and polling');
+    writes.shift();
     assert.equal(writes.length,0,'Commands cannot cause unrelated writes');
     assert(shippedAssets.has('/webinterface/app.js') && shippedAssets.has('/webinterface/app-core.js'));
     assert.deepEqual(errors,[]);

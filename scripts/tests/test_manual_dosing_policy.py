@@ -18,11 +18,6 @@ struct Service { void*ctx; int(*meta)(void*,uint8_t,PoolDeviceSvcMeta*);};
 struct PoolLogicModule {struct {bool on=false;} filtrationFsm_; Service*poolSvc_=nullptr;uint8_t filtrationDeviceSlot_=0;bool filtrationForcedOn_()const;};
 '''+function+r'''
 int main(){
- assert(manualElectrolysisAllowed(true,false,false,false,false));
- assert(!manualElectrolysisAllowed(false,false,true,false,true));
- assert(!manualElectrolysisAllowed(true,true,false,false,true));
- assert(!manualElectrolysisAllowed(true,false,true,true,false));
- assert(manualElectrolysisAllowed(true,true,true,true,true));
  using Method=PoolDisinfectionMethod;
  for(auto method:{Method::ChlorineBromine,Method::SaltElectrolysis,Method::ActiveOxygen,Method::Disabled}){
   const auto mode=manualDosingMode(ManualDosingTarget::Disinfection,method);

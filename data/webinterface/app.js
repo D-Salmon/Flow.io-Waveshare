@@ -7590,15 +7590,24 @@
         const fields = document.createElement('div');
         const status = document.createElement('p'); status.setAttribute('role', 'status');
         const settings = Object.fromEntries(Object.entries(data).filter(([key]) => !['protocol_state','last_dose_day','weekly_done_ml','pending_ml'].includes(key)));
-        renderConfigFields(fields, selectedDef.module, settings, {perFieldApply: true, onApplyField: async (input, button) => {
+        const fieldOptions = {perFieldApply: true, onApplyField: async (input, button) => {
           button.disabled = true;
           try {
             const value = readConfigFieldValueStrict(input);
-            const patch = {[selectedDef.module]: {[input.dataset.key]: value}};
+            const patch = {[input.dataset.module]: {[input.dataset.key]: value}};
             await poolConfigApplyPatch(patch);
             await loadPoolConfig(true);
           } catch (error) { status.textContent = error.message || String(error); button.disabled = false; }
-        }});
+        }};
+        renderConfigFields(fields, selectedDef.module, settings, fieldOptions);
+        // Electrolysis follows the same persistent ORP target as chlorine dosing.
+        // Keep its editor bound to the canonical module, rather than copying a setting.
+        const chlorine = modules['poollogic/chlorine'];
+        if (selected && selectedDef.key === 'swg' && Number(data.swg_control_mode) === 0 &&
+            chlorine && Object.hasOwn(chlorine, 'dis_setpoint')) {
+          renderConfigFields(fields, 'poollogic/chlorine', {dis_setpoint: chlorine.dis_setpoint},
+            {...fieldOptions, append: true});
+        }
         detail.append(fields, status);
       }
 

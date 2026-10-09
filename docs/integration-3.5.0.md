@@ -131,3 +131,13 @@ relais sont disponibles sans erreur. Le fichier d'accès AP a été régénéré
 le flash. Les essais de suppression restent ceux des tests C++ et Chrome ; le
 journal de l'utilisateur n'a pas servi de jeu de données à supprimer pour
 mesurer une durée réelle.
+
+La carte Électrolyse du tableau de bord propose maintenant « Consigne ORP (mV) »
+après les réglages SWG, uniquement lorsque le mode confirmé est « Suivi consigne
+ORP ». Le champ utilise directement `poollogic/chlorine/dis_setpoint`, également
+employé par Configuration et Home Assistant, sans nouvelle variable persistante.
+La saisie et la perte de focus n'enregistrent rien : seul le bouton de validation
+applique la valeur. Le mode continu masque le champ sans effacer sa consigne.
+Le test du tableau de bord avec les fichiers minifiés vérifie ces transitions et
+le module destinataire de chaque enregistrement. Seule l'image SPIFFS doit être
+mise à jour pour ce changement ; le programme et les réglages restent identiques.

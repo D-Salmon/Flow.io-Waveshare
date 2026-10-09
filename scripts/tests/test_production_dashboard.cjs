@@ -19,6 +19,8 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const modules = {
       'poollogic/modes': {auto_mode:true, ph_auto_mode:true, orp_auto_mode:true, disinfection_type:1},
       'poollogic/heater': {heater_auto_mode:true, heater_setpoint:28.5},
+      'poollogic/swg': {swg_control_mode:0, dly_elec_min:2, secure_elec_t:15},
+      'poollogic/chlorine': {dis_setpoint:700, dis_auto_mode:true},
       'poollogic/regulation': {enabled:true, dly_pid_min:2, pid_min_on_ms:1000, pid_sample_ms:10000},
       'poollogic/sensors': {},
       'io/drivers/expander00': {enabled:true, address:32, secondary_address:0, mask_default:0}
@@ -81,6 +83,31 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await apply.click();
     await page.waitForFunction(() => document.querySelector('[data-key="heater_setpoint"]').dataset.initialValue === '29');
     assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/heater':{heater_setpoint:29}}});
+    const orpSelector = '#poolDisinfectionModes [data-module="poollogic/chlorine"][data-key="dis_setpoint"]';
+    const orp = page.locator(orpSelector);
+    await orp.waitFor();
+    assert.equal(await orp.inputValue(),'700');
+    assert.match(await orp.locator('..').locator('..').innerText(), /Consigne ORP \(mV\)/);
+    await orp.fill('720');
+    await orp.blur();
+    assert.equal(writes.length,0,'ORP editing and blur cannot save configuration');
+    await orp.locator('..').locator('button').click();
+    await page.waitForFunction(selector => document.querySelector(selector)?.dataset.initialValue === '720',orpSelector);
+    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/chlorine':{dis_setpoint:720}}});
+    const mode = page.locator('#poolDisinfectionModes [data-key="swg_control_mode"]');
+    await mode.selectOption('1');
+    assert.equal(writes.length,0,'Changing the control mode also requires explicit validation');
+    assert.equal(await orp.count(),1,'A draft control mode cannot hide the saved ORP setting');
+    await mode.locator('..').locator('button').click();
+    await page.waitForFunction(() => !document.querySelector('#poolDisinfectionModes [data-key="dis_setpoint"]') &&
+      document.querySelector('#poolDisinfectionModes [data-key="swg_control_mode"]')?.value === '1');
+    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/swg':{swg_control_mode:1}}});
+    assert.equal(modules['poollogic/chlorine'].dis_setpoint,720,'Continuous mode preserves the ORP setpoint');
+    await mode.selectOption('0');
+    await mode.locator('..').locator('button').click();
+    await orp.waitFor();
+    assert.equal(await orp.inputValue(),'720','Returning to ORP mode reads the shared saved value');
+    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/swg':{swg_control_mode:0}}});
     const lightingButton = page.locator('#poolLightingControl button');
     await lightingButton.waitFor();
     await lightingButton.click();
@@ -91,6 +118,6 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     assert.equal(writes.length,0,'Commands cannot cause unrelated writes');
     assert(shippedAssets.has('/webinterface/app.js') && shippedAssets.has('/webinterface/app-core.js'));
     assert.deepEqual(errors,[]);
-    console.log('Production dashboard: shipped scripts, explicit field validation and lighting action passed.');
+    console.log('Production dashboard: shipped scripts, explicit validation, conditional shared ORP setpoint and lighting action passed.');
   } finally { await browser.close(); }
 })().catch(error => {console.error(error);process.exitCode=1;});

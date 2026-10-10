@@ -11,18 +11,19 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const browser = await chromium.launch({headless:true, executablePath:process.env.FLOWIO_TEST_BROWSER});
   try {
     const requests = [], errors = [], writes = [], gates = new Map(), failures = new Set();
-    let accounts = [{username:'admin',role:'admin'}], role = 'admin';
+    let accounts = [{username:'admin',role:'admin'}], role = 'admin', localOperator = false;
     let firmware = '3.5.0+20261008.223630';
     const pendingReceipt = {ok:true,state:'idle',boot_id:2,
       last_operation:{operation_id:42,result:'succeeded',target:'waveshare'}};
     const routeRequest = async route => {
       const url = new URL(route.request().url()), name = url.pathname;
       requests.push({name, method:route.request().method(), query:url.search});
+      if (name === '/login') return route.fulfill({contentType:'text/html',body:'<!doctype html><title>Connexion</title>'});
       if (name.startsWith('/api/')) {
         let data = {ok:true};
         if (name === '/api/web/meta') data = {ok:true,web_asset_version:'management-test',
           firmware_version:firmware,profile:'waveshare',auth_enabled:true,auth_required:false};
-        if (name === '/api/auth/session') data = {ok:true,authenticated:true,role,username:'admin'};
+        if (name === '/api/auth/session') data = {ok:true,authenticated:!localOperator,local_operator:localOperator,role,username:role};
         if (name === '/api/flowcfg/batch') data = {ok:true,modules:Object.fromEntries(
           JSON.parse(url.searchParams.get('names')).map(name => [name, {}]))};
         if (name === '/api/activity/logs') data = {ok:true,entries:0,count:0,complete:true,events:[]};
@@ -126,6 +127,34 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await failed.locator('[data-page="page-dashboard"]').first().click(); failures.clear();
     await failed.locator('[data-page="page-users"]').first().click();
     await failed.waitForFunction(() => document.querySelectorAll('.users-row').length === 2);
+    // Global logout must work before the optional Accounts module is loaded.
+    // Opening the profile first must not bind a second logout handler.
+    for (const scenario of [
+      {role:'operator',local:true,profile:false},
+      {role:'operator',local:false,profile:false},
+      {role:'admin',local:false,profile:false},
+      {role:'operator',local:false,profile:true}
+    ]) {
+      role = scenario.role; localOperator = scenario.local;
+      const logoutPage = await browser.newPage();
+      logoutPage.on('pageerror',error=>errors.push(error.message));
+      await logoutPage.route('http://flowio.local/**',routeRequest);
+      const usersBefore = count('/webinterface/users.js');
+      await logoutPage.goto('http://flowio.local/webinterface?full=1&page=page-dashboard');
+      await logoutPage.waitForFunction(() => window.__FLOW_WEB_APP_READY__ === true);
+      assert.equal(count('/webinterface/users.js'),usersBefore,'Logout readiness does not require downloading Accounts');
+      if (scenario.profile) {
+        await logoutPage.locator('#accountProfile').click();
+        await logoutPage.locator('#accountDialog[open]').waitFor();
+        await logoutPage.locator('#accountDialogClose').click();
+      }
+      const beforeLogout = count('/api/auth/logout');
+      await logoutPage.locator('#accountLogout').click();
+      await logoutPage.waitForURL('http://flowio.local/login');
+      assert.equal(count('/api/auth/logout')-beforeLogout,scenario.local ? 0 : 1,
+        'Local access redirects directly; authenticated access sends exactly one logout request');
+      await logoutPage.close();
+    }
     assert.deepEqual(errors,[]);
     console.log('Optional management pages: no eager downloads, canceled navigation, module reuse, Accounts/profile/last administrator, update check, inactive polling, off-page reconnect receipt and retry passed.');
   } finally {await browser.close();}

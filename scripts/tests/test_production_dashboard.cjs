@@ -160,7 +160,9 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await page.locator('#poolConfigGrid .pool-config-error-card').waitFor();
     assert.equal(await page.locator('#poolConfigGrid .control-row input, #poolConfigGrid .control-row select').count(),0,'No undocumented editable settings after a documentation failure');
     docsUnavailable = false;
-    for (const width of [1280,390]) {
+    // Older mobile browsers do not provide Object.hasOwn.
+    await page.addInitScript(() => { Object.hasOwn = undefined; });
+    for (const width of [1280,390,360,320]) {
       configReads.length = 0;
       await page.setViewportSize({width,height:900});
       await page.reload();
@@ -168,6 +170,12 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       assert.match(await setpoint.locator('..').locator('..').innerText(), /Consigne chauffage/);
       assert(await setpoint.isEnabled(),'An operator can edit the heating setpoint');
       assert.equal(await page.locator('#poolDisinfectionModes .control-row').count(),4,'Operator sees all electrolysis settings');
+      assert(await orp.isVisible(), 'The ORP setpoint is visible in the mobile layout');
+      await orp.scrollIntoViewIfNeeded();
+      const orpBounds = await orp.boundingBox();
+      assert(orpBounds.x >= 0 && orpBounds.x + orpBounds.width <= width, 'ORP input fits inside the phone viewport');
+      assert(orpBounds.width >= 100, 'The complete ORP value must remain readable, not just the input border');
+      assert.equal(await orp.inputValue(), '720');
       assert.match(await page.locator('#poolDisinfectionModes').innerText(), /Délai électrolyse|Délai electrolyse/);
       assert.match(await page.locator('[data-key="pid_min_on_ms"]').locator('..').locator('..').innerText(), /Durée minimale/);
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -176,7 +184,15 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       assert.equal(await page.getByText('Affectation des sondes',{exact:true}).count(),0);
       assert.equal(await page.getByText('Affectation des relais',{exact:true}).count(),0);
       assert(!configReads.some(name => name.startsWith('io/input/') || name.startsWith('io/output/') || name === 'poollogic/devices'),'No assignment configuration requests for operators');
-      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),'No horizontal overflow');
+      const overflow = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
+        elements: [...document.querySelectorAll('body *')].filter(element => {
+          const bounds = element.getBoundingClientRect(); return bounds.width > 0 && bounds.right > innerWidth + 1;
+        }).slice(0, 12).map(element => ({tag:element.tagName,id:element.id,className:element.className})) }));
+      assert(overflow.scrollWidth <= width, 'No horizontal overflow: ' + JSON.stringify(overflow));
+      if (process.env.FLOWIO_TEST_SCREENSHOTS) {
+        fs.mkdirSync(process.env.FLOWIO_TEST_SCREENSHOTS, {recursive:true});
+        await page.locator('#poolDisinfectionModes').screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, `electrolysis-${width}.png`)});
+      }
       await setpoint.fill('30');
       await setpoint.blur();
       assert.equal(writes.length,0,'Operator draft is not sent');

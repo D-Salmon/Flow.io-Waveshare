@@ -1,6 +1,10 @@
 {
   "locale": "en",
   "translations": {
+    "pool.regulation.minimumDose.label": "Minimum injection duration (s)",
+    "pool.regulation.minimumDose.help": "Calculated injections shorter than this duration are ignored.",
+    "pool.regulation.interval.label": "Dosing calculation interval (s)",
+    "pool.regulation.interval.help": "Time between two automatic dosing calculations. Minimum: 0.1 seconds.",
     "activity.pageLoadFailed": "Activity log could not be loaded. Reopen the page to try again.",
     "users.pageLoadFailed": "Accounts could not be loaded. Reopen the page to try again.",
     "updates.pageLoadFailed": "Updates could not be loaded. Reopen the page to try again.",

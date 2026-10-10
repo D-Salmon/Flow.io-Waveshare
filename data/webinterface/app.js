@@ -2212,8 +2212,12 @@
         fieldOrder: ['enabled', 'dly_pid_min', 'pid_min_on_ms', 'pid_sample_ms'], editableFields: {
           enabled: { type: 'boolean' },
           dly_pid_min: { type: 'number', enabledBy: 'enabled' },
-          pid_min_on_ms: { type: 'number', enabledBy: 'enabled' },
-          pid_sample_ms: { type: 'number', enabledBy: 'enabled' }
+          pid_min_on_ms: { type: 'number', enabledBy: 'enabled', valueDivisor: 1000,
+            labelKey: 'pool.regulation.minimumDose.label', label: 'Durée minimale d’injection (s)',
+            helpKey: 'pool.regulation.minimumDose.help', help: 'Les injections calculées plus courtes que cette durée sont ignorées.' },
+          pid_sample_ms: { type: 'number', enabledBy: 'enabled', valueDivisor: 1000,
+            labelKey: 'pool.regulation.interval.label', label: 'Intervalle de calcul de la régulation (s)',
+            helpKey: 'pool.regulation.interval.help', help: 'Temps entre deux calculs des dosages automatiques. Minimum : 0,1 seconde.' }
         }
       }),
       Object.freeze({ module: 'poollogic/robot', titleKey: 'pool.card.robot.title', title: 'Robot', icon: 'smart_toy', noteKey: 'pool.card.robot.note', note: 'Fenêtre de lancement et durée du nettoyage automatique.',
@@ -2614,7 +2618,7 @@
     async function getUsersPage() {
       const module = await window.FlowWebCore.loadPageModule('users');
       if (!usersPage) usersPage = module.create({ bindClickAction, extractApiErrorMessage,
-        fetchWithBusyRetry, logoutSession, normalizeRole, roleLabel, tr });
+        fetchWithBusyRetry, normalizeRole, roleLabel, tr });
       return usersPage;
     }
 
@@ -7247,6 +7251,17 @@
       } finally { ++poolConfigEditRevision; }
     }
 
+    function poolConfigEditorDisplayValue(definition, value) {
+      if (definition.type === 'boolean') return String(toBool(value));
+      if (value == null) return '';
+      return String(definition.valueDivisor ? Number(value) / definition.valueDivisor : value);
+    }
+
+    function poolConfigEditorStoredValue(definition, value) {
+      if (definition.type === 'boolean') return value === 'true';
+      return definition.valueDivisor ? Math.round(Number(value) * definition.valueDivisor) : Number(value);
+    }
+
     function poolConfigUpdateFieldEditors(list, data, modules) {
       if (list.dataset.saving === '1') return;
       list.poolFieldData = data;
@@ -7254,7 +7269,7 @@
         row.hidden = !poolConfigFieldVisible(definition, modules || poolConfigModulesCache);
         input.disabled = row.hidden || !canEditPoolSettings() || !(key in data) ||
           (!!definition.enabledBy && !toBool(data[definition.enabledBy]));
-        const confirmed = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
+        const confirmed = poolConfigEditorDisplayValue(definition, data[key]);
         const hasDraft = input.dataset.initialValue != null && input.value !== input.dataset.initialValue;
         if (!hasDraft && document.activeElement !== input) input.value = confirmed;
         input.dataset.initialValue = confirmed;
@@ -7281,13 +7296,16 @@
         const definition = editableFields[field.key];
         if (definition) {
           row.className = 'control-row';
-          const doc = poolConfigDoc(field.module, field.key);
-          const labelView = buildConfigFieldLabel(doc, field.label);
+          const sourceDoc = poolConfigDoc(field.module, field.key);
+          const label = definition.labelKey ? tr(definition.labelKey, definition.label) : field.label;
+          const doc = definition.labelKey ? { ...sourceDoc, label,
+            help: tr(definition.helpKey, definition.help) } : sourceDoc;
+          const labelView = buildConfigFieldLabel(doc, label);
           const valueWrap = document.createElement('div');
           valueWrap.className = 'control-value-wrap';
           const input = document.createElement(definition.type === 'boolean' ? 'select' : 'input');
           input.className = 'control-input';
-          input.setAttribute('aria-label', field.label);
+          input.setAttribute('aria-label', label);
           input.dataset.key = field.key;
           input.dataset.module = field.module;
           if (definition.type === 'boolean') {
@@ -7299,15 +7317,16 @@
               input.appendChild(option);
             });
           } else {
-            input.type = 'number'; input.required = true; input.step = String(definition.step || doc?.step || 'any');
+            input.type = 'number'; input.required = true;
+            input.step = String(definition.step || (doc?.step != null ? doc.step / (definition.valueDivisor || 1) : 'any'));
             for (const [attribute, constraint] of [['min', 'minimum'], ['max', 'maximum']]) {
-              if (doc && doc[constraint] != null) input[attribute] = String(doc[constraint]);
+              if (doc && doc[constraint] != null) input[attribute] = String(doc[constraint] / (definition.valueDivisor || 1));
             }
           }
           const applyBtn = buildConfigFieldApplyButton();
           const syncApplyState = () => {
             const pending = list.dataset.saving === '1';
-            const dirty = input.value !== String(list.poolFieldData?.[field.key] ?? '');
+            const dirty = input.value !== poolConfigEditorDisplayValue(definition, list.poolFieldData?.[field.key]);
             const valid = input.checkValidity();
             applyBtn.disabled = input.disabled || pending || !dirty || !valid;
             applyBtn.classList.toggle('is-dirty', dirty && valid && !input.disabled);
@@ -7321,7 +7340,7 @@
           const saveField = async () => {
             if (input.disabled || list.dataset.saving === '1' || !canEditPoolSettings()) return;
             if (!input.reportValidity()) return;
-            const value = definition.type === 'boolean' ? input.value === 'true' : Number(input.value);
+            const value = poolConfigEditorStoredValue(definition, input.value);
             if (definition.type === 'number' && !Number.isFinite(value)) return;
             if (value === list.poolFieldData?.[field.key]) return;
             list.dataset.saving = '1';
@@ -7336,7 +7355,7 @@
               status.textContent = tr('pool.settings.saved', 'Enregistré.');
             } catch (error) {
               status.textContent = error.message || String(error);
-              input.value = definition.type === 'boolean' ? String(toBool(currentData[field.key])) : String(currentData[field.key]);
+              input.value = poolConfigEditorDisplayValue(definition, currentData[field.key]);
             } finally {
               delete list.dataset.saving;
               delete list.dataset.savingKey;
@@ -7650,7 +7669,7 @@
         // Keep its editor bound to the canonical module, rather than copying a setting.
         const chlorine = modules['poollogic/chlorine'];
         if (selected && selectedDef.key === 'swg' && Number(data.swg_control_mode) === 0 &&
-            chlorine && Object.hasOwn(chlorine, 'dis_setpoint')) {
+            chlorine && Object.prototype.hasOwnProperty.call(chlorine, 'dis_setpoint')) {
           renderConfigFields(fields, 'poollogic/chlorine', {dis_setpoint: chlorine.dis_setpoint},
             {...fieldOptions, append: true});
         }
@@ -11953,6 +11972,7 @@
     initConfigBindings();
     initGlobalUiBindings();
     bindClickAction(document.getElementById('accountProfile'), openAccountDialog);
+    bindClickAction(document.getElementById('accountLogout'), logoutSession);
     initSessionRefresh();
     const authReady = initAuth().catch(() => {});
 

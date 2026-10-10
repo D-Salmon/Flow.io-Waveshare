@@ -214,3 +214,26 @@ deux fichiers après le flash. Une compilation seule ne les génère pas.
 locaux ; ils sont exclus du dépôt et des archives de publication.
 Le test QR décode le PNG et vérifie les identifiants avec caractères spéciaux,
 ainsi que l'absence de hook sur les cibles de compilation.
+
+Le bouton global « Déconnecter » est activé dès le démarrage, indépendamment
+du chargement différé de la page Comptes. Un opérateur local revient directement
+à la page de connexion ; une session authentifiée appelle la déconnexion puis
+y revient. Le test navigateur couvre ces deux accès et l'administrateur, avant
+l'ouverture du profil, et vérifie l'absence de double commande après son ouverture.
+
+Dans la carte Régulation du tableau de bord, la durée minimale d’injection et
+l’intervalle de calcul se saisissent en secondes. La conversion garde les valeurs
+canoniques en millisecondes : le stockage, Configuration et les automatismes
+continuent d’utiliser les mêmes réglages. Les bornes, le rafraîchissement, les
+brouillons et le retour à la valeur enregistrée après un refus utilisent la même
+conversion. Le délai après démarrage de la filtration reste en minutes. L’envoi
+reste soumis au bouton de validation de chaque champ.
+
+La consigne ORP de l’électrolyse reste liée au réglage persistant de désinfection.
+Sa présence est vérifiée à 320, 360 et 390 pixels, y compris sans Object.hasOwn,
+absent de certains anciens navigateurs mobiles.
+La première carte réduit sa barre horaire et permet le retour à la ligne de la
+commande d’éclairage pour éviter le débordement sur ces petits écrans.
+À moins de 640 pixels, les saisies des cartes de réglages passent sous leurs
+intitulés. Les textes d’aide ne peuvent plus comprimer la consigne ORP au point
+de masquer sa valeur ; le test impose également une largeur de saisie lisible.

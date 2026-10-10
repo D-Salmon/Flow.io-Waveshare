@@ -17,7 +17,8 @@ const functions = ['poolConfigDoc', 'poolConfigFieldLabel', 'poolConfigEnumLabel
   'poolConfigFormatHour', 'poolConfigBoolLabel', 'poolConfigFields',
   'buildConfigFieldLabel', 'buildConfigFieldApplyButton',
   'poolConfigEditorData', 'poolConfigFieldVisible', 'poolConfigUpdateAssignmentControls', 'poolConfigUpdateEditorLists',
-  'poolConfigApplyPatch', 'poolConfigUpdateFieldEditors', 'poolConfigBuildFieldList',
+  'poolConfigApplyPatch', 'poolConfigEditorDisplayValue', 'poolConfigEditorStoredValue',
+  'poolConfigUpdateFieldEditors', 'poolConfigBuildFieldList',
   'refreshPoolOverview'].map(extract).join('\n');
 const definitions = app.slice(app.indexOf('    const poolPressureFieldVisibility ='),
   app.indexOf('    const poolDisinfectionModeDefs ='));
@@ -237,11 +238,13 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     const regulation = page.locator('.pool-field-editor-list[data-module="poollogic/regulation"]');
     assert.deepEqual(await regulation.locator('.control-label').allTextContents(), [
       'Régulation automatique', 'Délai après démarrage filtration (min)',
-      'Durée minimale d’injection (ms)', 'Intervalle de calcul de la régulation (ms)']);
+      'Durée minimale d’injection (s)', 'Intervalle de calcul de la régulation (s)']);
     const dosingEnabled = page.getByLabel('Régulation automatique', { exact: true });
     const dosingDelay = page.getByLabel('Délai après démarrage filtration (min)', { exact: true });
-    const minimumDose = page.getByLabel('Durée minimale d’injection (ms)', { exact: true });
-    const sampling = page.getByLabel('Intervalle de calcul de la régulation (ms)', { exact: true });
+    const minimumDose = page.getByLabel('Durée minimale d’injection (s)', { exact: true });
+    const sampling = page.getByLabel('Intervalle de calcul de la régulation (s)', { exact: true });
+    assert.equal(await minimumDose.inputValue(), '30');
+    assert.equal(await sampling.inputValue(), '30');
     assert.deepEqual(await dosingEnabled.locator('option').allTextContents(), ['Actif', 'Inactif']);
     await dosingEnabled.selectOption('false'); await confirmField(dosingEnabled);
     await page.waitForFunction(() => configuration.enabled === false);
@@ -252,15 +255,30 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     await page.waitForFunction(() => configuration.enabled === true);
     assert.equal(await sampling.isEnabled(), true);
     before = await page.evaluate(() => patches.length);
-    await sampling.fill('99'); await sampling.dispatchEvent('change');
+    await sampling.fill('0.099'); await sampling.dispatchEvent('change');
+    assert(await sampling.locator('..').locator('button').isDisabled());
     assert.equal(await page.evaluate(() => patches.length), before, 'Sampling cannot be shorter than the firmware minimum');
-    await sampling.fill('2147483648'); await sampling.dispatchEvent('change');
+    await sampling.fill('2147483.648'); await sampling.dispatchEvent('change');
+    assert(await sampling.locator('..').locator('button').isDisabled());
     assert.equal(await page.evaluate(() => patches.length), before, 'Int32 overflow cannot be saved');
-    await sampling.fill('15000'); await sampling.dispatchEvent('change'); await confirmField(sampling);
+    await sampling.fill('15'); await sampling.dispatchEvent('change'); await confirmField(sampling);
     await page.waitForFunction(() => configuration.pid_sample_ms === 15000);
     assert.equal(await page.evaluate(() => stores['poollogic/regulation'].pid_sample_ms), 15000);
-    await minimumDose.fill('1000'); await minimumDose.dispatchEvent('change'); await confirmField(minimumDose);
+    await minimumDose.fill('1'); await minimumDose.dispatchEvent('change'); await confirmField(minimumDose);
     await page.waitForFunction(() => configuration.pid_min_on_ms === 1000);
+    await page.evaluate(async () => { stores['poollogic/regulation'].pid_sample_ms = 1234; await overview(false); });
+    assert.equal(await sampling.inputValue(), '1.234', 'Refresh converts the canonical milliseconds without rounding away saved values');
+    before = await page.evaluate(() => patches.length);
+    await sampling.fill('2'); await sampling.blur();
+    await page.evaluate(async () => { await overview(false); });
+    assert.equal(await sampling.inputValue(), '2', 'Refresh preserves a draft in seconds');
+    assert.equal(await page.evaluate(() => patches.length), before, 'A seconds draft still requires explicit validation');
+    await page.evaluate(() => { fail = true; });
+    await confirmField(sampling);
+    await page.waitForFunction(() => document.querySelector('[data-key="pid_sample_ms"]').value === '1.234');
+    await page.evaluate(() => { fail = false; });
+    await sampling.fill('0.1'); await confirmField(sampling);
+    await page.waitForFunction(() => configuration.pid_sample_ms === 100);
     await dosingDelay.fill('6'); await dosingDelay.dispatchEvent('change'); await confirmField(dosingDelay);
     await page.waitForFunction(() => configuration.dly_pid_min === 6);
     await page.evaluate(async () => { stores['poollogic/regulation'].enabled = false; await overview(false); });

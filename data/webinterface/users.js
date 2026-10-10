@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
   var pages = global.FlowWebPages = global.FlowWebPages || {};
-  function create({ bindClickAction, extractApiErrorMessage, fetchWithBusyRetry, logoutSession, normalizeRole, roleLabel, tr }) {
+  function create({ bindClickAction, extractApiErrorMessage, fetchWithBusyRetry, normalizeRole, roleLabel, tr }) {
     // ---- Users management ----
     let userFormEditingUsername = '';
 
@@ -214,7 +214,6 @@
       bindClickAction(document.getElementById('userSaveBtn'), saveUser);
       bindClickAction(document.getElementById('ownPasswordBtn'), changeOwnPassword);
       bindClickAction(document.getElementById('accountDialogClose'), closeAccountDialog);
-      bindClickAction(document.getElementById('accountLogout'), logoutSession);
     }
 
 

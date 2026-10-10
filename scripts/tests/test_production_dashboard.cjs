@@ -19,25 +19,27 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const modules = {
       'poollogic/modes': {auto_mode:true, ph_auto_mode:true, orp_auto_mode:true, disinfection_type:1, winter_mode:false},
       'poollogic/heater': {heater_auto_mode:true, heater_setpoint:28.5},
-      'poollogic/swg': {swg_control_mode:0, dly_elec_min:2, secure_elec_t:15},
+      'poollogic/swg': {swg_control_mode:0, dly_electro_min:2, secure_elec_t:15},
       'poollogic/chlorine': {dis_setpoint:700, dis_auto_mode:true},
       'poollogic/regulation': {enabled:true, dly_pid_min:2, pid_min_on_ms:1000, pid_sample_ms:10000},
       'poollogic/safety': {winter_start_t:-2, freeze_hold_t:2, sensor_hold_wat:false},
       'poollogic/sensors': {},
       'io/drivers/expander00': {enabled:true, address:32, secondary_address:0, mask_default:0}
     };
-    let lighting = false, actionFailure = null;
+    let lighting = false, actionFailure = null, role = 'admin', docsUnavailable = false;
+    const configReads = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://flowio.local/**', async route => {
       const request = route.request(), url = new URL(request.url()), name = url.pathname;
       if (name.startsWith('/api/')) {
         let body = {ok:true};
         if (name === '/api/web/meta') body = {ok:true,web_asset_version:'production-dashboard',profile:'waveshare',auth_enabled:true,auth_required:false};
-        if (name === '/api/auth/session') body = {ok:true,authenticated:true,role:'admin',username:'admin'};
+        if (name === '/api/auth/session') body = {ok:true,authenticated:role === 'admin',role,local_operator:role === 'operator',username:role};
         if (name === '/api/flowcfg/module') body = {ok:true,data:modules[url.searchParams.get('name')] || {lang:'fr'}};
+        if (name === '/api/flowcfg/batch') configReads.push(...JSON.parse(url.searchParams.get('names')));
         if (name === '/api/flowcfg/batch') body = {ok:true,modules:Object.fromEntries(
           JSON.parse(url.searchParams.get('names')).map(name => [name,modules[name] || {}]))};
-        if (name === '/api/flowcfg/apply') {
+        if (name === '/api/flowcfg/apply' || name === '/api/pool/settings') {
           const patch = JSON.parse(new URLSearchParams(request.postData()).get('patch'));
           writes.push({name,patch});
           for (const [module,fields] of Object.entries(patch)) Object.assign(modules[module] ||= {},fields);
@@ -54,6 +56,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
           if (actionFailure) body = {ok:false,err:actionFailure};
           else lighting = fields.input === 'true';
         }
+        if (name === '/api/cfgdoc/index' && docsUnavailable) return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({ok:false})});
         if (name === '/api/cfgdoc/index') body = index;
         if (name === '/api/cfgdoc/module') body = json('wc/' + index.modules[url.searchParams.get('name')]);
         if (name === '/api/cfgdoc/i18n') body = json('wc/i18n.' + url.searchParams.get('locale') + '.j');
@@ -85,7 +88,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const apply = setpoint.locator('..').locator('button');
     await apply.click();
     await page.waitForFunction(() => document.querySelector('[data-key="heater_setpoint"]').dataset.initialValue === '29');
-    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/heater':{heater_setpoint:29}}});
+    assert.deepEqual(writes.shift(),{name:'/api/pool/settings',patch:{'poollogic/heater':{heater_setpoint:29}}});
     const winterThreshold = page.locator('[data-key="winter_start_t"]');
     assert(await winterThreshold.isHidden(),'Winter start threshold is hidden outside winter mode');
     assert(await page.locator('[data-key="freeze_hold_t"]').isVisible(),'Freeze hold remains visible year round');
@@ -107,7 +110,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     assert.equal(writes.length,0,'ORP editing and blur cannot save configuration');
     await orp.locator('..').locator('button').click();
     await page.waitForFunction(selector => document.querySelector(selector)?.dataset.initialValue === '720',orpSelector);
-    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/chlorine':{dis_setpoint:720}}});
+    assert.deepEqual(writes.shift(),{name:'/api/pool/settings',patch:{'poollogic/chlorine':{dis_setpoint:720}}});
     const mode = page.locator('#poolDisinfectionModes [data-key="swg_control_mode"]');
     await mode.selectOption('1');
     assert.equal(writes.length,0,'Changing the control mode also requires explicit validation');
@@ -115,13 +118,13 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await mode.locator('..').locator('button').click();
     await page.waitForFunction(() => !document.querySelector('#poolDisinfectionModes [data-key="dis_setpoint"]') &&
       document.querySelector('#poolDisinfectionModes [data-key="swg_control_mode"]')?.value === '1');
-    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/swg':{swg_control_mode:1}}});
+    assert.deepEqual(writes.shift(),{name:'/api/pool/settings',patch:{'poollogic/swg':{swg_control_mode:1}}});
     assert.equal(modules['poollogic/chlorine'].dis_setpoint,720,'Continuous mode preserves the ORP setpoint');
     await mode.selectOption('0');
     await mode.locator('..').locator('button').click();
     await orp.waitFor();
     assert.equal(await orp.inputValue(),'720','Returning to ORP mode reads the shared saved value');
-    assert.deepEqual(writes.shift(),{name:'/api/flowcfg/apply',patch:{'poollogic/swg':{swg_control_mode:0}}});
+    assert.deepEqual(writes.shift(),{name:'/api/pool/settings',patch:{'poollogic/swg':{swg_control_mode:0}}});
     const lightingButton = page.locator('#poolLightingControl button');
     await lightingButton.waitFor();
     await lightingButton.click();
@@ -149,7 +152,40 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     writes.shift();
     assert.equal(writes.length,0,'Commands cannot cause unrelated writes');
     assert(shippedAssets.has('/webinterface/app.js') && shippedAssets.has('/webinterface/app-core.js'));
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.getByText('Affectation des relais',{exact:true}).waitFor();
+    assert(configReads.some(name => name.startsWith('io/output/')),'Admin loads assignment configuration');
+    role = 'operator';
+    docsUnavailable = true; await page.reload();
+    await page.locator('#poolConfigGrid .pool-config-error-card').waitFor();
+    assert.equal(await page.locator('#poolConfigGrid .control-row input, #poolConfigGrid .control-row select').count(),0,'No undocumented editable settings after a documentation failure');
+    docsUnavailable = false;
+    for (const width of [1280,390]) {
+      configReads.length = 0;
+      await page.setViewportSize({width,height:900});
+      await page.reload();
+      await setpoint.waitFor();
+      assert.match(await setpoint.locator('..').locator('..').innerText(), /Consigne chauffage/);
+      assert(await setpoint.isEnabled(),'An operator can edit the heating setpoint');
+      assert.equal(await page.locator('#poolDisinfectionModes .control-row').count(),4,'Operator sees all electrolysis settings');
+      assert.match(await page.locator('#poolDisinfectionModes').innerText(), /Délai électrolyse|Délai electrolyse/);
+      assert.match(await page.locator('[data-key="pid_min_on_ms"]').locator('..').locator('..').innerText(), /Durée minimale/);
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(200);
+      assert.equal(await page.locator('[data-pool-assignments-status]').count(),0,'No assignment placeholder for operators');
+      assert.equal(await page.getByText('Affectation des sondes',{exact:true}).count(),0);
+      assert.equal(await page.getByText('Affectation des relais',{exact:true}).count(),0);
+      assert(!configReads.some(name => name.startsWith('io/input/') || name.startsWith('io/output/') || name === 'poollogic/devices'),'No assignment configuration requests for operators');
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),'No horizontal overflow');
+      await setpoint.fill('30');
+      await setpoint.blur();
+      assert.equal(writes.length,0,'Operator draft is not sent');
+      await setpoint.locator('..').locator('button').click();
+      await page.waitForFunction(() => document.querySelector('[data-key="heater_setpoint"]').dataset.initialValue === '30');
+      assert.deepEqual(writes.shift(),{name:'/api/pool/settings',patch:{'poollogic/heater':{heater_setpoint:30}}});
+      modules['poollogic/heater'].heater_setpoint=29;
+    }
     assert.deepEqual(errors,[]);
-    console.log('Production dashboard: shipped scripts, explicit validation, conditional shared ORP setpoint and lighting action passed.');
+    console.log('Production dashboard: admin/operator permissions, desktop/mobile layout, French descriptions, assignment hiding, explicit validation, shared ORP setpoint and command feedback passed.');
   } finally { await browser.close(); }
 })().catch(error => {console.error(error);process.exitCode=1;});

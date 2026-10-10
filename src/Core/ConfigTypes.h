@@ -20,6 +20,9 @@ constexpr const char* NVS_KEY(const char (&s)[N]) {
 /** @brief Config persistence mode. */
 enum class ConfigPersistence : uint8_t { Runtime, Persistent };
 
+/** Minimum Web role allowed to change a registered setting. */
+enum class ConfigWriteAccess : uint8_t { Administrator, Operator };
+
 /** @brief Supported config value types. */
 enum class ConfigType : uint8_t {
     Int32,
@@ -77,6 +80,7 @@ struct ConfigMeta {
     const char* nvsKey;
     ConfigType type;
     ConfigPersistence persistence;
+    ConfigWriteAccess writeAccess = ConfigWriteAccess::Administrator;
     void* valuePtr;
     bool (*validateText)(const char*) = nullptr;
     uint16_t size;

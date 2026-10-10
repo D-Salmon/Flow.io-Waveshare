@@ -8812,7 +8812,7 @@ void WebInterfaceModule::startServer_()
         return;
     });
 
-    server_.on("/api/flowcfg/apply", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    const auto applyConfigPatch = [this](AsyncWebServerRequest* request, ConfigWriteAccess access) {
         HttpLatencyScope latency(request,
                                  "/api/flowcfg/apply",
                                  kHttpLatencyFlowCfgInfoMs,
@@ -8834,9 +8834,11 @@ void WebInterfaceModule::startServer_()
             return;
         }
         copyRequestParamValue_(request, "patch", true, patchStr.data, patchStr.capacity, "");
-        if (!cfgStore_->applyJson(patchStr.data)) {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flowcfg.apply.exec\"}}");
+        bool accessDenied = false;
+        if (!cfgStore_->applyJson(patchStr.data, access, &accessDenied)) {
+            request->send(accessDenied ? 403 : 500, "application/json", accessDenied
+                          ? "{\"ok\":false,\"err\":{\"code\":\"Forbidden\",\"where\":\"pool.settings.apply\"}}"
+                          : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flowcfg.apply.exec\"}}");
             return;
         }
         Actor actor{};
@@ -8844,6 +8846,12 @@ void WebInterfaceModule::startServer_()
         emitConfigPatchActivity_("Config flow.io", patchStr.data, actor);
         request->send(200, "application/json", "{\"ok\":true}");
         return;
+    };
+    server_.on("/api/flowcfg/apply", HTTP_POST, [applyConfigPatch](AsyncWebServerRequest* request) {
+        applyConfigPatch(request, ConfigWriteAccess::Administrator);
+    });
+    server_.on("/api/pool/settings", HTTP_POST, [applyConfigPatch](AsyncWebServerRequest* request) {
+        applyConfigPatch(request, ConfigWriteAccess::Operator);
     });
 
     server_.on("/api/system/reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {

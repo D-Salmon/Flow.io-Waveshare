@@ -87,6 +87,9 @@ htmlcov/
 
 # Accès locaux à la carte (mots de passe AP)
 local-device/
+local_rescue/
+rescue-access.txt
+rescue-wifi.png
 
 # Dépendances locales de développement
 node_modules/

@@ -177,3 +177,40 @@ un refus. Les commandes directes et temporisées reçoivent ces causes structur�
 Le tableau de bord les traduit et conserve le message jusqu'à la prochaine
 tentative. Tests natifs du pilotage, de la transaction et des diagnostics, et
 test navigateur de la tuile Désinfection avec les assets livrés.
+
+
+## Droits du tableau de bord
+
+Les opérateurs lisent les descriptions et traductions des champs et peuvent
+modifier les réglages de fonctionnement du bassin, avec validation explicite
+par ✓. Les cartes d'affectation des sondes et des relais sont entièrement
+masquées pour eux, sans chargement différé de leurs paramètres.
+
+Le minimum de rôle autorisé est enregistré dans les métadonnées de chaque
+variable. Le nouvel endpoint `/api/pool/settings` valide tous les droits du
+patch avant toute modification, persistance ou notification. Les affectations,
+les pilotes IO, le réseau et les comptes conservent leurs droits administrateur.
+L'endpoint général `/api/flowcfg/apply` reste réservé aux administrateurs.
+Aucune clé NVS ni valeur de configuration n'est déplacée.
+
+Si les descriptions ne peuvent pas être chargées, le tableau de bord affiche
+une erreur et ne présente pas de champs techniques modifiables. La lecture peut
+être retentée sans conserver définitivement cet échec. Les tests couvrent les
+opérateurs sur PC et téléphone, l'enregistrement explicite des consignes, le
+masquage des affectations et le refus atomique d'un patch mixte non autorisé.
+
+## QR code Wi-Fi après flash
+
+La capture des identifiants crée également `local-device/rescue-wifi.png`, à
+côté de `rescue-access.txt`. Le QR contient les identifiants WPA du point d'accès
+de cette carte au format Wi-Fi reconnu par les téléphones. Sa génération est
+locale ; les identifiants ne sont envoyés à aucun générateur en ligne.
+Le point d'accès doit être ouvert pour que la connexion soit possible.
+
+Les hooks `upload` et `uploadfs` préparent les dépendances Python puis créent les
+deux fichiers après le flash. Une compilation seule ne les génère pas.
+`FLOWIO_LOCAL_DEVICE_DIR` permet de choisir un autre dossier, par exemple
+`local_rescue`. Les images et fichiers contenant les identifiants restent
+locaux ; ils sont exclus du dépôt et des archives de publication.
+Le test QR décode le PNG et vérifie les identifiants avec caractères spéciaux,
+ainsi que l'absence de hook sur les cibles de compilation.

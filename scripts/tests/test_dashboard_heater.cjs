@@ -48,6 +48,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
       window.webUiLocale = 'fr';
       window.fieldApplyCheckIcon = '✓';
       window.isAdminSession = () => admin;
+      window.canEditPoolSettings = () => admin;
       window.toBool = value => value === true || value === 1 || value === 'true';
       window.tr = (key, fallback) => translations[key] || fallback;
       window.configDocFor = (module, key) => {
@@ -66,7 +67,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
       window.poolConfigFetchModule = async name => ({ module: name,
         data: { ...stores[name] } });
       window.fetchJsonResponse = async (url, options) => {
-        if (url !== '/api/flowcfg/apply') throw new Error(url);
+        if (url !== '/api/pool/settings') throw new Error(url);
         const patch = JSON.parse(options.patch);
         patches.push(patch);
         if (window.waitForSave) await new Promise(resolve => { window.finishSave = resolve; });
@@ -199,7 +200,7 @@ const translations = { ...json('data/webinterface/i18n/fr.json').translations,
     assert.deepEqual(await safety.locator('.control-label').allTextContents(), [
       'Délai avant contrôle du débit (s)', 'Délai avant contrôle de pression (s)',
       'Seuil pression haute', 'Seuil pression basse', 'Seuil entrée hiver (C)',
-      'Sonde température d’eau', 'Seuil maintien hors gel (C)']);
+      'Seuil maintien hors gel (C)', 'Sonde température d’eau']);
     await page.evaluate(() => {
       flowCfgCurrentModule = 'poollogic/safety'; flowCfgCurrentData = { ...stores[flowCfgCurrentModule] };
     });

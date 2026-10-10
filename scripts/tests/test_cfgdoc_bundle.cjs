@@ -22,7 +22,7 @@ const functions = ['assetUrl','normalizeWebUiLocale','cfgDocTr','nettoyerNomFlow
   'cfgDocLocaleAssetUrl','loadCfgDocI18nBundle','loadCfgDocIndex','getCfgDocForModule',
   'loadCfgDocBundle','poolConfigEnsureDocs','ensureCfgDocsForModule','rebuildCfgDocSources',
   'normalizeDocSource','cfgDocResolveLocalizedText','cfgDocApplyLocalizedText'].map(extract).join('\n');
-let version = 'one', broken = false, gate = null;
+let version = 'one', broken = false, indexUnavailable = false, gate = null;
 const requests = [];
 const server = http.createServer(async (req,res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -32,6 +32,10 @@ const server = http.createServer(async (req,res) => {
     return res.end('<!doctype html><title>Bundle regression</title>');
   }
   let body;
+  if (url.pathname === '/api/cfgdoc/index' && indexUnavailable) {
+    res.writeHead(503, {'Content-Type':'application/json','Cache-Control':'no-store'});
+    return res.end(JSON.stringify({ok:false}));
+  }
   if (url.pathname === '/api/cfgdoc/index') body = index;
   if (url.pathname === '/api/cfgdoc/i18n') body = data('i18n.' + url.searchParams.get('locale') + '.j');
   if (url.pathname === '/api/cfgdoc/module') {
@@ -59,7 +63,7 @@ const server = http.createServer(async (req,res) => {
       await page.goto(base);
       await page.evaluate(({functions,version}) => {
         const webAssetVersion = version;
-        let webUiLocale = 'fr', flowCfgDocIndex = null, flowCfgDocIndexPromise = null, flowCfgDocIndexUnavailable = false;
+        let webUiLocale = 'fr', flowCfgDocIndex = null, flowCfgDocIndexPromise = null;
         let flowCfgDocI18nLocale = '', flowCfgDocI18nMap = {}, flowCfgDocI18nPromise = null, cfgDocSources = [];
         const flowCfgDocModuleCache = new Map(), flowCfgDocModuleLoadPromises = new Map(), flowCfgDocBundleLoadPromises = new Map();
         const cfgDocWildcardModuleKey = '__wildcard', cfgI18nDebugLog = () => {}, chargerCfgTreeMetaDepuisDocs = () => {};
@@ -114,6 +118,11 @@ const server = http.createServer(async (req,res) => {
     assert.equal(await page.evaluate(() => pending()),0);
     broken = false; await page.evaluate(() => loadGroup());
     assert.deepEqual(await page.evaluate(() => cache()),expected);
+    version = 'index-failure'; indexUnavailable = true; await install();
+    assert.equal(await page.evaluate(() => loadGroup().then(() => null,error => error.message)),'HTTP 503');
+    assert.deepEqual(await page.evaluate(() => cache()),{});
+    indexUnavailable = false; await page.evaluate(() => loadGroup());
+    assert.deepEqual(await page.evaluate(() => cache()),expected,'A failed index request can be retried in the same page');
     version = 'concurrent'; let release; gate = new Promise(resolve => {release = resolve;});
     await install(); const before = bundleReads();
     await page.evaluate(() => {window.loading = loadGroup();});

@@ -236,7 +236,6 @@ bool webRouteRequiresAdmin(WebRouteMethod method, const char* path)
         startsWith("/api/wifi/") ||
         startsWith("/api/network/") ||
         startsWith("/api/mqtt/") ||
-        startsWith("/api/cfgdoc/") ||
         startsWith("/api/supervisorcfg/") ||
         startsWith("/api/auth/users") ||
         startsWith("/fwupdate/")) {
@@ -244,7 +243,7 @@ bool webRouteRequiresAdmin(WebRouteMethod method, const char* path)
     }
 
     if (mutating &&
-        (startsWith("/api/activity/") || startsWith("/api/flowcfg/"))) {
+        (startsWith("/api/activity/") || startsWith("/api/flowcfg/") || startsWith("/api/cfgdoc/"))) {
         return true;
     }
     return false;

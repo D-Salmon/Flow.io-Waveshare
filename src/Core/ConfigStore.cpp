@@ -583,8 +583,9 @@ uint8_t ConfigStore::listModules(const char** out, uint8_t max) const
     return count;
 }
 
-bool ConfigStore::applyJson(const char* json)
+bool ConfigStore::applyJson(const char* json, ConfigWriteAccess access, bool* accessDenied)
 {
+    if (accessDenied) *accessDenied = false;
     if (!json || json[0] == '\0') return false;
 
     static constexpr size_t APPLY_JSON_DOC_CAPACITY = Limits::JsonConfigApplyBuf;
@@ -629,6 +630,10 @@ bool ConfigStore::applyJson(const char* json)
         const char* moduleName = moduleKv.key().c_str();
         JsonVariantConst moduleVar = moduleKv.value();
         if (!moduleVar.is<JsonObjectConst>()) {
+            if (access == ConfigWriteAccess::Operator) {
+                if (accessDenied) *accessDenied = true;
+                return false;
+            }
             Log::warn(LOG_MODULE_ID,
                       "applyJson: module '%s' has non-object payload",
                       moduleName ? moduleName : "<null>");
@@ -645,6 +650,10 @@ bool ConfigStore::applyJson(const char* json)
             }
         }
         if (!moduleKnown) {
+            if (access == ConfigWriteAccess::Operator) {
+                if (accessDenied) *accessDenied = true;
+                return false;
+            }
             Log::warn(LOG_MODULE_ID, "applyJson: unknown module '%s'", moduleName ? moduleName : "<null>");
             continue;
         }
@@ -659,6 +668,10 @@ bool ConfigStore::applyJson(const char* json)
                 if (strcmp(m.module, moduleName) != 0) continue;
                 if (strcmp(m.name, keyName) != 0) continue;
                 keyKnown = true;
+                if (access == ConfigWriteAccess::Operator && m.writeAccess != ConfigWriteAccess::Operator) {
+                    if (accessDenied) *accessDenied = true;
+                    return false;
+                }
                 if (m.validateText) {
                     const JsonVariantConst proposed = valueKv.value();
                     if (!proposed.is<const char*>() || strlen(proposed.as<const char*>()) >= m.size ||
@@ -670,6 +683,10 @@ bool ConfigStore::applyJson(const char* json)
                 break;
             }
             if (!keyKnown) {
+                if (access == ConfigWriteAccess::Operator) {
+                    if (accessDenied) *accessDenied = true;
+                    return false;
+                }
                 Log::warn(LOG_MODULE_ID,
                           "applyJson: unknown key '%s.%s'",
                           moduleName ? moduleName : "<null>",

@@ -50,10 +50,12 @@ public:
 
     /** @brief Register a config variable definition. */
     template<typename T, size_t H>
-    void registerVar(ConfigVariable<T, H>& var);
+    void registerVar(ConfigVariable<T, H>& var,
+                     ConfigWriteAccess access = ConfigWriteAccess::Administrator);
     /** @brief Register a config variable with explicit module/branch ids. */
     template<typename T, size_t H>
-    void registerVar(ConfigVariable<T, H>& var, uint8_t moduleId, uint8_t localBranchId);
+    void registerVar(ConfigVariable<T, H>& var, uint8_t moduleId, uint8_t localBranchId,
+                     ConfigWriteAccess access = ConfigWriteAccess::Administrator);
 
     /** @brief Set a typed config value and persist if needed. */
     template<typename T, size_t H>
@@ -101,7 +103,9 @@ public:
     /** @brief List unique module names present in config metadata. */
     uint8_t listModules(const char** out, uint8_t max) const;
     /** @brief Apply JSON patch to registered config variables. */
-    bool applyJson(const char* json);
+    bool applyJson(const char* json,
+                   ConfigWriteAccess access = ConfigWriteAccess::Administrator,
+                   bool* accessDenied = nullptr);
 
     /** @brief Log NVS write summary when the configured period elapsed. */
     void logNvsWriteSummaryIfDue(uint32_t nowMs, uint32_t periodMs = 60000U);
@@ -142,7 +146,7 @@ private:
 // Template implementation
 // -------------------------
 template<typename T, size_t H>
-void ConfigStore::registerVar(ConfigVariable<T, H>& var)
+void ConfigStore::registerVar(ConfigVariable<T, H>& var, ConfigWriteAccess access)
 {
     if (!ensureMetaStorage_()) {
         Log::error((LogModuleId)LogModuleIdValue::CoreConfigStore,
@@ -192,6 +196,7 @@ void ConfigStore::registerVar(ConfigVariable<T, H>& var)
     m.nvsKey      = var.nvsKey;
     m.type        = var.type;
     m.persistence = var.persistence;
+    m.writeAccess = access;
     m.valuePtr    = (void*)var.value;
     m.validateText = var.validateText;
     m.size        = var.size;
@@ -200,11 +205,12 @@ void ConfigStore::registerVar(ConfigVariable<T, H>& var)
 }
 
 template<typename T, size_t H>
-void ConfigStore::registerVar(ConfigVariable<T, H>& var, uint8_t moduleId, uint8_t localBranchId)
+void ConfigStore::registerVar(ConfigVariable<T, H>& var, uint8_t moduleId, uint8_t localBranchId,
+                             ConfigWriteAccess access)
 {
     var.moduleId = moduleId;
     var.localBranchId = localBranchId;
-    registerVar(var);
+    registerVar(var, access);
 }
 
 template<typename T, size_t H>

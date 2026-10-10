@@ -2054,7 +2054,6 @@
     let cfgDocSources = [];
     let flowCfgDocsLoaded = false;
     let flowCfgDocIndex = null;
-    let flowCfgDocIndexUnavailable = false;
     const cfgDocWildcardModuleKey = '__wildcard';
     const flowCfgDocModuleCache = new Map();
     const flowCfgDocModuleLoadPromises = new Map();
@@ -7225,10 +7224,11 @@
       poolConfigUpdateAssignmentControls(modules);
     }
 
-    async function poolConfigApplyPatch(patch) {
+    async function poolConfigApplyPatch(patch, options) {
       ++poolConfigEditRevision;
       try {
-        const result = await fetchJsonResponse('/api/flowcfg/apply',
+        const endpoint = options?.administrative ? '/api/flowcfg/apply' : '/api/pool/settings';
+        const result = await fetchJsonResponse(endpoint,
           createFormPostOptions({ patch: JSON.stringify(patch) }), fetchWithBusyRetry);
         if (!result.res.ok || !result.data || result.data.ok !== true) {
           throw new Error(formatFlowCfgApplyError(result.data));
@@ -7252,7 +7252,7 @@
       list.poolFieldData = data;
       (list.poolFieldEditors || []).forEach(({ key, definition, row, input, syncApplyState }) => {
         row.hidden = !poolConfigFieldVisible(definition, modules || poolConfigModulesCache);
-        input.disabled = row.hidden || !isAdminSession() || !(key in data) ||
+        input.disabled = row.hidden || !canEditPoolSettings() || !(key in data) ||
           (!!definition.enabledBy && !toBool(data[definition.enabledBy]));
         const confirmed = definition.type === 'boolean' ? String(toBool(data[key])) : String(data[key] ?? '');
         const hasDraft = input.dataset.initialValue != null && input.value !== input.dataset.initialValue;
@@ -7319,7 +7319,7 @@
           };
           list.poolFieldEditors.push({ key: field.key, definition, row, input, syncApplyState });
           const saveField = async () => {
-            if (input.disabled || list.dataset.saving === '1' || !isAdminSession()) return;
+            if (input.disabled || list.dataset.saving === '1' || !canEditPoolSettings()) return;
             if (!input.reportValidity()) return;
             const value = definition.type === 'boolean' ? input.value === 'true' : Number(input.value);
             if (definition.type === 'number' && !Number.isFinite(value)) return;
@@ -7566,14 +7566,14 @@
       [{ key: 'none', typeValue: 3, titleKey: 'pool.disinfection.none.title', title: 'Aucun traitement', icon: 'block' }, ...poolDisinfectionModeDefs].forEach((def) => {
         const choice = document.createElement('button');
         choice.type = 'button';
-        choice.disabled = !isAdminSession();
+        choice.disabled = !canEditPoolSettings();
         choice.addEventListener('click', async () => {
           choice.disabled = true;
           try {
             await poolConfigApplyPatch({'poollogic/modes': {disinfection_type: def.typeValue}});
             await loadPoolConfig(true);
           } catch (error) { poolConfigRenderError(error); }
-          finally { choice.disabled = !isAdminSession(); }
+          finally { choice.disabled = !canEditPoolSettings(); }
         });
         choice.className = 'pool-treatment-choice' + (def.key === 'none' ? ' pool-treatment-choice-none' : '') + (selectedType === def.typeValue ? ' is-selected' : '');
         const choiceIcon = document.createElement('span');
@@ -7625,7 +7625,7 @@
         }
       }
       if (metrics.childNodes.length) detail.appendChild(metrics);
-      if (selectedDef.key !== 'none' && selectedDef.module && isAdminSession()) {
+      if (selectedDef.key !== 'none' && selectedDef.module && canEditPoolSettings()) {
         const fields = document.createElement('div');
         const status = document.createElement('p');
         status.className = 'pool-field-save-status';
@@ -7712,6 +7712,7 @@
     }
 
     function poolConfigRenderAssignments(modules) {
+      if (!isAdminSession()) return;
       const sensors = modules['poollogic/sensors'] || {};
       const safety = modules['poollogic/safety'] || {};
       const transports = modules['io/drivers/ds18b20'] || {};
@@ -7778,7 +7779,7 @@
           button.disabled = true;
           try {
             const patch = patchBuilder();
-            await poolConfigApplyPatch(patch);
+            await poolConfigApplyPatch(patch, { administrative: true });
             status.textContent = 'Enregistré. Redémarrez pour appliquer les changements de raccordement.';
             Object.entries(patch).forEach(([module, data]) => Object.assign(modules[module] || (modules[module] = {}), data));
             form.querySelectorAll('select').forEach(select => { select.dataset.initialValue = select.value; });
@@ -7974,6 +7975,7 @@
       poolConfigRenderHero(source, alarmSlots);
       poolConfigRenderDisinfection(source);
       poolConfigRenderGeneralCards(source);
+      if (!isAdminSession()) return;
       if (options?.deferAssignments) {
         poolConfigRenderAssignmentsStatus(tr('pool.assignments.loading', 'Chargement des affectations…'), false);
       } else {
@@ -8092,7 +8094,7 @@
         const [modules, alarmSlots] = await Promise.all([
           poolConfigFetchModules(primaryNames, reqSeq),
           fetchPoolAlarmSlots(),
-          poolConfigEnsureDocs().catch(() => {})
+          poolConfigEnsureDocs()
         ]);
         if (reqSeq !== poolConfigReqSeq || !modules) return;
         poolConfigModulesCache = modules;
@@ -8100,6 +8102,8 @@
         primaryRendered = true;
         poolConfigLoadedOnce = true;
         console.debug('flow.io dashboard primary ready', { ms: Math.round(performance.now() - startedAt) });
+
+        if (!isAdminSession()) return;
 
         if (!await waitForPoolConfigAssignments(reqSeq)) return;
 
@@ -9169,7 +9173,6 @@
 
     async function loadCfgDocIndex() {
       if (flowCfgDocIndex) return flowCfgDocIndex;
-      if (flowCfgDocIndexUnavailable) throw new Error('cfgdoc_index_unavailable');
       if (flowCfgDocIndexPromise) return flowCfgDocIndexPromise;
 
       flowCfgDocIndexPromise = (async () => {
@@ -9186,10 +9189,8 @@
           const modules = (data && data.modules && typeof data.modules === 'object') ? data.modules : {};
           const bundles = data && data.bundles && typeof data.bundles === 'object' ? data.bundles : {};
           flowCfgDocIndex = { docs: docs, meta: meta, modules: modules, bundles: bundles };
-          flowCfgDocIndexUnavailable = false;
           return flowCfgDocIndex;
         } catch (err) {
-          flowCfgDocIndexUnavailable = true;
           throw err;
         }
       })().finally(() => {
@@ -11807,6 +11808,10 @@
 
     function isAdminSession() {
       return authSession.role === 'admin';
+    }
+
+    function canEditPoolSettings() {
+      return authSession.role === 'admin' || authSession.role === 'operator';
     }
 
     function isAdminOnlyPage(pageId) {

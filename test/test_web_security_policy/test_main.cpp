@@ -151,7 +151,11 @@ void test_csp_profiles()
 void test_local_operator_sensitive_routes_require_admin()
 {
     TEST_ASSERT_TRUE(webRouteRequiresAdmin(WebRouteMethod::Get, "/api/wifi/config"));
-    TEST_ASSERT_TRUE(webRouteRequiresAdmin(WebRouteMethod::Get, "/api/cfgdoc/index"));
+    TEST_ASSERT_FALSE(webRouteRequiresAdmin(WebRouteMethod::Get, "/api/cfgdoc/index"));
+    TEST_ASSERT_FALSE(webRouteRequiresAdmin(WebRouteMethod::Get, "/api/cfgdoc/module"));
+    TEST_ASSERT_FALSE(webRouteRequiresAdmin(WebRouteMethod::Get, "/api/cfgdoc/i18n"));
+    TEST_ASSERT_TRUE(webRouteRequiresAdmin(WebRouteMethod::Post, "/api/cfgdoc/index"));
+    TEST_ASSERT_FALSE(webRouteRequiresAdmin(WebRouteMethod::Post, "/api/pool/settings"));
     TEST_ASSERT_TRUE(webRouteRequiresAdmin(WebRouteMethod::Get, "/api/auth/users"));
     TEST_ASSERT_TRUE(webRouteRequiresAdmin(WebRouteMethod::Post, "/api/system/reboot"));
     TEST_ASSERT_TRUE(webRouteRequiresAdmin(WebRouteMethod::Post, "/api/activity/purge"));

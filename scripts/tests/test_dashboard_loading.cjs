@@ -32,6 +32,7 @@ const functions = ['poolConfigEnsureDocs', 'poolConfigFetchModules',
       window.getActivePageId = () => activePageId;
       window.poolConfigModulesCache = null;
       window.tr = (key, fallback) => fallback;
+      window.isAdminSession = () => true;
       window.invalidatePoolDashboardSlots = () => {};
       window.poolConfigRenderSkeleton = () => poolConfigGrid.replaceChildren();
       window.poolConfigRenderError = error => { window.primaryError = String(error); };

@@ -2423,7 +2423,7 @@
     },
     "network/wifi": {
       "label_t": "cfgmods.network.wifi.label",
-      "label": "réseau",
+      "label": "Wi-Fi",
       "label_i18n": "cfgmods.network.wifi.label"
     },
     "pdm": {

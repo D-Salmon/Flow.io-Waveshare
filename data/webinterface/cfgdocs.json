@@ -9020,9 +9020,9 @@
       "label_t": "cfgdocs.wifi.enabled.label",
       "help_t": "cfgdocs.wifi.enabled.help",
       "order": 0,
-      "label": "Réseau activé",
+      "label": "Wi-Fi activé",
       "label_i18n": "cfgdocs.wifi.enabled.label",
-      "help": "Active ou désactive la connexion réseau en mode station.",
+      "help": "Active ou désactive la connexion Wi-Fi en mode station.",
       "help_i18n": "cfgdocs.wifi.enabled.help"
     },
     "wifi/pass": {
@@ -9030,9 +9030,9 @@
       "label_t": "cfgdocs.wifi.pass.label",
       "help_t": "cfgdocs.wifi.pass.help",
       "order": 2,
-      "label": "Mot de passe réseau",
+      "label": "Mot de passe Wi-Fi",
       "label_i18n": "cfgdocs.wifi.pass.label",
-      "help": "Mot de passe WPA/WPA2 du réseau.",
+      "help": "Mot de passe WPA/WPA2 du réseau Wi-Fi.",
       "help_i18n": "cfgdocs.wifi.pass.help"
     },
     "wifi/ssid": {
@@ -9042,7 +9042,7 @@
       "order": 1,
       "label": "SSID",
       "label_i18n": "cfgdocs.wifi.ssid.label",
-      "help": "Nom du réseau auquel se connecter.",
+      "help": "Nom du réseau Wi-Fi auquel se connecter.",
       "help_i18n": "cfgdocs.wifi.ssid.help"
     }
   }

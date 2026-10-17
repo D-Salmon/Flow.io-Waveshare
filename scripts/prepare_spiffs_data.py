@@ -106,8 +106,8 @@ if src_dir.exists():
     for transient in transients:
         if transient.exists():
             transient.unlink()
-    _run_step(["python3", "scripts/generate_config_docs.py"])
-    _run_step(["python3", "scripts/generate_cfgdoc_chunks.py"])
+    _run_step([sys.executable, "scripts/generate_config_docs.py"])
+    _run_step([sys.executable, "scripts/generate_cfgdoc_chunks.py"])
     # Keep only segmented cfgdoc assets in source data.
     for transient in transients:
         if transient.exists():

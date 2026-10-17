@@ -8,6 +8,8 @@ Gestion de la connectivité WiFi STA:
 - exposition d'un service WiFi minimal
 - annonce de `system/devicename` comme hostname DHCP et nom mDNS ; la valeur par défaut `flowio` devient `FlowIO-XXXXXX` en DHCP, avec un suffixe dérivé de l'adresse MAC
 
+Lorsque le Wi-Fi est activé et configuré, la connexion démarre indépendamment d’Ethernet. Les deux interfaces peuvent rester connectées simultanément ; la disponibilité d’Ethernet ne suspend pas les tentatives de connexion Wi-Fi.
+
 Type: module actif.
 
 ## Dépendances

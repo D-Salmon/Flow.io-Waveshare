@@ -934,37 +934,37 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:thermometer-alert",
             "C"
         };
-        const HANumberEntry phWindowMin{
+        const HANumberEntry phWindowSeconds{
             "poollogic",
             "pl_ph_window",
             "pH PID Window Size",
             "cfg/poollogic/ph",
-            "{{ ((value_json.ph_window_ms | float(0)) / 60000) | round(0) | int(0) }}",
+            "{{ ((value_json.ph_window_ms | float(0)) / 1000) | round(0) | int(0) }}",
             MqttTopics::SuffixCfgSet,
-            "{\\\"poollogic/ph\\\":{\\\"ph_window_ms\\\":{{ (value | float(0) * 60000) | round(0) | int(0) }}}}",
+            "{\\\"poollogic/ph\\\":{\\\"ph_window_ms\\\":{{ (value | float(0) * 1000) | round(0) | int(0) }}}}",
             1.0f,
-            180.0f,
+            10800.0f,
             1.0f,
-            "slider",
+            "box",
             "config",
             "mdi:timeline-clock-outline",
-            "min"
+            "s"
         };
-        const HANumberEntry orpWindowMin{
+        const HANumberEntry orpWindowSeconds{
             "poollogic",
             "pl_dis_window",
             "Orp PID Window Size",
             "cfg/poollogic/chlorine",
-            "{{ ((value_json.dis_window_ms | float(0)) / 60000) | round(0) | int(0) }}",
+            "{{ ((value_json.dis_window_ms | float(0)) / 1000) | round(0) | int(0) }}",
             MqttTopics::SuffixCfgSet,
-            "{\\\"poollogic/chlorine\\\":{\\\"dis_window_ms\\\":{{ (value | float(0) * 60000) | round(0) | int(0) }}}}",
+            "{\\\"poollogic/chlorine\\\":{\\\"dis_window_ms\\\":{{ (value | float(0) * 1000) | round(0) | int(0) }}}}",
             1.0f,
-            180.0f,
+            10800.0f,
             1.0f,
-            "slider",
+            "box",
             "config",
             "mdi:timeline-clock-outline",
-            "min"
+            "s"
         };
         const HANumberEntry psiLowThreshold{
             "poollogic",
@@ -1088,8 +1088,8 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc->addNumber(haSvc->ctx, &phSetpoint);
         (void)haSvc->addNumber(haSvc->ctx, &orpSetpoint);
         (void)haSvc->addNumber(haSvc->ctx, &chlorineGeneratorMinTemp);
-        (void)haSvc->addNumber(haSvc->ctx, &phWindowMin);
-        (void)haSvc->addNumber(haSvc->ctx, &orpWindowMin);
+        (void)haSvc->addNumber(haSvc->ctx, &phWindowSeconds);
+        (void)haSvc->addNumber(haSvc->ctx, &orpWindowSeconds);
         (void)haSvc->addNumber(haSvc->ctx, &psiLowThreshold);
         (void)haSvc->addNumber(haSvc->ctx, &psiHighThreshold);
         (void)haSvc->addNumber(haSvc->ctx, &poolVolume);

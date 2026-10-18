@@ -64,7 +64,13 @@ class DashboardTests(unittest.TestCase):
 
     def test_entity_coverage_and_actions(self):
         ids = set(re.findall(r'\b(?:sensor|binary_sensor|switch|number|select|button)\.fio_[a-z0-9_]+', json.dumps(self.config)))
-        self.assertEqual(len(ids), 115)
+        self.assertIn('switch.fio_pl_regulation_enabled', ids)
+        self.assertFalse(any('supervisor_ip' in entity or 'io_chl_gen' in entity for entity in ids))
+        self.assertFalse(any(re.search(r'io_gpio(?:0[4-9]|11)$', entity) for entity in ids))
+        override_source = (ROOT / 'src/Modules/PoolDeviceModule/PoolDeviceOverrideDiscovery.h').read_text()
+        panel = set(re.findall(r'"(pdm_ovr_[a-z_]+)"', override_source))
+        self.assertEqual({entity.split('.fio_')[1] for entity in ids if '.fio_pdm_ovr_' in entity}, panel)
+        self.assertEqual(len(panel), 7)
         paths = {v['path'] for v in self.config['views']}
         for node in self.nodes:
             if node.get('action') == 'navigate':

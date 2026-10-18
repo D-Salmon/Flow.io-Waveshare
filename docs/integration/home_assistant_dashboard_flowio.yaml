@@ -614,6 +614,9 @@ views:
                 icon: mdi:flask-outline
                 type: simple-entity
                 tap_action: *more_info
+              - entity: switch.fio_pl_regulation_enabled
+                name: Autoriser la régulation pH et désinfection
+                icon: mdi:beaker-check-outline
               - entity: switch.fio_pl_ph_auto_mode
                 name: Correction automatique
                 icon: mdi:autorenew
@@ -621,7 +624,7 @@ views:
                 name: Dosage avec pH+
                 icon: mdi:test-tube
               - entity: number.fio_pl_ph_window
-                name: Fenêtre PID
+                name: Fenêtre PID (s)
                 icon: mdi:clock-outline
                 type: simple-entity
                 tap_action: *more_info
@@ -779,6 +782,9 @@ views:
                 icon: mdi:flask-outline
                 type: simple-entity
                 tap_action: *more_info
+              - entity: switch.fio_pl_regulation_enabled
+                name: Autoriser la régulation pH et désinfection
+                icon: mdi:beaker-check-outline
               - entity: switch.fio_pl_dis_auto
                 name: Régulation automatique
                 icon: mdi:autorenew
@@ -788,7 +794,7 @@ views:
                 type: simple-entity
                 tap_action: *more_info
               - entity: number.fio_pl_dis_window
-                name: Fenêtre PID
+                name: Fenêtre PID (s)
                 icon: mdi:clock-outline
                 type: simple-entity
                 tap_action: *more_info
@@ -840,14 +846,6 @@ views:
                   - entity: switch.fio_io_chl_pmp
                     name: Pompe chlore
                     icon: mdi:test-tube
-                card_mod: *settings_list
-              - type: entities
-                show_header_toggle: false
-                state_color: true
-                entities:
-                  - entity: switch.fio_io_chl_gen
-                    name: Électrolyse
-                    icon: mdi:lightning-bolt-outline
                 card_mod: *settings_list
               - type: custom:mushroom-legacy-template-card
                 entity: sensor.fio_pd_chl_pmp_upt
@@ -1093,6 +1091,46 @@ views:
     sections:
       - type: grid
         cards:
+          - type: entities
+            title: Forçage temporaire des équipements
+            show_header_toggle: false
+            entities:
+              - entity: sensor.fio_pdm_ovr_active
+                name: Nombre de forçages actifs
+              - entity: select.fio_pdm_ovr_target
+                name: Équipement sélectionné
+                type: simple-entity
+                tap_action: *more_info
+              - entity: sensor.fio_pdm_ovr_state
+                name: État du forçage sélectionné
+              - type: attribute
+                entity: sensor.fio_pdm_ovr_state
+                attribute: actual_on
+                name: Marche réelle
+              - type: attribute
+                entity: sensor.fio_pdm_ovr_state
+                attribute: override_remaining_s
+                name: Temps restant (s)
+              - entity: number.fio_pdm_ovr_min
+                name: Durée du prochain forçage (min)
+                type: simple-entity
+                tap_action: *more_info
+              - entity: button.fio_pdm_ovr_on
+                name: Forcer la marche
+              - entity: button.fio_pdm_ovr_off
+                name: Forcer l’arrêt
+              - entity: button.fio_pdm_ovr_release
+                name: Terminer le forçage
+            card_mod: *settings_list
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: markdown
+            content: >-
+              La sélection du forçage est commune à tous les utilisateurs.
+              Les commandes marche/arrêt ci-dessous commandent les équipements
+              sans programmer un forçage temporaire.
+            card_mod: *white_card
           - type: heading
             heading: Actionneurs
             heading_style: title
@@ -1115,9 +1153,6 @@ views:
               - entity: switch.fio_io_fill_pmp
                 name: Remplissage
                 icon: mdi:water-outline
-              - entity: switch.fio_io_chl_gen
-                name: Électrolyse
-                icon: mdi:lightning-bolt-outline
               - entity: switch.fio_io_lights
                 name: Éclairage
                 icon: mdi:lightbulb-outline
@@ -1473,16 +1508,6 @@ views:
                 icon_color: grey
                 tap_action: *more_info
                 card_mod: *measure_tile
-              - type: custom:mushroom-legacy-template-card
-                entity: sensor.fio_supervisor_ip
-                primary: IP superviseur
-                secondary: |-
-                  {% if has_value('sensor.fio_supervisor_ip') %}{{ states('sensor.fio_supervisor_ip') }}{% else %}Indisponible{% endif %}
-                multiline_secondary: true
-                icon: mdi:chip
-                icon_color: grey
-                tap_action: *more_info
-                card_mod: *measure_tile
             grid_options:
               columns: 12
               rows: auto
@@ -1618,30 +1643,15 @@ views:
               - entity: sensor.fio_alm_pack
                 name: Trame d’alarmes
                 icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio04
-                name: GPIO04
-                icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio05
-                name: GPIO05
-                icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio06
-                name: GPIO06
-                icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio07
-                name: GPIO07
-                icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio08
-                name: GPIO08
-                icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio09
-                name: GPIO09
-                icon: mdi:chip
+              - entity: binary_sensor.fio_io_factory_reset
+                name: Bouton de réinitialisation
+                icon: mdi:restart-alert
+              - entity: binary_sensor.fio_io_flow_meter
+                name: Détection de débit
+                icon: mdi:waves-arrow-right
               - entity: binary_sensor.fio_io_gpio10
-                name: GPIO10
-                icon: mdi:chip
-              - entity: binary_sensor.fio_io_gpio11
-                name: GPIO11
-                icon: mdi:chip
+                name: Entrée libre i06
+                icon: mdi:electric-switch
             card_mod: *settings_list
             grid_options:
               columns: 12

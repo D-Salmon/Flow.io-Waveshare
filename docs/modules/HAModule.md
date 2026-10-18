@@ -3,7 +3,7 @@
 ## Rôle
 
 Publication Home Assistant MQTT Discovery:
-- registre d'entités statiques (sensor, binary_sensor, switch, number, button)
+- registre d'entités statiques (sensor, binary_sensor, switch, number, select, button)
 - publication discovery retainée
 - refresh automatique sur changements runtime pertinents
 - support du champ discovery `has_entity_name` sur les sensors (piloté par l'entité appelante)
@@ -26,7 +26,7 @@ Type: module actif (event-driven par notification task).
 ## Services exposés
 
 - `ha` -> `HAService`
-  - `addSensor`, `addBinarySensor`, `addSwitch`, `addNumber`, `addButton`
+  - `addSensor`, `addBinarySensor`, `addSwitch`, `addNumber`, `addSelect`, `addButton`
   - `requestRefresh`
   - `addDiscoveryRemoval` (suppression retained des anciennes découvertes)
 
@@ -43,11 +43,11 @@ Capacités compile-time du profil Waveshare, résolues depuis
 
 | Type d'entité | Capacité |
 |---|---:|
-| sensors | 48 |
+| sensors | 68 |
 | binary sensors | 32 |
 | switches | 16 |
-| numbers | 38 |
-| buttons | 32 |
+| numbers | 40 |
+| buttons | 38 |
 | selects | 14 |
 
 ## Config / NVS
@@ -170,3 +170,15 @@ condition de disponibilité combinée au statut de l'appareil (`all`).
 Les capteurs binaires peuvent transmettre `attributesTemplate` pour extraire
 leurs attributs depuis le même topic d'état. Les documents temporaires de ces
 deux constructeurs sont alloués en PSRAM; un débordement échoue explicitement.
+
+## Alignement piscine 3.5.0
+
+Les fenêtres de régulation pH et désinfection (`pl_ph_window`, `pl_dis_window`)
+exposent des secondes dans Home Assistant et convertissent les millisecondes
+MQTT de configuration dans les deux sens. Leurs identités et leurs topics sont
+conservés. Les automatisations utilisant des valeurs en minutes doivent être
+adaptées après republication du Discovery.
+
+Le dashboard principal inclut le panneau `pdm_ovr_*` commun et l'autorisation
+globale `pl_regulation_enabled`. Voir le [guide du dashboard](../integration/home-assistant/README.md)
+pour les affectations optionnelles, pilotes à consigne et modalités de migration.

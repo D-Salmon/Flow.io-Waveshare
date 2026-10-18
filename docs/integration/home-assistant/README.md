@@ -34,7 +34,45 @@ Les anciens liens `#flowio=ph` deviennent les onglets natifs (`…/ph`).
   Aucun script ne déplace ou ne masque les éléments de l'application.
 
 Les mesures et graphiques utilisent les données réelles de Home Assistant.
-Les 115 identifiants d'entités de la version précédente sont conservés.
+Les identifiants restent stables pour les entités encore publiées par la branche 3.5.0.
+
+## Correspondance avec la branche 3.5.0
+
+Le firmware et ce dashboard doivent être mis à jour ensemble. Les deux fenêtres
+PID (`number.fio_pl_ph_window` et `number.fio_pl_dis_window`) sont présentées en
+**secondes**, de 1 à 10 800 s. Les valeurs MQTT de configuration restent en
+millisecondes : le Discovery réalise la conversion dans les deux sens. Les
+identités restent inchangées ; adapter les automatisations qui fournissaient
+explicitement des minutes à ces entités. Les délais de démarrage et la durée
+du forçage gardent leur unité en minutes.
+
+La commande globale `switch.fio_pl_regulation_enabled` autorise la régulation pH
+et désinfection ; elle complète les autorisations propres à chaque canal.
+
+La vue **Équipements** inclut les sept entités du panneau de forçage commun
+(`pdm_ovr_*`), sans extension HACS supplémentaire. La sélection est partagée
+entre utilisateurs. Les interrupteurs des équipements restent des commandes
+immédiates ; ils ne remplacent pas les boutons de forçage temporisé.
+
+Les rôles piscine suivent les affectations configurées au démarrage, et leurs
+entités peuvent être absentes si le rôle n'est pas affecté. Le relais CH6 est
+**libre par défaut** : le dashboard ne commande plus un ancien
+`switch.fio_io_chl_gen` supposé correspondre à l'électrolyse. Les mesures et
+réglages d'électrolyse nécessitent un rôle effectivement affecté. Les pilotes à
+consigne exposent aussi, selon leur configuration, `number.fio_pdN_setpoint`
+ou `select.fio_pdN_setpoint` : ajouter l'entité réelle de son appareil si utilisée.
+
+Les diagnostics d'entrées utilisent les identités logiques publiées par le
+firmware, et non les anciennes références `io_gpio04` à `io_gpio09` / `io_gpio11`.
+L'ancienne IP superviseur est retirée. Les cartes Wi-Fi ne représentent pas
+une adresse Ethernet : un Wi-Fi indisponible n'implique pas que Flow.io soit
+injoignable par Ethernet.
+
+Après installation du firmware, redémarrer Flow.io pour republier le Discovery
+retenu, puis recharger le dashboard. Le profil Waveshare publie le Discovery au
+démarrage et libère ses tables ensuite : une modification des affectations ou
+des pilotes nécessite également un redémarrage. Les entités et automatisations
+renommées manuellement dans Home Assistant doivent être adaptées à leur nom réel.
 
 ## Thème clair facultatif
 
@@ -89,6 +127,16 @@ Le test contrôle la structure des huit vues, les cartes autorisées, les action
 les références d'entités et l'absence de JavaScript spécifique. Ce contrôle
 statique ne remplace pas le chargement dans votre instance Home Assistant.
 Le rendu final dépend des versions des cartes HACS et du thème actif.
+
+Pour vérifier aussi le contrat des fenêtres PID, avec Jinja2 et un compilateur
+C++17 (`c++`, ou la variable `CXX`) :
+
+```sh
+python3 scripts/tests/test_ha_regulation_windows.py
+```
+
+Ce test compile les entrées Discovery du firmware, décode leurs templates puis
+exécute les commandes et retours d'état pour plusieurs durées, dont 30 secondes.
 
 Références :
 

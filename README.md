@@ -1,10 +1,22 @@
-# Flow.io Waveshare — fork 3.5.0
+# Flow.io Waveshare — fork 3.5.1
 
 Cette branche contient le fork adapté de la base expérimentale 2.0.1 avec les fonctions de notre version de référence 3.4.3 : sécurité Web et OTA, sondes directes ou Qwiic, politiques de filtration et de désinfection, réseau Ethernet/Wi-Fi/MQTT, affectation des relais, étalonnages et interface française.
 
-La version **3.5.0** poursuit la branche 3.4.5 et améliore le chargement Web : cache des fichiers statiques, lectures groupées des réglages, des descriptions et des noms de sorties, démarrage parallèle et chargement à la demande de l’historique, de l’étalonnage, d’Activité, des Comptes, des Mises à jour et du sélecteur Wi-Fi. Les affectations se chargent à l’approche de leur carte et les vérifications de langue ne reconstruisent plus les formulaires lorsque la langue est inchangée. Le [compte rendu d’intégration et de validation](docs/integration-3.5.0.md) précise les changements et les mesures. Les étapes précédentes restent documentées dans le [compte rendu 3.4.3](docs/integration-3.4.3.md).
+La version **3.5.1** poursuit les améliorations Web de la 3.5.0 et actualise la filtration, le réseau et l’intégration Home Assistant.
 
-Pour construire : installer les dépendances Web avec `pnpm install --frozen-lockfile`, exécuter `pnpm web:minify` puis `pnpm web:check`, et lancer `platformio run`. Les images firmware/SPIFFS et le paquet de mise à jour sont produits dans `binary/`, exclu de Git.
+- **Filtration selon la température de l’eau** : jusqu’à 20 °C inclus, le créneau commence à 22 h, avec une durée calculée selon la température (2 h jusqu’à 12 °C). Sans mesure d’eau exploitable, le créneau de repli reste de 22 h à minuit le lendemain. Au-dessus de 20 °C et en dessous de 30 °C, le créneau est centré sur 15 h, puis décalé pour respecter les heures de début et de fin configurées (8 h et 23 h par défaut). Si la plage est insuffisante, la durée est réduite et signalée. À partir de 30 °C, la filtration est continue. La limite de fin à 23 h ne s’applique donc pas au créneau nocturne ni à la filtration continue.
+- **Ethernet et Wi-Fi simultanés** : le Wi-Fi peut se connecter même lorsque le câble Ethernet est branché. Les réglages Wi-Fi disposent de libellés dédiés.
+- **Régulations dans Home Assistant** : les onglets pH et Désinfection commandent chacun leur propre autorisation de régulation. La commande de désinfection utilise le traitement sélectionné, comme l’interface Web. L’autorisation générale du dosage reste dans l’onglet Équipements.
+- **États des équipements** : leur état MQTT est conservé pour être disponible lors d’une connexion tardive de Home Assistant.
+- **Tableau de bord Home Assistant** : messages explicites en l’absence de mesures, températures Eau/Air identifiées, historiques masqués lorsque les mesures sont indisponibles, disposition plus compacte et libellés français pour le forçage temporaire. La commande manuelle de la pompe de désinfection et le volume injecté sont affichés uniquement pour le traitement Chlore/Brome.
+
+Le [tableau de bord YAML](docs/integration/home_assistant_dashboard_flowio.yaml) comporte huit onglets : Piscine, Filtration, pH, Désinfection, Oxygène, Équipements, Alarmes et Système. Consulter les [instructions d’installation Home Assistant](docs/integration/home-assistant/README.md) et la [documentation du forçage temporaire](docs/examples/home-assistant/README.md).
+
+Les identifiants du YAML doivent correspondre à ceux réellement attribués dans Home Assistant. Après une migration, HA peut ajouter un suffixe comme `_2` si un ancien identifiant est encore occupé. Vérifier l’entité active avant de renommer les entités ou d’adapter le tableau de bord ; un interrupteur grisé peut pointer vers une ancienne entité indisponible.
+
+La 3.5.0 a introduit le cache des fichiers statiques, les lectures groupées des réglages et le chargement à la demande des pages Web. Son [compte rendu d’intégration et de validation](docs/integration-3.5.0.md) reste disponible, ainsi que le [compte rendu 3.4.3](docs/integration-3.4.3.md).
+
+Pour construire : installer les dépendances Web avec `pnpm install --frozen-lockfile`, exécuter `pnpm web:minify` puis `pnpm web:check`, et lancer `platformio run -e Flowio-waveshare-esp32-s3`. Les images firmware/SPIFFS et le paquet de mise à jour sont produits dans `binary/`, exclu de Git.
 
 La minification des noms JavaScript internes réduit encore de 14,6 % les scripts de démarrage par rapport au lot précédent. Sur Waveshare, `io/drivers/expander00` doit être activé pour disposer des huit sorties relais CH1 à CH8 ; toute modification de cette activation nécessite une validation puis un redémarrage.
 

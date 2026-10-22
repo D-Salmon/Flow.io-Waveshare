@@ -33,6 +33,7 @@ enum PoolDeviceType : uint8_t {
 };
 
 struct PoolDeviceDefinition {
+    const char* haDisplayName = nullptr;
     char label[24] = {0};
     uint8_t slot = 0xFF;
     /** Optional domain actuator slot used by this pool device command path. */

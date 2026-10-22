@@ -870,3 +870,11 @@ ne tient pas, le créneau utilise toute la plage autorisée. La durée demandée
 est signalée dans l’activité, dans l’interface Web et via les attributs du capteur
 HA `pl_flt_start`. Les recalculs chauds ne conservent pas un ancien démarrage
 qui permettrait de contourner les bornes. Les heures HA conservent les minutes.
+
+### Synchronisation de l’autorisation de désinfection HA / Web
+
+Le switch HA `pl_dis_auto` lit la configuration agrégée `cfg/poollogic` et
+appelle `poollogic.dis_auto_mode.set`, comme le Web. En chlore/brome il suit
+`dis_auto_mode` ; en électrolyse et oxygène actif il suit `treatment_auto_mode`.
+Le changement de méthode est ainsi pris en compte dans l’état HA. Les entités
+et identifiants restent inchangés. Le pH conserve son paramètre indépendant.

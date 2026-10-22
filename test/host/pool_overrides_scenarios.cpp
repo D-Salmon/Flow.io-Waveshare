@@ -1,14 +1,18 @@
 int main() {
  PoolDeviceModule module;
+ module.slots_[2].def.haDisplayName="Désinfection";
  unsigned sensors=0,numbers=0,buttons=0,selects=0,removals=0;
  struct Capture { unsigned *s,*n,*b,*sel,*r; } capture{&sensors,&numbers,&buttons,&selects,&removals};
  HAService ha{}; ha.ctx=&capture;
  ha.addSensor=[](void* p,const HASensorEntry*){++*static_cast<Capture*>(p)->s;return true;};
- ha.addNumber=[](void* p,const HANumberEntry*){++*static_cast<Capture*>(p)->n;return true;};
+ ha.addNumber=[](void* p,const HANumberEntry* e){assert(strcmp(e->identityName,"Override Duration")==0);++*static_cast<Capture*>(p)->n;return true;};
  ha.addButton=[](void* p,const HAButtonEntry*){++*static_cast<Capture*>(p)->b;return true;};
  ha.addSelect=[](void* p,const HASelectEntry* e){
    ++*static_cast<Capture*>(p)->sel;
    JsonDocument doc;assert(!deserializeJson(doc,e->optionsJson));assert(doc.size()==16);
+   assert(strcmp(doc[2].as<const char*>(),"Désinfection")==0);
+   assert(strcmp(doc[7].as<const char*>(),"Equipment (8)")==0);
+   assert(strcmp(e->identityName,"Override Actuator")==0);
    assert(strstr(e->commandTemplate,"to_json"));return true;
  };
  ha.addDiscoveryRemoval=[](void* p,const HADiscoveryRemovalEntry*){++*static_cast<Capture*>(p)->r;return true;};
@@ -22,7 +26,7 @@ int main() {
  assert(module.slots_[0].actualOn && !module.slots_[0].desiredOn);
  assert(module.slots_[0].overrideTimer.state(nowMs).remainingSec==2700);
  assert(module.loggedActor==42 && module.logCount==1);
- assert(call(R"({"option":"pd7 — Equipment"})",Cmd::Select));
+ assert(call(R"json({"option":"Equipment (8)"})json",Cmd::Select));
  assert(module.slots_[0].actualOn && !module.slots_[7].actualOn);
  assert(module.slots_[0].overrideTimer.active());
  module.slots_[7].desiredOn=true;

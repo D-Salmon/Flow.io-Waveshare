@@ -86,6 +86,7 @@ struct PoolDevicePreset {
     float tankInitialMl;
     PoolDeviceId dependsOnDevice = POOL_DEVICE_INVALID;
     int32_t maxUptimeDaySec;
+    const char* haDisplayName = nullptr;
 };
 
 struct PoolLogicDefaultsSpec {

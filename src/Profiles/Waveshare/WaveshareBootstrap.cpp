@@ -214,6 +214,7 @@ void configurePoolDevices(const AppContext& ctx, ModuleInstances& modules)
             def.control.outputs[0] = ioIdFromSlot(ioSlot);
 
             snprintf(def.label, sizeof(def.label), "%s", preset->displayName);
+            def.haDisplayName = preset->haDisplayName;
             def.commandSlot = preset->commandSlot;
             def.type = preset->poolDeviceType;
             def.flowLPerHour = preset->flowLPerHour;

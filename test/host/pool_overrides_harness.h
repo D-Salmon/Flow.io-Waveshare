@@ -28,6 +28,7 @@ struct PoolDeviceTarget { bool running=false; float setpoint=100; };
 template<class T> bool validatePoolTarget(const T&,const PoolDeviceTarget& target){return target.setpoint>=0&&target.setpoint<=100;}
 enum class ErrorCode { MissingArgs, BadSlot, BadCmdJson, Failed, Disabled, NotReady, InterlockBlocked };
 void writeErrorJson(char* out, size_t len, ErrorCode, const char*) { snprintf(out,len,"{\"ok\":false}"); }
+template<class T> void writePoolDeviceCommandError(char* out,size_t len,ErrorCode code,const char* cmd,uint8_t,const T*) { writeErrorJson(out,len,code,cmd); }
 struct CommandRequest { const char* cmd=nullptr; const char* json=nullptr; const char* args=nullptr; int actor=42; };
 enum class ActivityCode { PoolLogicOverrideOnRequested, PoolLogicOverrideOffRequested };
 enum class ActivityRole { None };
@@ -68,11 +69,13 @@ struct IoService {
 #define LOGE(...) ((void)0)
 class PoolDeviceModule {
 public:
+ int poolSvc_=0;
+public:
  struct PoolDeviceSlot {
   bool used=true;
   std::string idStorage;
   const char* id=nullptr;
-  struct { bool enabled=true; char label[24]="Equipment"; } def;
+  struct { bool enabled=true; char label[24]="Equipment"; const char* haDisplayName=nullptr; } def;
   struct { struct { PoolControlKind kind=PoolControlKind::Relay; } capabilities;
      int outputs[POOL_MAX_SPEED_STEPS]={IO_ID_INVALID,IO_ID_INVALID,IO_ID_INVALID,IO_ID_INVALID,IO_ID_INVALID,IO_ID_INVALID}; } driverConfig;
   bool driverReady=true, desiredOn=false, actualOn=false, dependencies=true, maxUptime=false;

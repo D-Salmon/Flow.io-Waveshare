@@ -689,7 +689,7 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                              const char* commandTopic, const char* commandTemplate,
                              float minValue, float maxValue, float step,
                              const char* mode, const char* entityCategory, const char* icon, const char* unit,
-                             MqttBuildContext* outCtx)
+                             MqttBuildContext* outCtx, const char* identityName)
 {
     if (!outCtx) return false;
     MqttBuildContext& buildCtx = *outCtx;
@@ -697,7 +697,7 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
     char defaultEntityId[224] = {0};
     if (!buildDefaultEntityId("number", objectId, defaultEntityId, sizeof(defaultEntityId))) return false;
     char uniqueId[256] = {0};
-    if (!buildUniqueId(objectId, name, uniqueId, sizeof(uniqueId))) return false;
+    if (!buildUniqueId(objectId, identityName ? identityName : name, uniqueId, sizeof(uniqueId))) return false;
     char availabilityField[384] = {0};
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField));
 
@@ -753,7 +753,7 @@ bool HAModule::publishSelect(const char* objectId, const char* name,
                              const char* optionsJson,
                              const char* icon,
                              const char* entityCategory,
-                             MqttBuildContext* outCtx)
+                             MqttBuildContext* outCtx, const char* identityName)
 {
     if (!outCtx) return false;
     MqttBuildContext& buildCtx = *outCtx;
@@ -764,7 +764,7 @@ bool HAModule::publishSelect(const char* objectId, const char* name,
     char defaultEntityId[224] = {0};
     if (!buildDefaultEntityId("select", objectId, defaultEntityId, sizeof(defaultEntityId))) return false;
     char uniqueId[256] = {0};
-    if (!buildUniqueId(objectId, name, uniqueId, sizeof(uniqueId))) return false;
+    if (!buildUniqueId(objectId, identityName ? identityName : name, uniqueId, sizeof(uniqueId))) return false;
     char availabilityField[384] = {0};
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField));
     char entityCategoryField[48] = {0};
@@ -1088,7 +1088,7 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
                         ok = publishNumber(objectIdBuf_, e.name, stateTopicBuf_, e.valueTemplate,
                                            commandTopicBuf_, e.commandTemplate,
                                            e.minValue, e.maxValue, e.step,
-                                           e.mode, e.entityCategory, e.icon, e.unit, &buildCtx);
+                                           e.mode, e.entityCategory, e.icon, e.unit, &buildCtx, e.identityName);
                     }
                 } else {
                     cursor = (uint16_t)(cursor + numberCount_);
@@ -1099,7 +1099,7 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
                             mqttSvc_->formatTopic(mqttSvc_->ctx, e.commandTopicSuffix, commandTopicBuf_, sizeof(commandTopicBuf_));
                             ok = publishSelect(objectIdBuf_, e.name, stateTopicBuf_, e.valueTemplate,
                                                commandTopicBuf_, e.commandTemplate, e.optionsJson,
-                                               e.icon, e.entityCategory, &buildCtx);
+                                               e.icon, e.entityCategory, &buildCtx, e.identityName);
                         }
                     } else {
                         cursor = (uint16_t)(cursor + selectCount_);

@@ -9,22 +9,22 @@ inline constexpr const char* Supported = "{{ 'online' if value_json.override_sup
 inline constexpr const char* Releasable = "{{ 'online' if value_json.control_mode != 'guided' else 'offline' }}";
 inline constexpr const char* State = "{{ ('forced_on' if value_json.override_value else 'forced_off') if value_json.control_mode == 'forced' else value_json.control_mode }}";
 inline const HANumberEntry Duration = {
-    "pooldevice", "pdm_ovr_min", "Override Duration", Selected, "{{ value_json.duration_minutes }}", "cmd",
+    "pooldevice", "pdm_ovr_min", "Durée du prochain forçage", Selected, "{{ value_json.duration_minutes }}", "cmd",
     "{\\\"cmd\\\":\\\"pooldevice.override.duration.set\\\",\\\"args\\\":{\\\"minutes\\\":{{ value | int }}}}",
-    1, 1440, 1, "box", nullptr, "mdi:timer-outline", "min"
+    1, 1440, 1, "box", nullptr, "mdi:timer-outline", "min", "Override Duration"
 };
 inline const HASensorEntry Sensors[] = {
-    {"pooldevice", "pdm_ovr_state", "Selected Override State", Selected, State, nullptr,
-     "mdi:hand-back-right-outline", nullptr, false, Supported, true, "{{ value_json | to_json }}"},
-    {"pooldevice", "pdm_ovr_active", "Active Overrides", All, "{{ value_json.active_count }}", nullptr,
-     "mdi:hand-back-right-outline", nullptr, false, nullptr, false, "{{ {'actuators': value_json.actuators} | to_json }}"},
+    {"pooldevice", "pdm_ovr_state", "État du forçage sélectionné", Selected, State, nullptr,
+     "mdi:hand-back-right-outline", nullptr, false, Supported, true, "{{ value_json | to_json }}", "Selected Override State"},
+    {"pooldevice", "pdm_ovr_active", "Nombre de forçages actifs", All, "{{ value_json.active_count }}", nullptr,
+     "mdi:hand-back-right-outline", nullptr, false, nullptr, false, "{{ {'actuators': value_json.actuators} | to_json }}", "Active Overrides"},
 };
 inline const HAButtonEntry Buttons[] = {
-    {"pooldevice", "pdm_ovr_on", "Force On", "cmd", "{\"cmd\":\"pooldevice.override_on\"}", nullptr,
+    {"pooldevice", "pdm_ovr_on", "Forcer la marche", "cmd", "{\"cmd\":\"pooldevice.override_on\"}", nullptr,
      "mdi:play", Selected, Available, false},
-    {"pooldevice", "pdm_ovr_off", "Force Off", "cmd", "{\"cmd\":\"pooldevice.override_off\"}", nullptr,
+    {"pooldevice", "pdm_ovr_off", "Forcer l’arrêt", "cmd", "{\"cmd\":\"pooldevice.override_off\"}", nullptr,
      "mdi:stop", Selected, Available, false},
-    {"pooldevice", "pdm_ovr_release", "End Override", "cmd", "{\"cmd\":\"pooldevice.release\"}", nullptr,
+    {"pooldevice", "pdm_ovr_release", "Terminer le forçage", "cmd", "{\"cmd\":\"pooldevice.release\"}", nullptr,
      "mdi:autorenew", Selected, Releasable, false},
 };
 inline const HADiscoveryRemovalEntry PanelRemovals[] = {

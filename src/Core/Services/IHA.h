@@ -65,6 +65,7 @@ struct HANumberEntry {
     const char* entityCategory;
     const char* icon;
     const char* unit;
+    const char* identityName = nullptr; // Stable legacy identity when translating the display name.
 };
 
 /** @brief Static Home Assistant select discovery registration. */
@@ -79,6 +80,7 @@ struct HASelectEntry {
     const char* optionsJson;
     const char* icon;
     const char* entityCategory;
+    const char* identityName = nullptr; // Stable legacy identity when translating the display name.
 };
 
 /** @brief Static Home Assistant button discovery registration. */

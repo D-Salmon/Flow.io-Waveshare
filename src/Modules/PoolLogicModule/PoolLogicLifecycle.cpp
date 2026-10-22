@@ -531,11 +531,11 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "poollogic",
             "pl_dis_auto",
             "Orp Auto-regulation",
-            "cfg/poollogic/chlorine",
-            "{% if value_json.dis_auto_mode %}ON{% else %}OFF{% endif %}",
-            MqttTopics::SuffixCfgSet,
-            "{\\\"poollogic/chlorine\\\":{\\\"dis_auto_mode\\\":true}}",
-            "{\\\"poollogic/chlorine\\\":{\\\"dis_auto_mode\\\":false}}",
+            "cfg/poollogic",
+            "{% set method = value_json.modes.disinfection_type | int(3) %}{% set enabled = value_json.chlorine.dis_auto_mode if method == 0 else value_json.modes.treatment_auto_mode if method in [1, 2] else false %}{{ 'ON' if enabled else 'OFF' }}",
+            MqttTopics::SuffixCmd,
+            R"({\"cmd\":\"poollogic.dis_auto_mode.set\",\"args\":{\"value\":true}})",
+            R"({\"cmd\":\"poollogic.dis_auto_mode.set\",\"args\":{\"value\":false}})",
             "mdi:water-check-outline",
             "config"
         };

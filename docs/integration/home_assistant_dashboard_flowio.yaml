@@ -485,45 +485,6 @@ views:
             grid_options:
               columns: 12
               rows: auto
-      - type: grid
-        cards:
-          - type: heading
-            heading: Calcul de la filtration
-            heading_style: title
-          - type: markdown
-            content: |-
-              La durée de filtration dépend de la température de l’eau.
-              Jusqu’à 20 °C, le créneau débute à 22 h. Entre 20 et 30 °C, il est centré sur 15 h, puis décalé pour respecter les bornes ci-dessous.
-              À partir de 30 °C, la filtration est continue.
-
-              **Sans mesure d’eau exploitable : créneau de repli de 2 h, de 22 h à minuit (jour suivant).**
-
-              Si la durée calculée ne tient pas dans la plage autorisée, elle est réduite.
-              {% if state_attr('sensor.fio_pl_flt_start', 'limited_by_schedule') == true %}
-              **Plage insuffisante : {{ state_attr('sensor.fio_pl_flt_start', 'scheduled_minutes') }} min programmées sur {{ state_attr('sensor.fio_pl_flt_start', 'requested_minutes') }} min demandées.**
-              {% endif %}
-              Les modes automatique et hivernage se règlent dans l’accueil.
-            card_mod: *white_card
-          - type: entities
-            show_header_toggle: false
-            entities:
-              - entity: number.fio_pl_flt_start_min
-                name: Démarrage au plus tôt (20–30 °C)
-                type: simple-entity
-                tap_action: *more_info
-              - entity: number.fio_pl_flt_stop_max
-                name: Arrêt au plus tard (20–30 °C)
-                type: simple-entity
-                tap_action: *more_info
-              - entity: button.fio_pl_flt_recalc
-                name: Recalculer le créneau
-                icon: mdi:autorenew
-            card_mod: *settings_list
-            grid_options:
-              columns: 12
-              rows: auto
-      - type: grid
-        cards:
           - type: heading
             heading: Pompe de filtration
             heading_style: title
@@ -572,55 +533,6 @@ views:
             grid_options:
               columns: 12
               rows: auto
-      - type: grid
-        cards:
-          - type: heading
-            heading: Forçage temporaire
-            heading_style: title
-          - &actuator_override_panel
-            type: entities
-            title: Forçage temporaire des équipements
-            show_header_toggle: false
-            entities:
-              - entity: sensor.fio_pdm_ovr_active
-                name: Nombre de forçages actifs
-              - entity: select.fio_pdm_ovr_target
-                name: Équipement sélectionné
-                type: simple-entity
-                tap_action: *more_info
-              - entity: sensor.fio_pdm_ovr_state
-                name: État du forçage sélectionné
-              - type: attribute
-                entity: sensor.fio_pdm_ovr_state
-                attribute: actual_on
-                name: Marche réelle
-              - type: attribute
-                entity: sensor.fio_pdm_ovr_state
-                attribute: override_remaining_s
-                name: Temps restant (s)
-              - entity: number.fio_pdm_ovr_min
-                name: Durée du prochain forçage (min)
-                type: simple-entity
-                tap_action: *more_info
-              - entity: button.fio_pdm_ovr_on
-                name: Forcer la marche
-              - entity: button.fio_pdm_ovr_off
-                name: Forcer l’arrêt
-              - entity: button.fio_pdm_ovr_release
-                name: Terminer le forçage
-            card_mod: *settings_list
-            grid_options:
-              columns: 12
-              rows: auto
-          - type: markdown
-            content: >-
-              Sélectionnez la pompe de filtration dans « Équipement sélectionné »,
-              puis choisissez la durée et forcez la marche ou l’arrêt.
-              « Terminer le forçage » rend la main au fonctionnement normal.
-              La sélection est partagée avec la vue Équipements et les autres utilisateurs.
-            card_mod: *white_card
-      - type: grid
-        cards:
           - type: heading
             heading: Températures
             heading_style: title
@@ -686,8 +598,6 @@ views:
             grid_options:
               columns: 12
               rows: auto
-      - type: grid
-        cards:
           - type: heading
             heading: Informations complémentaires
             heading_style: title
@@ -707,6 +617,96 @@ views:
             grid_options:
               columns: 12
               rows: auto
+      - type: grid
+        cards:
+          - type: heading
+            heading: Calcul de la filtration
+            heading_style: title
+          - type: markdown
+            content: |-
+              La durée de filtration dépend de la température de l’eau.
+              Jusqu’à 20 °C, le créneau débute à 22 h. Entre 20 et 30 °C, il est centré sur 15 h, puis décalé pour respecter les bornes ci-dessous.
+              À partir de 30 °C, la filtration est continue.
+
+              **Sans mesure d’eau exploitable : créneau de repli de 2 h, de 22 h à minuit (jour suivant).**
+
+              Si la durée calculée ne tient pas dans la plage autorisée, elle est réduite.
+              {% if state_attr('sensor.fio_pl_flt_start', 'limited_by_schedule') == true %}
+              **Plage insuffisante : {{ state_attr('sensor.fio_pl_flt_start', 'scheduled_minutes') }} min programmées sur {{ state_attr('sensor.fio_pl_flt_start', 'requested_minutes') }} min demandées.**
+              {% endif %}
+              Les modes automatique et hivernage se règlent dans l’accueil.
+            card_mod: *white_card
+          - type: entities
+            show_header_toggle: false
+            entities:
+              - entity: number.fio_pl_flt_start_min
+                name: Démarrage au plus tôt (20–30 °C)
+                type: simple-entity
+                tap_action: *more_info
+              - entity: number.fio_pl_flt_stop_max
+                name: Arrêt au plus tard (20–30 °C)
+                type: simple-entity
+                tap_action: *more_info
+              - entity: button.fio_pl_flt_recalc
+                name: Recalculer le créneau
+                icon: mdi:autorenew
+            card_mod: *settings_list
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: heading
+            heading: Forçage temporaire
+            heading_style: title
+          - &actuator_override_panel
+            type: vertical-stack
+            cards:
+              - type: custom:mushroom-legacy-template-card
+                entity: sensor.fio_pdm_ovr_state
+                primary: État du forçage sélectionné
+                secondary: |-
+                  {% set modes = {'guided': 'Fonctionnement normal', 'forced_on': 'Marche forcée', 'forced_off': 'Arrêt forcé', 'waiting_time': 'En attente de l’heure', 'persistence_error': 'Erreur de sauvegarde', 'unknown': 'Inconnu', 'unavailable': 'Indisponible'} %}
+                  {{ modes.get(states(entity), 'État indisponible') }}
+                  {% set actual = state_attr(entity, 'actual_on') %}
+                  Marche réelle : {{ 'En marche' if actual == true else 'À l’arrêt' if actual == false else 'Indisponible' }}
+                multiline_secondary: true
+                icon: mdi:hand-back-right-outline
+                tap_action: *more_info
+                card_mod: *white_card
+              - type: entities
+                title: Forçage temporaire des équipements
+                show_header_toggle: false
+                entities:
+                  - entity: sensor.fio_pdm_ovr_active
+                    name: Nombre de forçages actifs
+                  - entity: select.fio_pdm_ovr_target
+                    name: Équipement sélectionné
+                    type: simple-entity
+                    tap_action: *more_info
+                  - type: attribute
+                    entity: sensor.fio_pdm_ovr_state
+                    attribute: override_remaining_s
+                    name: Temps restant (s)
+                  - entity: number.fio_pdm_ovr_min
+                    name: Durée du prochain forçage (min)
+                    type: simple-entity
+                    tap_action: *more_info
+                  - entity: button.fio_pdm_ovr_on
+                    name: Forcer la marche
+                  - entity: button.fio_pdm_ovr_off
+                    name: Forcer l’arrêt
+                  - entity: button.fio_pdm_ovr_release
+                    name: Terminer le forçage
+                card_mod: *settings_list
+                grid_options:
+                  columns: 12
+                  rows: auto
+          - type: markdown
+            content: >-
+              Sélectionnez la pompe de filtration dans « Équipement sélectionné »,
+              puis choisissez la durée et forcez la marche ou l’arrêt.
+              « Terminer le forçage » rend la main au fonctionnement normal.
+              La sélection est partagée avec la vue Équipements et les autres utilisateurs.
+            card_mod: *white_card
   - title: pH
     path: ph
     icon: mdi:flask-outline
@@ -767,11 +767,8 @@ views:
                 icon: mdi:flask-outline
                 type: simple-entity
                 tap_action: *more_info
-              - entity: switch.fio_pl_regulation_enabled
-                name: Autoriser la régulation pH et désinfection
-                icon: mdi:beaker-check-outline
               - entity: switch.fio_pl_ph_auto_mode
-                name: Correction automatique
+                name: Autoriser la régulation pH
                 icon: mdi:autorenew
               - entity: switch.fio_pl_ph_dose_plus
                 name: Dosage avec pH+
@@ -935,11 +932,8 @@ views:
                 icon: mdi:flask-outline
                 type: simple-entity
                 tap_action: *more_info
-              - entity: switch.fio_pl_regulation_enabled
-                name: Autoriser la régulation pH et désinfection
-                icon: mdi:beaker-check-outline
               - entity: switch.fio_pl_dis_auto
-                name: Régulation automatique
+                name: Autoriser la régulation désinfection
                 icon: mdi:autorenew
               - entity: number.fio_pl_dis_setpoint
                 name: Consigne ORP
@@ -955,8 +949,86 @@ views:
             grid_options:
               columns: 12
               rows: auto
+          - type: history-graph
+            title: ORP · 24 h
+            hours_to_show: 24
+            entities:
+              - entity: sensor.fio_io_orp
+                name: Mesure
+              - entity: number.fio_pl_dis_setpoint
+                name: Consigne
+            card_mod: *white_card
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: heading
+            heading: Informations complémentaires
+            heading_style: title
+          - type: entities
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: number.fio_pd2_max_upt
+                name: Sécurité temps max / jour
+                icon: mdi:timer-outline
+                type: simple-entity
+                tap_action: *more_info
+            card_mod: *settings_list
+            grid_options:
+              columns: 12
+              rows: auto
       - type: grid
         cards:
+          - type: heading
+            heading: Commande manuelle
+            heading_style: title
+            visibility:
+              - condition: state
+                entity: select.fio_pl_modes_dis
+                state: Chlore/Brome
+          - type: grid
+            visibility:
+              - condition: state
+                entity: select.fio_pl_modes_dis
+                state: Chlore/Brome
+            columns: 2
+            square: false
+            cards:
+              - type: entities
+                show_header_toggle: false
+                state_color: true
+                entities:
+                  - entity: switch.fio_io_chl_pmp
+                    name: Désinfection
+                    icon: mdi:test-tube
+                card_mod: *settings_list
+              - type: custom:mushroom-legacy-template-card
+                entity: sensor.fio_pd_chl_pmp_upt
+                primary: Injecté aujourd’hui
+                secondary: |-
+                  {% if has_value('sensor.fio_pd_chl_pmp_upt') and is_number(states('sensor.fio_pd_chl_pmp_upt')) and is_number(states('number.fio_pd2_flow')) %}{{ ((states('sensor.fio_pd_chl_pmp_upt') | float / 3600) * (states('number.fio_pd2_flow') | float) * 1000) | round(0) | int }} mL{% else %}Indisponible{% endif %}
+                multiline_secondary: true
+                icon: mdi:test-tube
+                icon_color: teal
+                tap_action: *more_info
+                card_mod: *measure_tile
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: custom:mushroom-legacy-template-card
+            visibility:
+              - condition: state
+                entity: select.fio_pl_modes_dis
+                state: Electrolyse
+            entity: sensor.fio_pd_chl_gen_upt
+            primary: Électrolyse aujourd’hui
+            secondary: |-
+              {% if has_value('sensor.fio_pd_chl_gen_upt') and is_number(states('sensor.fio_pd_chl_gen_upt')) %}{% set m = states('sensor.fio_pd_chl_gen_upt') | float  %}{{ (m / 1440) | round(1) ~ ' j' if m >= 1440 else (m / 60) | round(1) ~ ' h' if m >= 60 else m | round(0) | int ~ ' min' }}{% else %}Indisponible{% endif %}
+            multiline_secondary: true
+            icon: mdi:timer-outline
+            icon_color: blue
+            tap_action: *more_info
+            card_mod: *measure_tile
           - type: heading
             heading: Électrolyse au sel
             heading_style: title
@@ -983,48 +1055,6 @@ views:
             grid_options:
               columns: 12
               rows: auto
-      - type: grid
-        cards:
-          - type: heading
-            heading: Commande manuelle
-            heading_style: title
-          - type: grid
-            columns: 2
-            square: false
-            cards:
-              - type: entities
-                show_header_toggle: false
-                state_color: true
-                entities:
-                  - entity: switch.fio_io_chl_pmp
-                    name: Pompe chlore
-                    icon: mdi:test-tube
-                card_mod: *settings_list
-              - type: custom:mushroom-legacy-template-card
-                entity: sensor.fio_pd_chl_pmp_upt
-                primary: Injecté aujourd’hui
-                secondary: |-
-                  {% if has_value('sensor.fio_pd_chl_pmp_upt') and is_number(states('sensor.fio_pd_chl_pmp_upt')) and is_number(states('number.fio_pd2_flow')) %}{{ ((states('sensor.fio_pd_chl_pmp_upt') | float / 3600) * (states('number.fio_pd2_flow') | float) * 1000) | round(0) | int }} mL{% else %}Indisponible{% endif %}
-                multiline_secondary: true
-                icon: mdi:test-tube
-                icon_color: teal
-                tap_action: *more_info
-                card_mod: *measure_tile
-              - type: custom:mushroom-legacy-template-card
-                entity: sensor.fio_pd_chl_gen_upt
-                primary: Électrolyse aujourd’hui
-                secondary: |-
-                  {% if has_value('sensor.fio_pd_chl_gen_upt') and is_number(states('sensor.fio_pd_chl_gen_upt')) %}{% set m = states('sensor.fio_pd_chl_gen_upt') | float  %}{{ (m / 1440) | round(1) ~ ' j' if m >= 1440 else (m / 60) | round(1) ~ ' h' if m >= 60 else m | round(0) | int ~ ' min' }}{% else %}Indisponible{% endif %}
-                multiline_secondary: true
-                icon: mdi:timer-outline
-                icon_color: blue
-                tap_action: *more_info
-                card_mod: *measure_tile
-            grid_options:
-              columns: 12
-              rows: auto
-      - type: grid
-        cards:
           - type: heading
             heading: Cuve
             heading_style: title
@@ -1063,36 +1093,6 @@ views:
                   target:
                     entity_id: button.fio_pd_refill_chl
                 card_mod: *white_card
-            grid_options:
-              columns: 12
-              rows: auto
-          - type: history-graph
-            title: ORP · 24 h
-            hours_to_show: 24
-            entities:
-              - entity: sensor.fio_io_orp
-                name: Mesure
-              - entity: number.fio_pl_dis_setpoint
-                name: Consigne
-            card_mod: *white_card
-            grid_options:
-              columns: 12
-              rows: auto
-      - type: grid
-        cards:
-          - type: heading
-            heading: Informations complémentaires
-            heading_style: title
-          - type: entities
-            show_header_toggle: false
-            state_color: true
-            entities:
-              - entity: number.fio_pd2_max_upt
-                name: Sécurité temps max / jour
-                icon: mdi:timer-outline
-                type: simple-entity
-                tap_action: *more_info
-            card_mod: *settings_list
             grid_options:
               columns: 12
               rows: auto
@@ -1251,6 +1251,14 @@ views:
               Les commandes marche/arrêt ci-dessous commandent les équipements
               sans programmer un forçage temporaire.
             card_mod: *white_card
+          - type: entities
+            title: Autorisation générale du dosage
+            show_header_toggle: false
+            entities:
+              - entity: switch.fio_pl_regulation_enabled
+                name: Autoriser le dosage pH et désinfection
+                icon: mdi:beaker-check-outline
+            card_mod: *settings_list
           - type: heading
             heading: Actionneurs
             heading_style: title

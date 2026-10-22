@@ -51,3 +51,21 @@ Les valeurs MQTT sont indépendantes de la langue : `guided`, `forced_on`,
 
 La validation finale dans l'instance Home Assistant réelle nécessite le déploiement
 et la republication du Discovery.
+
+## Présentation française du panneau
+
+Le profil fournit les noms français affichés par le sélecteur, sans préfixes
+`pdN` : pompe de filtration, pompe pH, désinfection, robot, remplissage,
+relais libre, éclairage et chauffage. Les identifiants internes et les commandes
+avec `slot` restent inchangés. Si plusieurs équipements portent le même nom,
+un numéro entre parenthèses distingue les options sans afficher d'identifiant
+technique. La sélection MQTT reprend exactement l'option annoncée.
+
+Les noms Discovery du panneau sont français. Les noms historiques utilisés dans
+les identifiants uniques restent conservés, afin de mettre à jour les entités
+existantes. Le YAML traduit les états et la marche réelle à l'affichage ; les
+codes MQTT et attributs `control_mode` / `actual_on` restent indépendants de la
+langue pour les automatisations.
+
+Les onglets pH et Désinfection commandent chacun leur propre autorisation.
+L'autorisation générale de dosage est regroupée dans la vue Équipements.

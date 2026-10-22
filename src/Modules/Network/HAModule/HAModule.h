@@ -245,14 +245,14 @@ private:
                        const char* entityCategory = nullptr,
                        const char* icon = nullptr,
                        const char* unit = nullptr,
-                       MqttBuildContext* outCtx = nullptr);
+                       MqttBuildContext* outCtx = nullptr, const char* identityName = nullptr);
     bool publishSelect(const char* objectId, const char* name,
                        const char* stateTopic, const char* valueTemplate,
                        const char* commandTopic, const char* commandTemplate,
                        const char* optionsJson,
                        const char* icon = nullptr,
                        const char* entityCategory = nullptr,
-                       MqttBuildContext* outCtx = nullptr);
+                       MqttBuildContext* outCtx = nullptr, const char* identityName = nullptr);
     bool publishButton(const char* objectId, const char* name,
                        const char* commandTopic, const char* payloadPress,
                        const char* entityCategory = nullptr,

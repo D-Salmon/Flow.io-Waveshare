@@ -56,21 +56,21 @@ inline constexpr DomainIoSlotBinding kDomainIoSlots[] = {
 };
 
 inline constexpr PoolDevicePreset kPoolDevices[] = {
-    {PoolIds::DeviceFiltrationPump, PoolIds::ActuatorFiltrationPump, "io_flt_pmp", "Filtration Pump", "mdi:pool", POOL_DEVICE_FILTRATION, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID, 0},
+    {PoolIds::DeviceFiltrationPump, PoolIds::ActuatorFiltrationPump, "io_flt_pmp", "Filtration Pump", "mdi:pool", POOL_DEVICE_FILTRATION, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID, 0, "Pompe de filtration"},
     {PoolIds::DevicePhPump, PoolIds::ActuatorPhPump, "io_ph_pmp", "pH Pump", "mdi:beaker-outline", POOL_DEVICE_PERISTALTIC, PoolDefaults::PeristalticFlowLPerHour,
      PoolDefaults::PeristalticTankCapacityMl, PoolDefaults::PeristalticTankInitialMl, PoolIds::DeviceFiltrationPump,
-     PoolDefaults::DosePumpMaxUptimeDaySec},
+     PoolDefaults::DosePumpMaxUptimeDaySec, "Pompe pH"},
     {PoolIds::DeviceChlorinePump, PoolIds::ActuatorChlorinePump, "io_chl_pmp", "Chlorine Pump", "mdi:water-outline", POOL_DEVICE_PERISTALTIC, PoolDefaults::PeristalticFlowLPerHour,
      PoolDefaults::PeristalticTankCapacityMl, PoolDefaults::PeristalticTankInitialMl, PoolIds::DeviceFiltrationPump,
-     PoolDefaults::DosePumpMaxUptimeDaySec},
-    {PoolIds::DeviceRobot, PoolIds::ActuatorRobot, "io_robot", "Robot", "mdi:robot-vacuum", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, PoolIds::DeviceFiltrationPump, 0},
+     PoolDefaults::DosePumpMaxUptimeDaySec, "Désinfection"},
+    {PoolIds::DeviceRobot, PoolIds::ActuatorRobot, "io_robot", "Robot", "mdi:robot-vacuum", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, PoolIds::DeviceFiltrationPump, 0, "Robot"},
     {PoolIds::DeviceFillPump, PoolIds::ActuatorFillPump, "io_fill_pmp", "Fill Pump", "mdi:waves-arrow-up", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID,
-     PoolDefaults::FillPumpMaxUptimeDaySec},
+     PoolDefaults::FillPumpMaxUptimeDaySec, "Remplissage"},
     {PoolIds::DeviceChlorineGenerator, PoolIds::ActuatorChlorineGenerator, "EXIO6", "Relais libre", "mdi:electric-switch", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f,
-     POOL_DEVICE_INVALID, 0},
-    {PoolIds::DeviceLights, PoolIds::ActuatorLights, "io_lights", "Lights", "mdi:lightbulb", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID, 0},
+     POOL_DEVICE_INVALID, 0, "Relais libre"},
+    {PoolIds::DeviceLights, PoolIds::ActuatorLights, "io_lights", "Lights", "mdi:lightbulb", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, POOL_DEVICE_INVALID, 0, "Éclairage"},
     {PoolIds::DeviceWaterHeater, PoolIds::ActuatorWaterHeater, "io_wat_htr", "Water Heater", "mdi:water-boiler", POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f,
-     POOL_DEVICE_INVALID, 0},
+     POOL_DEVICE_INVALID, 0, "Chauffage"},
 };
 
 inline constexpr DomainSpec kPoolDomain{

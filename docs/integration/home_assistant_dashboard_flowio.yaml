@@ -277,54 +277,146 @@ views:
               rows: auto
       - type: grid
         cards:
-          - type: custom:mini-graph-card
-            name: Températures
-            hours_to_show: 24
-            points_per_hour: 2
-            line_width: 2
-            height: 140
-            font_size: 90
-            show:
-              labels: true
-              legend: false
-              fill: fade
-              extrema: false
-            entities:
-              - entity: sensor.fio_io_wat_tmp
-                name: Eau
-                color: '#FF9500'
-                show_state: true
-              - entity: sensor.fio_io_air_tmp
-                name: Air
-                color: '#168AFF'
-                show_state: true
-            card_mod: *white_card
+          - type: vertical-stack
+            cards:
+              - type: custom:mushroom-legacy-template-card
+                primary: Températures
+                secondary: |-
+                  Eau : {% if is_number(states('sensor.fio_io_wat_tmp')) %}{{ ('%0.1f' | format(states('sensor.fio_io_wat_tmp') | float)) ~ ' °C' }}{% else %}Aucune mesure disponible{% endif %}
+                  Air : {% if is_number(states('sensor.fio_io_air_tmp')) %}{{ ('%0.1f' | format(states('sensor.fio_io_air_tmp') | float)) ~ ' °C' }}{% else %}Aucune mesure disponible{% endif %}
+                multiline_secondary: true
+                icon: mdi:thermometer
+                icon_color: blue
+                tap_action:
+                  action: none
+                card_mod: *white_card
+              - type: conditional
+                conditions:
+                  - condition: or
+                    conditions:
+                      - condition: state
+                        entity: sensor.fio_io_wat_tmp
+                        state_not:
+                          - unknown
+                          - unavailable
+                      - condition: state
+                        entity: sensor.fio_io_air_tmp
+                        state_not:
+                          - unknown
+                          - unavailable
+                card:
+                  type: custom:mini-graph-card
+                  name: Températures
+                  hours_to_show: 24
+                  points_per_hour: 2
+                  line_width: 2
+                  height: 140
+                  font_size: 90
+                  show:
+                    name: false
+                    icon: false
+                    state: false
+                    labels: false
+                    legend: true
+                    fill: fade
+                    extrema: false
+                  entities:
+                    - entity: sensor.fio_io_wat_tmp
+                      name: Eau
+                      color: '#FF9500'
+                      show_state: false
+                    - entity: sensor.fio_io_air_tmp
+                      name: Air
+                      color: '#168AFF'
+                      show_state: false
+                  card_mod: *white_card
+              - type: conditional
+                conditions:
+                  - condition: state
+                    entity: sensor.fio_io_wat_tmp
+                    state:
+                      - unknown
+                      - unavailable
+                  - condition: state
+                    entity: sensor.fio_io_air_tmp
+                    state:
+                      - unknown
+                      - unavailable
+                card:
+                  type: markdown
+                  content: |-
+                    **Historique des températures**
+
+                    Eau et air : aucune mesure disponible.
+                    Le graphique apparaîtra dès réception de mesures.
+                  card_mod: *white_card
             grid_options:
               columns: 12
               rows: auto
-          - type: custom:mini-graph-card
-            name: Chimie
-            hours_to_show: 24
-            points_per_hour: 2
-            line_width: 2
-            height: 140
-            font_size: 90
-            show:
-              labels: true
-              legend: false
-              fill: fade
-              extrema: false
-            entities:
-              - entity: sensor.fio_io_ph
-                name: pH
-                color: '#E7BD30'
-                show_state: true
-              - entity: sensor.fio_io_orp
-                name: ORP
-                color: '#168AFF'
-                show_state: true
-                y_axis: secondary
-            card_mod: *white_card
+          - type: conditional
+            conditions:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: sensor.fio_io_ph
+                    state_not:
+                      - unknown
+                      - unavailable
+                  - condition: state
+                    entity: sensor.fio_io_orp
+                    state_not:
+                      - unknown
+                      - unavailable
+            card:
+              type: custom:mini-graph-card
+              name: Historique pH et ORP
+              hours_to_show: 24
+              points_per_hour: 2
+              line_width: 2
+              height: 140
+              font_size: 90
+              show:
+                name: true
+                icon: false
+                state: false
+                labels: false
+                legend: true
+                fill: fade
+                extrema: false
+              entities:
+                - entity: sensor.fio_io_ph
+                  name: pH
+                  color: '#E7BD30'
+                  show_state: false
+                - entity: sensor.fio_io_orp
+                  name: ORP
+                  color: '#168AFF'
+                  show_state: false
+                  y_axis: secondary
+              card_mod: *white_card
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.fio_io_ph
+                state:
+                  - unknown
+                  - unavailable
+              - condition: state
+                entity: sensor.fio_io_orp
+                state:
+                  - unknown
+                  - unavailable
+            card:
+              type: markdown
+              content: |-
+                **Historique pH et ORP**
+
+                pH et ORP : aucune mesure disponible.
+                Le graphique apparaîtra dès réception de mesures.
+              card_mod: *white_card
             grid_options:
               columns: 12
               rows: auto
@@ -334,25 +426,6 @@ views:
     type: sections
     max_columns: 2
     sections:
-      - type: grid
-        cards:
-          - type: heading
-            heading: Modes
-            heading_style: title
-          - type: entities
-            show_header_toggle: false
-            state_color: true
-            entities:
-              - entity: switch.fio_pl_modes_auto
-                name: Régulation automatique
-                icon: mdi:autorenew
-              - entity: switch.fio_pl_modes_winter
-                name: Mode hivernage
-                icon: mdi:snowflake
-            card_mod: *settings_list
-            grid_options:
-              columns: 12
-              rows: auto
       - type: grid
         cards:
           - type: heading
@@ -401,7 +474,7 @@ views:
                     }
               - type: custom:mushroom-legacy-template-card
                 entity: sensor.fio_pl_flt_stop
-                primary: Arrêt calculé
+                primary: Arrêt calculé (minuit = lendemain)
                 secondary: |-
                   {% if has_value('sensor.fio_pl_flt_stop') and is_number(states('sensor.fio_pl_flt_stop')) %}{{ '%02d:%02d' | format((states('sensor.fio_pl_flt_stop') | float * 60) | round | int // 60, (states('sensor.fio_pl_flt_stop') | float * 60) | round | int % 60) }}{% else %}Indisponible{% endif %}
                 multiline_secondary: true
@@ -415,29 +488,35 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Règles de calcul
+            heading: Calcul de la filtration
             heading_style: title
+          - type: markdown
+            content: |-
+              La durée de filtration dépend de la température de l’eau.
+              Jusqu’à 20 °C, le créneau débute à 22 h. Entre 20 et 30 °C, il est centré sur 15 h, puis décalé pour respecter les bornes ci-dessous.
+              À partir de 30 °C, la filtration est continue.
+
+              **Sans mesure d’eau exploitable : créneau de repli de 2 h, de 22 h à minuit (jour suivant).**
+
+              Si la durée calculée ne tient pas dans la plage autorisée, elle est réduite.
+              {% if state_attr('sensor.fio_pl_flt_start', 'limited_by_schedule') == true %}
+              **Plage insuffisante : {{ state_attr('sensor.fio_pl_flt_start', 'scheduled_minutes') }} min programmées sur {{ state_attr('sensor.fio_pl_flt_start', 'requested_minutes') }} min demandées.**
+              {% endif %}
+              Les modes automatique et hivernage se règlent dans l’accueil.
+            card_mod: *white_card
           - type: entities
             show_header_toggle: false
-            state_color: true
             entities:
-              - entity: number.fio_pl_wat_temp_sp
-                name: Température de consigne
-                icon: mdi:thermometer
-                type: simple-entity
-                tap_action: *more_info
               - entity: number.fio_pl_flt_start_min
-                name: Démarrage au plus tôt
-                icon: mdi:clock-outline
+                name: Démarrage au plus tôt (20–30 °C)
                 type: simple-entity
                 tap_action: *more_info
               - entity: number.fio_pl_flt_stop_max
-                name: Arrêt au plus tard
-                icon: mdi:clock-outline
+                name: Arrêt au plus tard (20–30 °C)
                 type: simple-entity
                 tap_action: *more_info
               - entity: button.fio_pl_flt_recalc
-                name: Recalculer la fenêtre
+                name: Recalculer le créneau
                 icon: mdi:autorenew
             card_mod: *settings_list
             grid_options:
@@ -462,7 +541,7 @@ views:
                 card_mod: *settings_list
               - type: custom:mushroom-legacy-template-card
                 entity: sensor.fio_pd_flt_upt_mn
-                primary: Fonctionnement aujourd’hui
+                primary: Marche aujourd’hui
                 secondary: |-
                   {% if has_value('sensor.fio_pd_flt_upt_mn') and is_number(states('sensor.fio_pd_flt_upt_mn')) %}{% set m = states('sensor.fio_pd_flt_upt_mn') | float  %}{{ (m / 1440) | round(1) ~ ' j' if m >= 1440 else (m / 60) | round(1) ~ ' h' if m >= 60 else m | round(0) | int ~ ' min' }}{% else %}Indisponible{% endif %}
                 multiline_secondary: true
@@ -496,40 +575,114 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Températures
+            heading: Forçage temporaire
             heading_style: title
-          - type: custom:mini-graph-card
-            name: Eau / Air · 24 h
-            hours_to_show: 24
-            points_per_hour: 2
-            line_width: 2
-            height: 140
-            font_size: 90
-            show:
-              labels: true
-              legend: false
-              fill: fade
-              extrema: false
+          - &actuator_override_panel
+            type: entities
+            title: Forçage temporaire des équipements
+            show_header_toggle: false
             entities:
-              - entity: sensor.fio_io_wat_tmp
-                name: Eau
-                color: '#0A84FF'
-              - entity: sensor.fio_io_air_tmp
-                name: Air
-                color: '#FF9500'
-            card_mod: *white_card
+              - entity: sensor.fio_pdm_ovr_active
+                name: Nombre de forçages actifs
+              - entity: select.fio_pdm_ovr_target
+                name: Équipement sélectionné
+                type: simple-entity
+                tap_action: *more_info
+              - entity: sensor.fio_pdm_ovr_state
+                name: État du forçage sélectionné
+              - type: attribute
+                entity: sensor.fio_pdm_ovr_state
+                attribute: actual_on
+                name: Marche réelle
+              - type: attribute
+                entity: sensor.fio_pdm_ovr_state
+                attribute: override_remaining_s
+                name: Temps restant (s)
+              - entity: number.fio_pdm_ovr_min
+                name: Durée du prochain forçage (min)
+                type: simple-entity
+                tap_action: *more_info
+              - entity: button.fio_pdm_ovr_on
+                name: Forcer la marche
+              - entity: button.fio_pdm_ovr_off
+                name: Forcer l’arrêt
+              - entity: button.fio_pdm_ovr_release
+                name: Terminer le forçage
+            card_mod: *settings_list
             grid_options:
               columns: 12
               rows: auto
-          - type: history-graph
-            title: Eau / consigne · 24 h
-            hours_to_show: 24
-            entities:
-              - entity: sensor.fio_io_wat_tmp
-                name: Eau
-              - entity: number.fio_pl_wat_temp_sp
-                name: Consigne
+          - type: markdown
+            content: >-
+              Sélectionnez la pompe de filtration dans « Équipement sélectionné »,
+              puis choisissez la durée et forcez la marche ou l’arrêt.
+              « Terminer le forçage » rend la main au fonctionnement normal.
+              La sélection est partagée avec la vue Équipements et les autres utilisateurs.
             card_mod: *white_card
+      - type: grid
+        cards:
+          - type: heading
+            heading: Températures
+            heading_style: title
+          - type: conditional
+            conditions:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity: sensor.fio_io_wat_tmp
+                    state_not:
+                      - unknown
+                      - unavailable
+                  - condition: state
+                    entity: sensor.fio_io_air_tmp
+                    state_not:
+                      - unknown
+                      - unavailable
+            card:
+              type: custom:mini-graph-card
+              name: Eau / Air · 24 h
+              hours_to_show: 24
+              points_per_hour: 2
+              line_width: 2
+              height: 140
+              font_size: 90
+              show:
+                state: false
+                labels: false
+                legend: true
+                fill: fade
+                extrema: false
+              entities:
+                - entity: sensor.fio_io_wat_tmp
+                  name: Eau
+                  color: '#0A84FF'
+                - entity: sensor.fio_io_air_tmp
+                  name: Air
+                  color: '#FF9500'
+              card_mod: *white_card
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.fio_io_wat_tmp
+                state:
+                  - unknown
+                  - unavailable
+              - condition: state
+                entity: sensor.fio_io_air_tmp
+                state:
+                  - unknown
+                  - unavailable
+            card:
+              type: markdown
+              content: |-
+                **Historique des températures**
+
+                Eau et air : aucune mesure disponible.
+                Le graphique apparaîtra dès réception de mesures.
+              card_mod: *white_card
             grid_options:
               columns: 12
               rows: auto
@@ -1091,40 +1244,7 @@ views:
     sections:
       - type: grid
         cards:
-          - type: entities
-            title: Forçage temporaire des équipements
-            show_header_toggle: false
-            entities:
-              - entity: sensor.fio_pdm_ovr_active
-                name: Nombre de forçages actifs
-              - entity: select.fio_pdm_ovr_target
-                name: Équipement sélectionné
-                type: simple-entity
-                tap_action: *more_info
-              - entity: sensor.fio_pdm_ovr_state
-                name: État du forçage sélectionné
-              - type: attribute
-                entity: sensor.fio_pdm_ovr_state
-                attribute: actual_on
-                name: Marche réelle
-              - type: attribute
-                entity: sensor.fio_pdm_ovr_state
-                attribute: override_remaining_s
-                name: Temps restant (s)
-              - entity: number.fio_pdm_ovr_min
-                name: Durée du prochain forçage (min)
-                type: simple-entity
-                tap_action: *more_info
-              - entity: button.fio_pdm_ovr_on
-                name: Forcer la marche
-              - entity: button.fio_pdm_ovr_off
-                name: Forcer l’arrêt
-              - entity: button.fio_pdm_ovr_release
-                name: Terminer le forçage
-            card_mod: *settings_list
-            grid_options:
-              columns: 12
-              rows: auto
+          - *actuator_override_panel
           - type: markdown
             content: >-
               La sélection du forçage est commune à tous les utilisateurs.

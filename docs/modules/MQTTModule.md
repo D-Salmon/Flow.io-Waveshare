@@ -207,3 +207,19 @@ Exemple:
 `MQTT_CLIENT: mqtt_message_receive: transport_read() error: errno=128`
 - erreur transport bas niveau TCP/TLS côté client IDF
 - déclenche en pratique une déconnexion puis le cycle de reconnexion/backoff du module
+
+## États des équipements conservés pour Home Assistant
+
+Les snapshots `rt/pdm/state/pdN` et `rt/pdm/override/{selected,all}` sont publiés
+avec `retain=true`. Un nouvel abonné reçoit ainsi le dernier état connu, même
+si le relais est resté arrêté depuis le démarrage. La reconnexion MQTT force
+une nouvelle publication qui actualise le message conservé.
+
+La politique est déclarée par le fournisseur via `runtimeSnapshotRetained`,
+indépendamment de la priorité de la route. Les métriques périodiques et les
+autres fournisseurs gardent leur politique par défaut non conservée. Les topics
+de commande ne passent pas par ce mécanisme. La disponibilité Home Assistant
+reste conditionnée par le statut MQTT de l'appareil.
+
+Test natif : `python3 scripts/tests/test_mqtt_retained_device_state.py`
+(compilateur C++17 via `c++` ou `CXX`).

@@ -80,7 +80,7 @@ class DashboardTests(unittest.TestCase):
                 self.assertTrue(node['target']['entity_id'].startswith('button.fio_'))
             if node.get('type') == 'simple-entity':
                 self.assertEqual(node['tap_action'], {'action': 'more-info'})
-        reset_rows = [n for n in self.nodes if n.get('type') == 'conditional']
+        reset_rows = [n for n in self.nodes if n.get('type') == 'conditional' and 'row' in n]
         self.assertEqual(len(reset_rows), 4)
         for node in reset_rows:
             alarm, button = node['conditions']
@@ -103,7 +103,7 @@ class DashboardTests(unittest.TestCase):
             if node.get('type') == 'custom:mini-graph-card':
                 for entity in node['entities']:
                     self.assertTrue(entity['entity'].startswith(('sensor.', 'binary_sensor.')))
-        chemistry = next(n for n in self.nodes if n.get('name') == 'Chimie')
+        chemistry = next(n for n in self.nodes if n.get('name') == 'Historique pH et ORP')
         self.assertEqual(chemistry['entities'][1]['y_axis'], 'secondary')
 
     def test_optional_theme(self):

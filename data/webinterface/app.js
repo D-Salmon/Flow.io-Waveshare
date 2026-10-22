@@ -7727,6 +7727,15 @@
       times.appendChild(arrow);
       times.appendChild(stopEl);
       card.appendChild(times);
+      const requested = Number(data.filtr_requested_minute);
+      const scheduled = Number(data.filtr_duration_minute);
+      if (Number.isFinite(requested) && Number.isFinite(scheduled) && scheduled < requested) {
+        const warning = document.createElement('p');
+        warning.setAttribute('role', 'status');
+        warning.textContent = tr('pool.filtration.limited', 'Plage horaire insuffisante : {scheduled} min programmées sur {requested} min demandées.')
+          .replace('{scheduled}', String(scheduled)).replace('{requested}', String(requested));
+        card.appendChild(warning);
+      }
       return card;
     }
 

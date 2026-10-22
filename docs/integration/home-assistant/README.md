@@ -145,3 +145,11 @@ Références :
 - [Mushroom Legacy Template, adaptée aux styles card-mod](https://github.com/piitaya/lovelace-mushroom/blob/main/docs/cards/legacy-template.md)
 - [Modern Circular Gauge : templates Jinja](https://github.com/selvalt7/modern-circular-gauge#jinja-templates)
 - [Mini Graph Card](https://github.com/kalkih/mini-graph-card)
+
+## Filtration 3.5.1
+
+La vue Filtration expose à nouveau les bornes de début et de fin pour une eau
+strictement au-dessus de 20 °C et en dessous de 30 °C. La filtration continue
+reste prioritaire à partir de 30 °C. Si la durée ne tient pas dans les bornes,
+un message précise les minutes demandées et programmées. Les horaires calculés
+conservent les minutes ; le firmware 3.5.1 doit être installé pour ces attributs.

@@ -23,6 +23,8 @@ public:
     virtual const char* runtimeSnapshotSuffix(uint8_t idx) const = 0;
     /** Route policy class used by the runtime dispatcher. */
     virtual RuntimeRouteClass runtimeSnapshotClass(uint8_t idx) const = 0;
+    /** Retain state snapshots for subscribers joining after publication. */
+    virtual bool runtimeSnapshotRetained(uint8_t) const { return false; }
     /** Whether this snapshot is affected by the provided DataStore key change. */
     virtual bool runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const = 0;
     /** Build snapshot payload and return associated change timestamp. */

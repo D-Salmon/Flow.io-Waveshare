@@ -1,7 +1,7 @@
 {
   "name": "flowio-waveshare-web-assets",
   "private": true,
-  "version": "3.5.0",
+  "version": "3.5.1",
   "description": "Reproducible minification for the embedded Flow.io web interface",
   "scripts": {
     "web:minify": "node scripts/minify_web_assets.cjs",

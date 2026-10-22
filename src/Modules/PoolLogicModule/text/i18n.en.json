@@ -241,6 +241,8 @@
     "cfgdocs.poollogic.pool.latitude.label": "Latitude (decimal degrees)",
     "cfgdocs.poollogic.pool.latitude.help": "Pool latitude in decimal degrees, between -90 and 90.",
     "cfgdocs.poollogic.pool.longitude.label": "Longitude (decimal degrees)",
-    "cfgdocs.poollogic.pool.longitude.help": "Pool longitude in decimal degrees, between -180 and 180."
+    "cfgdocs.poollogic.pool.longitude.help": "Pool longitude in decimal degrees, between -180 and 180.",
+    "cfgdocs.poollogic.filtration.filtr_requested_minute.label": "Requested duration before time limits",
+    "cfgdocs.poollogic.filtration.filtr_requested_minute.help": "Temperature-based duration before applying the configured time window."
   }
 }

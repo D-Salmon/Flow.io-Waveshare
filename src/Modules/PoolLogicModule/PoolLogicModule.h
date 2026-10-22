@@ -209,6 +209,7 @@ private:
     uint16_t filtrationCalcStartMinute_ = 1320;
     uint16_t filtrationCalcStopMinute_ = 0;
     uint16_t filtrationCalcDurationMinute_ = 120;
+    uint16_t filtrationRequestedMinute_ = 120;
     uint8_t filtrationCalcStart_ = PoolDefaults::FiltrationStartMinHour;
     uint8_t filtrationCalcStop_ = PoolDefaults::FiltrationStopMaxHour;
 
@@ -380,6 +381,7 @@ private:
                                           &filtrationStopMax_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint16_t,0> calcStartMinuteVar_{"pl_fstartm", "filtr_start_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationCalcStartMinute_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint16_t,0> calcStopMinuteVar_{"pl_fstopm", "filtr_stop_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationCalcStopMinute_, ConfigPersistence::Persistent, 0};
+    ConfigVariable<uint16_t,0> calcRequestedMinuteVar_{"pl_freqm", "filtr_requested_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationRequestedMinute_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint16_t,0> calcDurationMinuteVar_{"pl_fdurm", "filtr_duration_minute", "poollogic/filtration", ConfigType::UInt16, &filtrationCalcDurationMinute_, ConfigPersistence::Persistent, 0};
     ConfigVariable<uint8_t,0> calcStartVar_{NVS_KEY(NvsKeys::PoolLogic::FiltrationCalcStart), "filtr_start_clc", "poollogic/filtration", ConfigType::UInt8,
                                             &filtrationCalcStart_, ConfigPersistence::Persistent, 0};
@@ -561,7 +563,7 @@ private:
     void ensureDailySlot_();
     bool applyFiltrationWindowSlot_(uint16_t startMinute, uint16_t stopMinute, uint16_t durationMinutes);
     bool currentFiltrationWindowActive_(uint16_t startMinute, uint16_t stopMinute, uint16_t durationMinutes, bool& activeOut) const;
-    bool computeFiltrationWindow_(float waterTemp, uint16_t& startMinuteOut, uint16_t& stopMinuteOut, uint16_t& durationMinutesOut);
+    bool computeFiltrationWindow_(float waterTemp, uint16_t& startMinuteOut, uint16_t& stopMinuteOut, uint16_t& durationMinutesOut, uint16_t& requestedMinutesOut);
     bool recalcAndApplyFiltrationWindow_(uint16_t* startMinuteOut = nullptr, uint16_t* stopMinuteOut = nullptr,
                                          uint16_t* durationMinutesOut = nullptr, bool keepCurrentStart = false);
 

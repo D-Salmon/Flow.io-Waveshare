@@ -718,6 +718,7 @@
     "pool.ai.waitingNetwork": "En attente du réseau",
     "pool.ai.storageError": "Programmation suspendue : erreur de sauvegarde",
     "pool.ai.invalidTime": "Saisissez une heure au format HH:MM.",
-    "pool.ai.statusUnavailable": "Actualisation de l’état indisponible. Nouvelle tentative dans une minute."
+    "pool.ai.statusUnavailable": "Actualisation de l’état indisponible. Nouvelle tentative dans une minute.",
+    "pool.filtration.limited": "Plage horaire insuffisante : {scheduled} min programmées sur {requested} min demandées."
   }
 }

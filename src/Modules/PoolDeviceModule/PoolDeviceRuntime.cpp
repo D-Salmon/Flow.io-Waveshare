@@ -303,6 +303,15 @@ RuntimeRouteClass PoolDeviceModule::runtimeSnapshotClass(uint8_t idx) const
     return metrics ? RuntimeRouteClass::NumericThrottled : RuntimeRouteClass::ActuatorImmediate;
 }
 
+bool PoolDeviceModule::runtimeSnapshotRetained(uint8_t idx) const
+{
+    if (idx < 2) return true;
+    uint8_t slotIdx = 0xFF;
+    bool metrics = false;
+    return snapshotRouteFromIndex_(idx, slotIdx, metrics) && !metrics &&
+           slotRuntimePublishable_(slotIdx);
+}
+
 bool PoolDeviceModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 {
     if (idx < 2) return key == DataKeys::PoolDeviceOverrides;

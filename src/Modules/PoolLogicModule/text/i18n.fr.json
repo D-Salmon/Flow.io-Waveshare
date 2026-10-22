@@ -240,6 +240,8 @@
     "cfgdocs.poollogic.pool.latitude.label": "Latitude (degrés décimaux)",
     "cfgdocs.poollogic.pool.latitude.help": "Latitude du bassin en degrés décimaux, comprise entre -90 et 90.",
     "cfgdocs.poollogic.pool.longitude.label": "Longitude (degrés décimaux)",
-    "cfgdocs.poollogic.pool.longitude.help": "Longitude du bassin en degrés décimaux, comprise entre -180 et 180."
+    "cfgdocs.poollogic.pool.longitude.help": "Longitude du bassin en degrés décimaux, comprise entre -180 et 180.",
+    "cfgdocs.poollogic.filtration.filtr_requested_minute.label": "Durée demandée avant limites",
+    "cfgdocs.poollogic.filtration.filtr_requested_minute.help": "Durée calculée selon la température, avant limitation par la plage horaire."
   }
 }

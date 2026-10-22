@@ -410,6 +410,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(calcStartMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
     cfg.registerVar(calcStopMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
     cfg.registerVar(calcDurationMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
+    cfg.registerVar(calcRequestedMinuteVar_, kCfgModuleId, kCfgBranchFiltration);
     cfg.registerVar(calcStopVar_, kCfgModuleId, kCfgBranchFiltration);
 
     cfg.registerVar(phIdVar_, kCfgModuleId, kCfgBranchSensors);
@@ -654,17 +655,18 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "pl_flt_start",
             "Calculated Filtration Start",
             "cfg/poollogic/filtration",
-            "{{ value_json.filtr_start_clc | int(0) }}",
+            "{{ (value_json.filtr_start_minute | float(0)) / 60 }}",
             nullptr,
             "mdi:clock-start",
-            "h"
+            "h", false, nullptr, false,
+            "{{ {'requested_minutes': value_json.filtr_requested_minute, 'scheduled_minutes': value_json.filtr_duration_minute, 'limited_by_schedule': value_json.filtr_duration_minute < value_json.filtr_requested_minute} | to_json }}"
         };
         const HASensorEntry filtrationStop{
             "poollogic",
             "pl_flt_stop",
             "Calculated Filtration Stop",
             "cfg/poollogic/filtration",
-            "{{ value_json.filtr_stop_clc | int(0) }}",
+            "{{ (value_json.filtr_stop_minute | float(0)) / 60 }}",
             nullptr,
             "mdi:clock-end",
             "h"

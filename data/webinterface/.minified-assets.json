@@ -17,11 +17,11 @@
       "gzip_bytes": 9542
     },
     "app.js": {
-      "source_sha256": "54bc4a635ecede926399a45a2175a5cca49b83efd87a7fce55a58e63f8bf8550",
-      "gzip_sha256": "dd17ff46db20bc9f8a341a68a5f9f10eba26fb6075c0c216d7cf14620ee0ba53",
-      "original_bytes": 532140,
-      "minified_bytes": 319823,
-      "gzip_bytes": 81544
+      "source_sha256": "00e6019407a505af3996ad197bd32de7352da63eda0bd405906863019a4759bd",
+      "gzip_sha256": "38245cc574e09e5b4ef6ba3a04692bce36a58e4b843b1ad53a85ccc63f21a3f6",
+      "original_bytes": 532758,
+      "minified_bytes": 320239,
+      "gzip_bytes": 81658
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -66,18 +66,18 @@
       "gzip_bytes": 9438
     },
     "i18n/fr.json": {
-      "source_sha256": "594c8e614ac70dcd2f1223238f50177b8faa95ab6b36199c0250f306c99b43b2",
-      "gzip_sha256": "c0c3122552d6846a47454d084860e458631ed587adee5e2094408cfdaf2726d6",
-      "original_bytes": 42289,
-      "minified_bytes": 37245,
-      "gzip_bytes": 10816
+      "source_sha256": "20aacab02994188f835f3d4e9c9b260f8195f72584750de813dbd64017c93017",
+      "gzip_sha256": "5a5692e5c98948a0a92ba1494a3eda6e2b13d500186624930d22ef093342c71d",
+      "original_bytes": 42414,
+      "minified_bytes": 37363,
+      "gzip_bytes": 10868
     },
     "i18n/en.json": {
-      "source_sha256": "4eca0374aa046ae7d3995f8b4128baf5e2a2c2ecb42d22aea799f58fda2e3396",
-      "gzip_sha256": "7acae7a81aed58558236c50da3eab556d6c6008ad1a6ac21b615a544fa35fcad",
-      "original_bytes": 36996,
-      "minified_bytes": 32316,
-      "gzip_bytes": 9211
+      "source_sha256": "157838a5f2af04029a8a3dfd96cccffa3a9b5d97eec87c75a96cbfeef3dfb213",
+      "gzip_sha256": "7d5fe318cc0cddee1e4ab195709c9cda72c8a35838e4f2930e22ed251fa021c1",
+      "original_bytes": 37114,
+      "minified_bytes": 32427,
+      "gzip_bytes": 9252
     },
     "app-core.css": {
       "source_sha256": "fd973862170982f4bae1ec93d572da525ed5f194b7805d75b3d7e687e2e818f2",

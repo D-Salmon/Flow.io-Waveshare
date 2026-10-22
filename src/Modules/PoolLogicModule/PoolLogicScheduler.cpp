@@ -56,16 +56,20 @@ void PoolLogicModule::ensureDailySlot_()
 bool PoolLogicModule::computeFiltrationWindow_(float waterTemp,
                                                uint16_t& startMinuteOut,
                                                uint16_t& stopMinuteOut,
-                                               uint16_t& durationMinutesOut)
+                                               uint16_t& durationMinutesOut,
+                                               uint16_t& requestedMinutesOut)
 {
     ReleaseFiltrationWindowInput in{};
     in.waterTemp = waterTemp;
+    in.startMinHour = filtrationStartMin_;
+    in.stopMaxHour = filtrationStopMax_;
 
     ReleaseFiltrationWindowOutput out{};
     if (!computeReleaseFiltrationWindowDeterministic(in, out)) return false;
     startMinuteOut = out.startMinuteOfDay;
     stopMinuteOut = out.stopMinuteOfDay;
     durationMinutesOut = out.durationMinutes;
+    requestedMinutesOut = out.requestedDurationMinutes;
     return true;
 }
 
@@ -199,12 +203,13 @@ bool PoolLogicModule::recalcAndApplyFiltrationWindow_(uint16_t* startMinuteOut,
     uint16_t startMinute = 0U;
     uint16_t stopMinute = 0U;
     uint16_t durationMinutes = 0U;
-    if (!computeFiltrationWindow_(calculationTemp, startMinute, stopMinute, durationMinutes)) {
+    uint16_t requestedMinutes = 0U;
+    if (!computeFiltrationWindow_(calculationTemp, startMinute, stopMinute, durationMinutes, requestedMinutes)) {
         LOGW("Filtration window calculation failed");
         return false;
     }
 
-    if (keepCurrentStart && !usingTemperatureFallback) {
+    if (keepCurrentStart && !usingTemperatureFallback && waterTemp <= 20.0f) {
         startMinute = filtrationCalcStartMinute_;
         stopMinute = (uint16_t)(((uint32_t)startMinute + durationMinutes) % (24U * 60U));
     }
@@ -218,10 +223,12 @@ bool PoolLogicModule::recalcAndApplyFiltrationWindow_(uint16_t* startMinuteOut,
     bool startStored = false;
     bool stopStored = false;
     bool durationStored = false;
+    bool requestedStored = false;
     if (cfgStore_) {
         startStored = cfgStore_->set(calcStartMinuteVar_, startMinute);
         stopStored = cfgStore_->set(calcStopMinuteVar_, stopMinute);
         durationStored = cfgStore_->set(calcDurationMinuteVar_, durationMinutes);
+        requestedStored = cfgStore_->set(calcRequestedMinuteVar_, requestedMinutes);
         if (!startStored || !stopStored || !durationStored) {
             LOGW("Failed to persist filtration window start=%u stop=%u duration=%u",
                  (unsigned)startMinute,
@@ -232,6 +239,8 @@ bool PoolLogicModule::recalcAndApplyFiltrationWindow_(uint16_t* startMinuteOut,
     if (!cfgStore_ || !startStored) filtrationCalcStartMinute_ = startMinute;
     if (!cfgStore_ || !stopStored) filtrationCalcStopMinute_ = stopMinute;
     if (!cfgStore_ || !durationStored) filtrationCalcDurationMinute_ = durationMinutes;
+
+    if (!cfgStore_ || !requestedStored) filtrationRequestedMinute_ = requestedMinutes;
 
     filtrationCalcStart_ = (uint8_t)(startMinute / 60U);
     filtrationCalcStop_ = (uint8_t)(stopMinute / 60U);
@@ -277,9 +286,18 @@ bool PoolLogicModule::recalcAndApplyFiltrationWindow_(uint16_t* startMinuteOut,
                  (unsigned)(stopMinute / 60U),
                  (unsigned)(stopMinute % 60U));
     }
+    if (durationMinutes < requestedMinutes) {
+        LOGW("Filtration limited by schedule: requested=%umin scheduled=%umin",
+             unsigned(requestedMinutes), unsigned(durationMinutes));
+        snprintf(detail, sizeof(detail),
+                 "Plage insuffisante : %u min demandées, %u min programmées (%02u:%02u-%02u:%02u).",
+                 unsigned(requestedMinutes), unsigned(durationMinutes),
+                 unsigned(startMinute / 60U), unsigned(startMinute % 60U),
+                 unsigned(stopMinute / 60U), unsigned(stopMinute % 60U));
+    }
     emitActivity_(ActivityCode::PoolLogicFiltrationWindowCalculated,
                   ActivitySource::Scheduler,
-                  ActivitySeverity::Info,
+                  durationMinutes < requestedMinutes ? ActivitySeverity::Warning : ActivitySeverity::Info,
                   ActivityRole::Filtration,
                   ActivityState::None,
                   ActivityReason::Scheduler,

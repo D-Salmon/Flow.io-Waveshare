@@ -853,3 +853,20 @@ Entités enregistrées par `PoolLogicModule`:
 - pas d'écriture directe `DataStore` par `PoolLogicModule`
 - interactions runtime via services (`IOServiceV2`, `PoolDeviceService`, `AlarmService`)
 - pas d'`EventStore` persistant côté `PoolLogic` (événements runtime via `EventBus`, config persistante via `ConfigStore`)
+
+## Plages de filtration 3.5.1
+
+- Eau ≤ 20 °C : départ à 22 h, durée selon la température (minimum 2 h).
+- Eau > 20 °C et < 30 °C : centrage sur 15 h, puis déplacement dans les bornes
+  `filtr_start_min` et `filtr_stop_max` pour préserver la durée demandée.
+- Eau ≥ 30 °C : fonctionnement continu, prioritaire sur les bornes.
+- Sans mesure exploitable : repli de 22 h à minuit ; la mesure conservée reste
+  utilisable pendant la période de validité existante.
+
+Les bornes diurnes doivent satisfaire `0 ≤ début < fin ≤ 23`. Une plage invalide
+fait échouer le recalcul sans installer une nouvelle plage. Si la durée demandée
+ne tient pas, le créneau utilise toute la plage autorisée. La durée demandée
+(`filtr_requested_minute`) est publiée avec la durée programmée ; la réduction
+est signalée dans l’activité, dans l’interface Web et via les attributs du capteur
+HA `pl_flt_start`. Les recalculs chauds ne conservent pas un ancien démarrage
+qui permettrait de contourner les bornes. Les heures HA conservent les minutes.

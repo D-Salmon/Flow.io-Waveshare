@@ -48,7 +48,8 @@ bool computeReleaseFiltrationWindowDeterministic(const ReleaseFiltrationWindowIn
 
     out = {};
     out.durationMinutes = durationMinutes;
-    if (durationMinutes >= kMinutesPerDay) {
+    out.requestedDurationMinutes = durationMinutes;
+    if (in.waterTemp >= 30.0f) {
         out.continuous = true;
         return true;
     }
@@ -60,9 +61,22 @@ bool computeReleaseFiltrationWindowDeterministic(const ReleaseFiltrationWindowIn
         return true;
     }
 
-    const int32_t start = (int32_t)kSolarPivotMinute - (int32_t)(durationMinutes / 2U);
-    out.startMinuteOfDay = normalizeMinute_(start);
-    out.stopMinuteOfDay = normalizeMinute_((int32_t)out.startMinuteOfDay + durationMinutes);
+    // Warm-water schedules stay inside the configured same-day bounds.
+    if (in.startMinHour >= 24U || in.stopMaxHour >= 24U ||
+        in.startMinHour >= in.stopMaxHour) return false;
+    const uint16_t earliest = uint16_t(in.startMinHour) * 60U;
+    const uint16_t latest = uint16_t(in.stopMaxHour) * 60U;
+    const uint16_t available = latest - earliest;
+    if (durationMinutes > available) {
+        durationMinutes = available;
+        out.limitedBySchedule = true;
+    }
+    out.durationMinutes = durationMinutes;
+    int32_t start = int32_t(kSolarPivotMinute) - int32_t(durationMinutes / 2U);
+    if (start < earliest) start = earliest;
+    if (start + durationMinutes > latest) start = latest - durationMinutes;
+    out.startMinuteOfDay = uint16_t(start);
+    out.stopMinuteOfDay = uint16_t(start + durationMinutes);
     return true;
 }
 

@@ -214,7 +214,7 @@ MqttBuildResult RuntimeProducer::buildMessage(uint16_t messageId, MqttBuildConte
     ctx.topicLen = (uint16_t)strnlen(ctx.topic, ctx.topicCapacity);
     ctx.payloadLen = (uint16_t)strnlen(ctx.payload, ctx.payloadCapacity);
     ctx.qos = 0;
-    ctx.retain = false;
+    ctx.retain = route.provider->runtimeSnapshotRetained(route.snapshotIdx);
 
     route.lastBuiltTs = effectiveTs;
     return MqttBuildResult::Ready;

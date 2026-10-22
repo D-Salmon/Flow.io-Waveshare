@@ -666,6 +666,7 @@
     "pool.ai.waitingNetwork": "Waiting for network",
     "pool.ai.storageError": "Schedule suspended: storage error",
     "pool.ai.invalidTime": "Enter a time in HH:MM format.",
-    "pool.ai.statusUnavailable": "Status refresh unavailable. Retrying in one minute."
+    "pool.ai.statusUnavailable": "Status refresh unavailable. Retrying in one minute.",
+    "pool.filtration.limited": "Time window too short: {scheduled} min scheduled out of {requested} min requested."
   }
 }

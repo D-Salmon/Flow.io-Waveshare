@@ -561,6 +561,12 @@
       "label_t": "cfgdocs.poollogic.pool.longitude.label",
       "help_t": "cfgdocs.poollogic.pool.longitude.help",
       "order": 2
+    },
+    "poollogic/filtration/filtr_requested_minute": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_requested_minute.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_requested_minute.help",
+      "unit": "min"
     }
   }
 }

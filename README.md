@@ -168,7 +168,7 @@ Le contrôleur [Waveshare ESP32-S3-POE-ETH-8DI-8RO](https://www.waveshare.com/pr
 
 Le port RS485 isolé du contrôleur Waveshare est pris en charge par un maître Modbus RTU asynchrone intégré à `IOModule`. Il permet à plusieurs modules d’équipements de partager le même bus série, avec sérialisation des requêtes, priorités, contrôle CRC, gestion des réponses d’exception, délais d’attente et nouvelles tentatives.
 
-Le premier squelette métier disponible est `VariableSpeedPumpModule`, destiné aux pompes de filtration à vitesse variable. Les registres, facteurs d’échelle et valeurs de commande restent décrits dans un profil propre à chaque constructeur : flow.io n’essaie pas de déduire le modèle à partir de son nom et n’active aucun registre d’écriture non validé. Voir la [documentation du maître RS485/Modbus](docs/modules/ModbusMaster.md) et celle du [module de pompe à vitesse variable](docs/modules/VariableSpeedPumpModule.md).
+Les profils de commande doivent décrire les registres, facteurs d’échelle et valeurs propres à chaque constructeur. Voir la [documentation du maître RS485/Modbus](docs/modules/ModbusMaster.md).
 
 La carte flow.io Companion regroupe les raccordements utiles à la piscine sur des borniers et connecteurs clairement identifiés : sondes pH et ORP, pression, températures, niveaux, compteur d'eau, afficheur et extensions. Elle simplifie le câblage et permet une intégration plus compacte et plus lisible dans le coffret technique. La carte est prévue pour s'intégrer dans un boitier DIN standard.
 

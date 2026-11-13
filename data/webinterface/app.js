@@ -7673,19 +7673,24 @@
         if (definition.key === 'swg') {
           const summary = document.createElement('div');
           summary.className = 'pool-metric dash-treatment-summary';
-          const mode = document.createElement('p');
-          mode.className = 'dash-treatment-mode';
+          const appendLine = (label, value, className) => {
+            const line = document.createElement('p');
+            line.className = className;
+            line.textContent = label;
+            if (value !== undefined) {
+              const emphasized = document.createElement('strong');
+              emphasized.textContent = value;
+              line.append(' ', emphasized);
+            }
+            summary.appendChild(line);
+          };
           const controlMode = poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode);
           const orpTarget = modules['poollogic/chlorine']?.dis_setpoint;
-          mode.textContent = Number(data.swg_control_mode) === 0 && orpTarget !== undefined && orpTarget !== null && orpTarget !== ''
-            ? controlMode + ' ' + poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget)
-            : controlMode;
-          summary.appendChild(mode);
-          const safety = document.createElement('p');
-          safety.className = 'dash-treatment-safety';
-          safety.textContent = tr('pool.metric.waterSafety', 'Sécurité eau') + ' '
-            + poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t);
-          summary.appendChild(safety);
+          const target = Number(data.swg_control_mode) === 0 && orpTarget !== undefined && orpTarget !== null && orpTarget !== ''
+            ? poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget) : undefined;
+          appendLine(controlMode, target, 'dash-treatment-mode');
+          appendLine(tr('pool.metric.waterSafety', 'Sécurité eau'),
+            poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t), 'dash-treatment-safety');
           metrics.appendChild(summary);
         }
         if (definition.key === 'chlorine') {

@@ -194,6 +194,8 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       assert.equal(styles.rule.weight, '400', 'Filtration message uses normal weight in ' + theme);
       assert.equal(styles.rule.color, styles.time.color, 'Filtration message keeps the time color in ' + theme);
       assert.deepEqual(styles.safety, styles.mode, 'Safety matches treatment typography in ' + theme);
+      assert.equal(styles.mode.weight, '400', 'Treatment labels use normal weight');
+      assert.deepEqual(await page.locator('.dash-treatment-summary strong').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).fontWeight)), ['400','400'], 'Treatment values use normal weight');
       assert(!await page.locator('.dash-tl-rule dt').isVisible() ||
         await page.locator('.dash-tl-rule dt').evaluate(node => node.classList.contains('visually-hidden')));
       if (process.env.FLOWIO_TEST_SCREENSHOTS) {

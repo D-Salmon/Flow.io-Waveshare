@@ -527,7 +527,7 @@
       }
       applyLogSourceUi();
       applyProfileUiText();
-      renderMeasureDomainTabs();
+      renderDashboardModeControl();
     }
 
     async function applyMenuIconModeFromMeta(data) {
@@ -2010,8 +2010,14 @@
     const flowStatusRaw = document.getElementById('flowStatusRaw');
     const ioSummaryCards = document.getElementById('ioSummaryCards');
     const ioSummaryTables = document.getElementById('ioSummaryTables');
-    const poolMeasuresDomains = document.getElementById('poolMeasuresDomains');
     const poolMeasuresGrid = document.getElementById('poolMeasuresGrid');
+    const dashModeGrid = document.getElementById('dashModeGrid');
+    const dashSondesGrid = document.getElementById('dashSondesGrid');
+    const dashTreatment = document.getElementById('dashTreatment');
+    const dashModeButtons = Array.from(document.querySelectorAll('.dash-mode-control [data-mode]'));
+    const dashboardStrategyKeys = Object.freeze(['pool.auto_mode', 'pool.winter_mode']);
+    let dashboardModeBusy = false;
+    dashModeButtons.forEach(button => button.addEventListener('click', () => applyDashboardMode(button.dataset.mode)));
     const poolConfigSummary = document.getElementById('poolConfigSummary');
     const poolHeroState = document.getElementById('poolHeroState');
     const poolFiltrationStart = document.getElementById('poolFiltrationStart');
@@ -2177,7 +2183,6 @@
     const runtimeActionFeedback = new Map();
     const dashboardDualStateTileViews = new WeakMap();
     const dashboardBooleanCardViews = new WeakMap();
-    let selectedMobileMeasureDomain = runtimeMeasureDomainKeys[0];
     let poolDashboardSlotsCache = null;
     let poolDashboardSlotsFetchedAt = 0;
     let poolDashboardSlotsLoadPromise = null;
@@ -4670,7 +4675,7 @@
             slot: Number.isFinite(idx) ? idx : 999,
             runtimeUiId: Number.isFinite(Number(slot && slot.runtime_ui_id)) ? Number(slot.runtime_ui_id) : 0,
             label: ioSummaryLocalizedName(String(slot && slot.label ? slot.label : '').trim()),
-            value: String(slot && slot.value ? slot.value : '').trim(),
+            value: String(slot && slot.value != null ? slot.value : '').trim(),
             unit: String(slot && slot.unit ? slot.unit : '').trim(),
             bgColor: String(slot && slot.bg_color ? slot.bg_color : '').trim(),
             enabled: slot && slot.enabled !== false,
@@ -4761,7 +4766,7 @@
 
     function splitPoolSondeValue(slot) {
       const unit = String(slot && slot.unit ? slot.unit : '').trim();
-      const valueRaw = String(slot && slot.value ? slot.value : '').trim();
+      const valueRaw = String(slot && slot.value != null ? slot.value : '').trim();
       const available = !!(slot && slot.available);
       if (!available) return { value: '--', unit: '' };
       if (!valueRaw) return { value: '-', unit: '' };
@@ -4777,7 +4782,13 @@
       return { value: valueRaw, unit: unit };
     }
 
-    function buildPoolSondeSlotsGrid(slots) {
+    function dashboardSensorAccent(key) {
+      const colors = { 'pool.water_temp':'#46d3ee', 'pool.ph':'#4fd1a5', 'pool.orp':'#ffb057',
+        'pool.psi':'#aa8df2', 'pool.air_temp':'#9dbbff' };
+      return colors[key] || '#46b9c9';
+    }
+
+    function buildPoolSondeSlotsGrid(slots, options = {}) {
       const cleanSlots = Array(8).fill(null);
       if (Array.isArray(slots)) {
         slots.forEach((slot) => {
@@ -4786,7 +4797,7 @@
         });
       }
       const grid = document.createElement('div');
-      grid.className = 'status-sonde-slot-grid';
+      grid.className = 'status-sonde-slot-grid' + (options.compact ? ' dashboard-sonde-list' : '');
 
       for (let i = 0; i < 8; i += 1) {
         const slot = cleanSlots[i] || null;
@@ -4797,9 +4808,13 @@
         if (!available) tile.classList.add('is-empty');
 
         const bgColor = slot && isValidHexColor(slot.bgColor) ? slot.bgColor : '';
+        if (options.compact) tile.style.setProperty('--sonde-accent', bgColor || dashboardSensorAccent(slot.key));
         if (bgColor) {
-          tile.classList.add('has-custom-bg');
-          tile.style.background = bgColor;
+          if (options.compact) tile.style.setProperty('--sonde-accent', bgColor);
+          else {
+            tile.classList.add('has-custom-bg');
+            tile.style.background = bgColor;
+          }
         }
 
         const title = document.createElement('div');
@@ -4852,8 +4867,16 @@
           if (hasRange) {
             const rangeLabel = document.createElement('div');
             rangeLabel.className = 'status-sonde-slot-range-label';
-            rangeLabel.textContent = tr('dashboard.sonde.range', 'plage') + ' '
-              + formatRuntimeFloatValue(rangeMin, null) + '–' + formatRuntimeFloatValue(rangeMax, null) + unitSuffix;
+            if (options.compact) {
+              const minimum = document.createElement('span');
+              minimum.textContent = formatRuntimeFloatValue(rangeMin, null);
+              const maximum = document.createElement('span');
+              maximum.textContent = formatRuntimeFloatValue(rangeMax, null);
+              rangeLabel.append(minimum, maximum);
+            } else {
+              rangeLabel.textContent = tr('dashboard.sonde.range', 'plage') + ' '
+                + formatRuntimeFloatValue(rangeMin, null) + '–' + formatRuntimeFloatValue(rangeMax, null) + unitSuffix;
+            }
             rangeGroup.appendChild(rangeLabel);
           }
           if (rangeGroup.childElementCount) tile.appendChild(rangeGroup);
@@ -4999,6 +5022,7 @@
           disabled: !stateKnown || (!!runtimeActionBusyKey && runtimeActionBusyKey !== actionKey),
           feedback: actionKey ? runtimeActionFeedback.get(actionKey) : null,
           control: runtimeValue && runtimeValue.control,
+          iconKind: runtimeBooleanIconKind(entry),
           onOpen: opts.onOpen,
           openLabel: opts.openLabel,
           onAction: action
@@ -5008,6 +5032,14 @@
       );
       tile.dataset.runtimeValueId = String(Number(entry.id));
       return tile;
+    }
+
+    function runtimeBooleanIconKind(entry) {
+      const icons = { 'pool.filtration_on':'waves', 'pool.ph_pump_on':'flask',
+        'pool.chlorine_pump_on':'drop', 'pool.robot_on':'robot', 'pool.fill_pump_on':'fill',
+        'pool.chlorine_generator_on':'bolt', 'pool.lights_on':'light', 'pool.heater_on':'thermometer',
+        'pool.ph_auto_mode':'flask', 'pool.dis_auto_mode':'drop' };
+      return icons[entry.key] || 'equipment';
     }
 
     function runtimeMeasureSwitchAction(entry) {
@@ -6185,6 +6217,11 @@
       const tile = document.createElement(!separateActions && currentOptions.action ? 'label' : 'div');
       const openButton = separateActions ? buildDashboardManagementButton(
         (trigger) => currentOptions.onOpen(trigger), currentOptions.openLabel || label) : null;
+      const icon = document.createElement('span');
+      icon.className = 'status-dual-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      const body = document.createElement('div');
+      body.className = 'status-dual-body';
       const title = document.createElement('div');
       title.className = 'status-dual-title';
       const state = document.createElement('div');
@@ -6199,7 +6236,11 @@
       since.hidden = true;
       const controlStatus = document.createElement('div');
       controlStatus.className = 'runtime-override-status';
-      tile.append(title, state, since, controlStatus);
+      const meta = document.createElement('div');
+      meta.className = 'status-dual-meta';
+      meta.append(state, since);
+      body.append(title, meta, controlStatus);
+      tile.append(icon, body);
       const switchView = buildFlowSwitch({
         host: separateActions ? undefined : tile,
         interactive: !!currentOptions.action,
@@ -6218,6 +6259,11 @@
         view.label = nextLabel;
         view.value = nextValue;
         view.options = currentOptions;
+        icon.hidden = !currentOptions.iconKind;
+        if (currentOptions.iconKind && icon.dataset.kind !== currentOptions.iconKind) {
+          icon.replaceChildren(buildRuntimeActionIcon(currentOptions.iconKind));
+          icon.dataset.kind = currentOptions.iconKind;
+        }
         const stateKnown = typeof nextValue === 'boolean';
         const pending = !!currentOptions.pending;
         const feedback = currentOptions.feedback;
@@ -6271,6 +6317,9 @@
       });
       const cards = Array.from(fragment.children).map((nextCard) => {
         const previousCard = previousCards.get(nextCard.dataset.runtimeCardId);
+        const previousDetails = previousCard && previousCard.querySelector('.dash-alarm-details');
+        const nextDetails = nextCard.querySelector('.dash-alarm-details');
+        if (previousDetails && nextDetails) nextDetails.open = previousDetails.open;
         const previous = previousCard && dashboardBooleanCardViews.get(previousCard);
         const next = dashboardBooleanCardViews.get(nextCard);
         if (!previous || !next || previous.tiles.length !== next.tiles.length ||
@@ -6597,7 +6646,6 @@
       const cleanDomain = normalizeRuntimeMeasureDomainKey(domainKey);
       if (!cleanDomain) return card;
       card.dataset.runtimeDomain = cleanDomain;
-      card.classList.toggle('is-mobile-selected', cleanDomain === selectedMobileMeasureDomain);
       return card;
     }
 
@@ -6681,13 +6729,15 @@
         card.appendChild(buildDashboardMeasureCardHeader(group.domainKey, group.name));
 
         if (isPoolSondesGroup) {
-          card.appendChild(buildPoolSondeSlotsGrid(sondeSlots));
+          if (!sondeSlots.some(slot => slot && slot.enabled !== false)) return;
+          card.appendChild(buildPoolSondeSlotsGrid(sondeSlots, { compact: true }));
           fragment.appendChild(card);
           return;
         }
         if (isPoolAlarmGroup && alarmSlots.length) {
           card.appendChild(buildPoolAlarmSlotsGrid(alarmSlots, management));
           appendRuntimeCardActions(card, group.entries);
+          summarizeDashboardAlarms(card, group.groupKey);
           fragment.appendChild(card);
           return;
         }
@@ -6776,6 +6826,7 @@
         }
 
         appendRuntimeCardActions(card, group.entries);
+        if (isPoolAlarmGroup) summarizeDashboardAlarms(card, group.groupKey);
 
         // Boolean cards retain their controls across reads so native CSS
         // transitions can complete while values, pending state and commands change.
@@ -6789,52 +6840,30 @@
       return fragment;
     }
 
-    function renderMeasureDomainTabs() {
-      if (!poolMeasuresDomains) return;
-      poolMeasuresDomains.innerHTML = '';
-      runtimeMeasureDomainKeys.forEach((domainKey, index) => {
-        const state = poolMeasureDomainState[domainKey];
-        const selected = domainKey === selectedMobileMeasureDomain;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'measure-domain-tab' + (selected ? ' is-selected' : '') + (state.loading ? ' is-loading' : '');
-        button.id = 'measureDomainTab-' + domainKey;
-        button.dataset.domain = domainKey;
-        button.setAttribute('role', 'tab');
-        button.setAttribute('aria-selected', selected ? 'true' : 'false');
-        button.setAttribute('aria-controls', 'poolMeasuresGrid');
-        button.tabIndex = selected ? 0 : -1;
-        const fullLabel = formatRuntimeDomainLabel(domainKey);
-        button.textContent = formatRuntimeDomainTabLabel(domainKey);
-        button.setAttribute('aria-label', fullLabel);
-        button.title = fullLabel;
-        button.addEventListener('click', () => {
-          selectMobileMeasureDomain(domainKey);
-        });
-        button.addEventListener('keydown', (event) => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
-          event.preventDefault();
-          let nextIndex = index;
-          if (event.key === 'Home') nextIndex = 0;
-          if (event.key === 'End') nextIndex = runtimeMeasureDomainKeys.length - 1;
-          if (event.key === 'ArrowLeft') nextIndex = (index - 1 + runtimeMeasureDomainKeys.length) % runtimeMeasureDomainKeys.length;
-          if (event.key === 'ArrowRight') nextIndex = (index + 1) % runtimeMeasureDomainKeys.length;
-          const nextDomain = runtimeMeasureDomainKeys[nextIndex];
-          selectMobileMeasureDomain(nextDomain);
-          const nextTab = document.getElementById('measureDomainTab-' + nextDomain);
-          if (nextTab) nextTab.focus();
-        });
-        poolMeasuresDomains.appendChild(button);
-      });
+    function summarizeDashboardAlarms(card, groupKey) {
+      const grid = card.querySelector('.status-alarm-slot-grid');
+      if (!grid || !grid.childElementCount) return;
+      const tiles = Array.from(grid.children);
+      const active = tiles.filter(tile => tile.matches('.is-active,.is-latched,.is-condition-only')).length;
+      const unknown = tiles.filter(tile => tile.classList.contains('is-empty')).length;
+      const details = document.createElement('details');
+      details.className = 'dash-alarm-details';
+      details.open = active > 0 || unknown > 0;
+      const summary = document.createElement('summary');
+      summary.className = 'dash-alarm-summary ' + (active ? 'is-alert' : unknown ? 'is-unknown' : 'is-ok');
+      const count = document.createElement('span');
+      count.textContent = tr('dashboard.alarms.monitored', '{count} protections surveillées').replace('{count}', tiles.length);
+      const status = document.createElement('strong');
+      status.textContent = active
+        ? tr('dashboard.alarms.activeCount', '{count} en alerte').replace('{count}', active)
+        : unknown ? tr('dashboard.alarms.unknownCount', '{count} indisponibles').replace('{count}', unknown)
+          : tr('dashboard.alarms.allNormal', 'Tout est normal');
+      summary.append(count, status);
+      grid.replaceWith(details);
+      details.append(summary, grid);
+      card.dataset.runtimeCardId = 'alarms:' + groupKey;
     }
 
-    function selectMobileMeasureDomain(domainKey) {
-      const cleanDomain = normalizeRuntimeMeasureDomainKey(domainKey);
-      if (!cleanDomain) return;
-      selectedMobileMeasureDomain = cleanDomain;
-      renderMeasureDomainTabs();
-      renderPoolMeasuresGrid();
-    }
 
     function poolMeasureDomainHasRenderableData(domainKey, state) {
       const cleanDomain = normalizeRuntimeMeasureDomainKey(domainKey);
@@ -6932,12 +6961,15 @@
       refreshPoolLightingControl();
       renderDashboardGauges();
       if (!poolMeasuresGrid) return;
-      const fragment = document.createDocumentFragment();
+      const secondaryFragment = document.createDocumentFragment();
+      const modeFragment = document.createDocumentFragment();
+      const sondesFragment = document.createDocumentFragment();
 
       const domainKeys = dashboardMeasureDomainKeys();
 
       let renderedCardCount = 0;
       domainKeys.forEach((domainKey) => {
+        const fragment = domainKey === 'mode' ? modeFragment : domainKey === 'sondes' ? sondesFragment : secondaryFragment;
         const state = poolMeasureDomainState[domainKey];
         const hasRenderableData = poolMeasureDomainHasRenderableData(domainKey, state);
         if (state.loading && !hasRenderableData) {
@@ -6971,7 +7003,8 @@
           renderedCardCount += 1;
           return;
         }
-        const cards = buildPoolMeasureCards(state.entries, state.values, {
+        const cards = buildPoolMeasureCards(domainKey === 'mode'
+          ? state.entries.filter(entry => !dashboardStrategyKeys.includes(entry.key)) : state.entries, state.values, {
           sondeSlots: state.sondeSlots,
           alarmSlots: state.alarmSlots
         });
@@ -6983,13 +7016,20 @@
         const empty = document.createElement('div');
         empty.className = 'measure-domain-empty';
         empty.textContent = tr('dashboard.empty.activeDomainsNoRuntime', 'Aucune valeur runtime disponible pour les domaines du tableau de bord.');
-        fragment.appendChild(empty);
+        secondaryFragment.appendChild(empty);
       }
-      reconcileDashboardMeasureCards(poolMeasuresGrid, fragment);
+      if (dashModeGrid) reconcileDashboardMeasureCards(dashModeGrid, modeFragment);
+      if (dashSondesGrid) {
+        reconcileDashboardMeasureCards(dashSondesGrid, sondesFragment);
+        dashSondesGrid.hidden = !dashSondesGrid.childElementCount;
+      }
+      reconcileDashboardMeasureCards(poolMeasuresGrid, secondaryFragment);
+      const secondarySection = poolMeasuresGrid.closest('.dashboard-measures-panel');
+      if (secondarySection) secondarySection.hidden = !poolMeasuresGrid.childElementCount;
+      renderDashboardModeControl();
     }
 
     function refreshPoolMeasuresView() {
-      renderMeasureDomainTabs();
       renderPoolMeasuresGrid();
     }
 
@@ -7002,9 +7042,7 @@
       state.requestSeq = requestSeq;
       state.loading = true;
       state.error = '';
-      if (hadRenderableData) {
-        renderMeasureDomainTabs();
-      } else {
+      if (!hadRenderableData) {
         refreshPoolMeasuresView();
       }
 
@@ -7496,6 +7534,7 @@
     }
 
     function poolConfigRenderHero(modules, alarmSlots) {
+      renderDashboardTreatment(modules);
       const modes = modules['poollogic/modes'] || {};
       const filtration = modules['poollogic/filtration'] || {};
       const alarms = poolConfigActiveAlarms(alarmSlots);
@@ -7536,18 +7575,109 @@
 
     // Keep the named vital measurements in place even when a sensor is unavailable.
     // The ring represents its configured display range, not a water-quality verdict.
-    function renderDashboardGauges() {
-      if (!dashGauges) return;
+    function dashboardStrategyState() {
+      const state = poolMeasureDomainState.mode;
+      return dashboardStrategyKeys.map(key => {
+        const entry = state.entries.find(item => item.key === key);
+        const runtime = entry && state.values.find(item => Number(item.id) === Number(entry.id));
+        return { entry: entry, action: entry && runtimeMeasureSwitchAction(entry),
+          value: runtime && runtime.available !== false && runtime.status !== 'not_found'
+            && runtime.status !== 'unavailable' && typeof runtime.value === 'boolean' ? runtime.value : null };
+      });
+    }
+
+    function renderDashboardModeControl() {
+      const [auto, winter] = dashboardStrategyState();
+      const known = auto.value !== null && winter.value !== null && !!auto.action && !!winter.action;
+      const current = winter.value === true ? 'winter' : auto.value === true ? 'auto' : 'manual';
+      dashModeButtons.forEach(button => {
+        button.setAttribute('aria-pressed', String(known && button.dataset.mode === current));
+        button.disabled = !known || dashboardModeBusy || !!runtimeActionBusyKey;
+      });
+    }
+
+    async function applyDashboardMode(mode) {
+      if (dashboardModeBusy || !['auto', 'manual', 'winter'].includes(mode)) return;
+      const [auto, winter] = dashboardStrategyState();
+      if (!auto.action || !winter.action || auto.value === null || winter.value === null) return;
+      const status = document.getElementById('dashModeStatus');
+      if (status) status.textContent = '';
+      dashboardModeBusy = true;
+      renderDashboardModeControl();
+      // Leave winter before suspending automatic control; enter winter only once auto is active.
+      const changes = mode === 'winter' ? [[auto, true], [winter, true]] : [[winter, false], [auto, mode === 'auto']];
+      try {
+        for (const [target, desired] of changes) {
+          if (target.value === desired) continue;
+          if (!await executeRuntimeAction(target.entry, target.action, desired)) {
+            const feedback = runtimeActionFeedback.get(runtimeActionKey(target.entry, target.action, desired));
+            if (status) status.textContent = feedback?.message || tr('dashboard.action.error', 'Commande refusée');
+            break;
+          }
+        }
+      } catch (error) {
+        if (status) status.textContent = error.message || tr('dashboard.action.error', 'Commande refusée');
+      } finally {
+        dashboardModeBusy = false;
+        renderDashboardModeControl();
+      }
+    }
+
+    function renderDashboardTreatment(modules) {
+      if (!dashTreatment) return;
+      const type = Number(modules['poollogic/modes']?.disinfection_type);
+      const definition = poolDisinfectionModeDefs.find(item => item.typeValue === type);
+      const heading = document.createElement('div');
+      heading.className = 'dash-treatment-head';
+      heading.appendChild(buildRuntimeActionIcon(definition ? 'flask' : 'equipment'));
+      const copy = document.createElement('div');
+      const title = document.createElement('h2');
+      title.textContent = definition ? tr(definition.titleKey, definition.title) : tr('pool.disinfection.disabled', 'Désactivé');
+      const note = document.createElement('p');
+      note.textContent = definition ? tr(definition.noteKey, definition.note)
+        : tr('pool.disinfection.disabled.note', 'Aucun traitement de désinfection n’est sélectionné.');
+      copy.append(title, note);
+      heading.appendChild(copy);
+      const metrics = document.createElement('div');
+      metrics.className = 'dash-treatment-metrics';
+      if (definition) {
+        const data = modules[definition.module] || {};
+        if (definition.key === 'swg') {
+          poolConfigAppendMetric(metrics, tr('pool.metric.control', 'Contrôle'), poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode));
+          poolConfigAppendMetric(metrics, tr('pool.metric.waterSafety', 'Sécurité eau'), poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t));
+        }
+        if (definition.key === 'swg' || definition.key === 'chlorine') {
+          poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', modules['poollogic/chlorine']?.dis_setpoint));
+        } else if (definition.key === 'o2') {
+          poolConfigAppendMetric(metrics, tr('pool.metric.weeklyDose', 'Dose hebdo'), poolConfigFormatValue(definition.module, 'dose_ml_10m3_week', data.dose_ml_10m3_week));
+        }
+      }
+      dashTreatment.replaceChildren(heading, metrics);
+    }
+
+    function dashboardGaugeItems() {
       const state = poolMeasureDomainState.sondes;
       const slots = state.sondeSlots || [];
       const definitions = [
         { key: 'pool.water_temp', label: tr('dashboard.gauge.water', 'Eau'), accent: '#46d3ee' },
         { key: 'pool.ph', label: 'pH', accent: '#4fd1a5' },
-        { key: 'pool.orp', label: 'ORP', accent: '#ffb057' }
+        { key: 'pool.orp', label: 'ORP', accent: '#ffb057' },
+        { key: 'pool.psi', label: tr('dashboard.gauge.pressure', 'Pression'), accent: '#aa8df2', optional: true }
       ];
+      return definitions.map(definition => ({ ...definition,
+        slot: slots.find(item => item && item.enabled !== false && item.key === definition.key) }))
+        .filter(item => !item.optional || (item.slot && item.slot.available
+          && String(item.slot.value).trim() !== ''
+          && Number.isFinite(Number(splitPoolSondeValue(item.slot).value.replace(',', '.')))));
+    }
+
+    function renderDashboardGauges() {
+      if (!dashGauges) return;
+      const items = dashboardGaugeItems();
+      dashGauges.classList.toggle('has-pressure', items.length === 4);
       const fragment = document.createDocumentFragment();
-      definitions.forEach((definition) => {
-        const slot = slots.find((item) => item && item.key === definition.key);
+      items.forEach((definition) => {
+        const slot = definition.slot;
         const available = !!(slot && slot.enabled !== false && slot.available);
         const display = available ? splitPoolSondeValue(slot) : { value: '—', unit: '' };
         const numeric = Number(String(display.value).replace(',', '.'));
@@ -7559,6 +7689,7 @@
         const degrees = Math.round(ratio * 270);
         const wrap = document.createElement('div');
         wrap.className = 'dash-gauge-wrap' + (available ? '' : ' is-unavailable');
+        if (slot) wrap.dataset.runtimeUiId = slot.runtimeUiId;
         const label = slot && slot.label || definition.label;
         wrap.setAttribute('role', 'group');
         wrap.setAttribute('aria-label', label + ' : ' + (available ? display.value + ' ' + display.unit : tr('dashboard.gauge.unavailable', 'Indisponible')));

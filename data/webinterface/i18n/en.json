@@ -1,6 +1,15 @@
 {
   "locale": "en",
   "translations": {
+    "dashboard.mode.aria": "Operating mode",
+    "dashboard.mode.auto": "Auto",
+    "dashboard.mode.manual": "Manual",
+    "dashboard.mode.winter": "Winter",
+    "dashboard.gauge.pressure": "Pressure",
+    "dashboard.alarms.monitored": "{count} monitored protections",
+    "dashboard.alarms.activeCount": "{count} in alarm",
+    "dashboard.alarms.unknownCount": "{count} unavailable",
+    "dashboard.alarms.allNormal": "All normal",
     "dashboard.hero.kicker": "Pool status",
     "dashboard.gauge.water": "Water",
     "dashboard.gauge.unavailable": "Unavailable",

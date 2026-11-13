@@ -3,11 +3,22 @@
 Adaptation du bandeau et des jauges de `christophebelmont/Flow.io-Waveshare`
 (révision `7f71a7b4bd9c6a5a1007826f77d8adcae216bd7a`, licence MIT).
 
-- État du bassin et éclairage dans le bandeau bleu.
-- Jauges eau, pH et ORP résolues par les identifiants du manifeste runtime,
+- Bandeau clair en mode clair, sombre en mode sombre, avec la vague d'origine.
+  Le même fond clair est appliqué aux autres cartes.
+- Jauges eau, pH, ORP et pression (si mesurée) résolues par les identifiants du manifeste runtime,
   indépendamment de l'ordre des emplacements configurés. Une mesure absente reste
   explicitement indisponible ; l'anneau représente la plage d'affichage configurée,
   pas une qualification de la qualité de l'eau.
+- La carte Sondes conserve toutes les mesures configurées, même présentes dans le
+  bandeau, et utilise des barres horizontales. La pression garde son unité réelle ;
+  une pression mesurée à zéro est une valeur valide. Une carte sans sonde configurée
+  est masquée.
+- Disposition de référence : filtration et résumé du traitement sur la première
+  ligne, puis Mode/Équipements/Alarmes à gauche et Sondes à droite. Le rail compact
+  conserve la navigation. Sur mobile, les cartes sont empilées.
+- Le sélecteur Auto/Manuel/Hiver réutilise les actions runtime existantes. Les refus
+  arrêtent la séquence et sont affichés. Le détail des alarmes reste consultable et
+  les protections indisponibles ne sont pas déclarées normales.
 - Frise sur 24 heures avec début, fin, durée et repère horaire du navigateur,
   cohérent avec l'horloge d'en-tête existante. Une plage passant minuit est dessinée
   en deux segments. Des bornes identiques représentent une journée complète,

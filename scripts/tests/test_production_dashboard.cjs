@@ -34,6 +34,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       {key:'pool.ph',value:'7.2',unit:'',label:'pH'}
     ].map((sensor,slot) => ({slot,runtime_ui_id:manifest.values.find(entry => entry.key === sensor.key).id,
       value:sensor.value,unit:sensor.unit,label:sensor.label,enabled:true}));
+    let alarmSlots = [];
     const configReads = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://flowio.local/**', async route => {
@@ -55,17 +56,21 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
         if (name === '/api/runtime/values') body = {ok:true,values:
           (url.searchParams.get('ids') || '').split(',').map(id => {
             const key = manifest.values.find(entry => entry.id === Number(id))?.key;
-            const modeValues = {'pool.auto_mode':true,'pool.ph_auto_mode':true,'pool.winter_mode':false};
+            const modeValues = {'pool.auto_mode':modules['poollogic/modes'].auto_mode,'pool.ph_auto_mode':true,'pool.winter_mode':modules['poollogic/modes'].winter_mode};
             return {id:Number(id),value:modeValues[key] ?? false,available:true};
           })};
-        if (name === '/api/runtime/dashboard_slots') body = {ok:true,slots:sensorSlots.map(slot => ({...slot,available:sensorsAvailable})),alarm_slots:[]};
+        if (name === '/api/runtime/dashboard_slots') body = {ok:true,slots:sensorSlots.map(slot => ({...slot,available:slot.available ?? sensorsAvailable})),alarm_slots:alarmSlots};
         if (name === '/api/runtime/pooldevice_options') body = {ok:true,options:[
           {value:6,domainSlot:22,name:'Lights',controllable:true,actualOn:lighting,desiredOn:lighting}]};
         if (name === '/api/runtime/action') {
           const fields = Object.fromEntries(new URLSearchParams(request.postData()));
           writes.push({name,fields});
           if (actionFailure) body = {ok:false,err:actionFailure};
-          else lighting = fields.input === 'true';
+          else {
+            const key = manifest.values.find(entry => entry.id === Number(fields.runtime_id))?.key;
+            if (key === 'pool.auto_mode' || key === 'pool.winter_mode') modules['poollogic/modes'][key.slice(5)] = fields.input === 'true';
+            else lighting = fields.input === 'true';
+          }
         }
         if (name === '/api/cfgdoc/index' && docsUnavailable) return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({ok:false})});
         if (name === '/api/cfgdoc/index') body = index;
@@ -102,6 +107,45 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     assert.deepEqual(await page.locator('#dashGauges .dash-gauge-val').allTextContents(),['23.4','7.2','700'],
       'Gauges resolve semantic measurements through manifest IDs, not configured slot order');
     assert.equal(await page.locator('#dashGauges .is-unavailable').count(),0);
+    await page.locator('#dashSondesGrid .status-sonde-slot').first().waitFor();
+    assert.equal(await page.locator('#dashSondesGrid .status-sonde-slot').count(),3,'All configured probes remain in the probes card, including hero measurements');
+    const pressure = {slot:3,runtime_ui_id:manifest.values.find(entry => entry.key === 'pool.psi').id,
+      value:0,unit:'bar',label:'Pression filtre',enabled:true,available:true};
+    sensorSlots.push(pressure);
+    await page.reload();
+    await page.locator('#dashGauges.has-pressure').waitFor();
+    assert.deepEqual(await page.locator('#dashGauges .dash-gauge-val').allTextContents(),['23.4','7.2','700','0'],
+      'A measured zero pressure is valid and keeps its real unit');
+    assert.equal(await page.locator('#dashGauges .dash-gauge-unit').last().innerText(),'bar');
+    assert.equal(await page.locator('#dashSondesGrid .status-sonde-slot').count(),4,'Pressure remains in the probes card as well as the hero');
+    pressure.available = false;
+    await page.reload();
+    await page.locator('.dashboard-sonde-list .status-sonde-slot-title').filter({hasText:'Pression filtre'}).waitFor();
+    assert.equal(await page.locator('#dashGauges .dash-gauge-wrap').count(),3,'Unavailable pressure is not added as a measured gauge');
+    assert.match(await page.locator('.dashboard-sonde-list').innerText(),/--/,'Unavailable pressure remains explicit in probes');
+    pressure.enabled = false;
+    await page.reload();
+    await page.locator('#dashGauges .dash-gauge-val').filter({hasText:'23.4'}).waitFor();
+    assert.equal(await page.locator('#dashSondesGrid .status-sonde-slot').count(),3,'Disabled probes are omitted from the probes card');
+    sensorSlots.forEach(slot => slot.enabled = false);
+    await page.reload();
+    await page.locator('#dashGauges .dash-gauge-wrap').first().waitFor();
+    await page.waitForFunction(() => document.querySelector('#dashSondesGrid').hidden === true);
+    sensorSlots.forEach(slot => slot.enabled = true);
+    pressure.enabled = true; pressure.available = true; pressure.value = '0.85';
+    sensorSlots.push({slot:4,runtime_ui_id:manifest.values.find(entry => entry.key === 'pool.air_temp').id,
+      value:'18.6',unit:'°C',label:'Air',enabled:true});
+    alarmSlots = [{slot:0,alarm_id:1000,label:'Pression basse',enabled:true,available:false}];
+    await page.reload();
+    await page.locator('.dash-alarm-summary.is-unknown').waitFor();
+    assert(await page.locator('.dash-alarm-details').getAttribute('open') !== null,'Unknown protections are expanded, never reported normal');
+    alarmSlots = [];
+    await page.reload();
+    await page.locator('#dashGauges.has-pressure').waitFor();
+    await page.locator('.dashboard-sonde-list .status-sonde-slot-title').filter({hasText:'Air'}).waitFor();
+    assert.deepEqual(await page.locator('.dashboard-sonde-list .status-sonde-slot-title').allTextContents(),['ORP','Eau','pH','Pression filtre','Air'],
+      'The probes card retains all configured measurements, including the hero gauges');
+    assert.equal(await page.locator('.dash-alarm-details').getAttribute('open'),null,'Normal protections use the compact summary');
     assert.match(await page.locator('#dashGauges .dash-gauge').first().getAttribute('style'),/--dash-gauge-deg: (?!0deg)/,
       'Configured ranges produce a partially filled ring');
     const spans = await page.locator('.dash-tl-win').evaluateAll(bars => bars.map(bar => ({left:parseFloat(bar.style.left),width:parseFloat(bar.style.width)})));
@@ -112,6 +156,24 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await page.locator('#dashboardAi > summary').click();
     await page.locator('#dashboardAi > summary').click();
     assert.equal(writes.length,0,'Expanding and collapsing sections sends no command');
+    await page.getByRole('button',{name:'Manuel',exact:true}).click();
+    await page.waitForFunction(() => document.querySelector('#dashModeControl [data-mode="manual"]').getAttribute('aria-pressed') === 'true');
+    await page.getByRole('button',{name:'Hiver',exact:true}).click();
+    await page.waitForFunction(() => document.querySelector('#dashModeControl [data-mode="winter"]').getAttribute('aria-pressed') === 'true');
+    await page.getByRole('button',{name:'Auto',exact:true}).click();
+    await page.waitForFunction(() => document.querySelector('#dashModeControl [data-mode="auto"]').getAttribute('aria-pressed') === 'true');
+    assert.deepEqual(writes.map(write => write.fields.input),['false','true','true','false'],'Strategy selector uses the existing runtime actions');
+    writes.length = 0;
+    actionFailure = {code:'ReadOnly',where:'pool.auto_mode'};
+    await page.getByRole('button',{name:'Manuel',exact:true}).click();
+    await page.locator('#dashModeStatus').filter({hasText:/./}).waitFor();
+    assert.equal(modules['poollogic/modes'].auto_mode,true,'A refused strategy command preserves actual mode');
+    assert.equal(writes.length,1,'A refusal stops the strategy sequence');
+    writes.length = 0; actionFailure = null;
+    await page.getByRole('button',{name:'Auto',exact:true}).click();
+    const surfaces = await page.locator('.dash-overview .dash-panel, .dash-content-grid .status-card, #dashboardAi, #dashboardSettings')
+      .evaluateAll(cards => cards.map(card => getComputedStyle(card).backgroundImage));
+    assert(surfaces.length >= 6 && surfaces.every(surface => surface === surfaces[0] && surface !== 'none'),'All dashboard cards use the shared light background');
     if (process.env.FLOWIO_TEST_SCREENSHOTS) {
       fs.mkdirSync(process.env.FLOWIO_TEST_SCREENSHOTS, {recursive:true});
       await page.evaluate(() => document.fonts.ready);
@@ -123,6 +185,8 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       await page.evaluate(() => document.documentElement.setAttribute('data-theme','dark'));
       await page.waitForFunction(() => document.querySelector('#poolLightingControl button')?.disabled === false);
       await page.locator('.dash-hero').screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'hero-dark.png')});
+      await page.evaluate(() => window.scrollTo(0,0));
+      await page.screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'dashboard-dark.png'),fullPage:true});
       await page.evaluate(() => document.documentElement.setAttribute('data-theme','light'));
       await page.setViewportSize({width:390,height:844});
       await page.waitForTimeout(300);
@@ -130,6 +194,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       await page.screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'dashboard-mobile.png'),fullPage:true});
       await page.setViewportSize({width:1280,height:900});
     }
+    await page.locator('.dash-alarm-details > summary').click();
     await page.locator('#dashboardSettings > summary').click();
     const setpoint = page.locator('[data-module="poollogic/heater"][data-key="heater_setpoint"]');
     await setpoint.waitFor();
@@ -203,6 +268,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await page.waitForFunction(selector => document.querySelector(selector)?.textContent.includes('mesure de pression indisponible'),disinfectionSelector);
     assert((await disinfection.innerText()).includes('ne confirme pas la présence de débit'));
     await page.waitForTimeout(8000);
+    assert(await page.locator('.dash-alarm-details').getAttribute('open') !== null,'Background refresh preserves expanded alarm details');
     assert((await disinfection.innerText()).includes('mesure de pression indisponible'),'Refusal survives the former seven-second expiry and polling');
     writes.shift();
     assert.equal(writes.length,0,'Commands cannot cause unrelated writes');
@@ -225,6 +291,17 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       await page.locator('#dashGauges .dash-gauge-val').filter({hasText:'23.4'}).waitFor();
       const gaugeBounds = await page.locator('#dashGauges').boundingBox();
       assert(gaugeBounds.x >= 0 && gaugeBounds.x + gaugeBounds.width <= width,'Gauges fit the viewport');
+      assert.equal(await page.locator('#dashGauges .dash-gauge-wrap').count(),4);
+      assert.equal(await page.locator('.dash-mode-mobile').isVisible(),width <= 900,'One usable strategy selector is visible on mobile');
+      assert.equal(await page.locator('#dashModeControl').isVisible(),width > 900,'Desktop selector does not crowd the mobile title bar');
+      const modeBounds = await page.locator('#dashModeGrid').boundingBox();
+      const timelineBounds = await page.locator('.dash-overview > .dash-panel').first().boundingBox();
+      const treatmentBounds = await page.locator('#dashTreatment').boundingBox();
+      const probesBounds = await page.locator('#dashSondesGrid').boundingBox();
+      if (width > 900) {
+        assert(treatmentBounds.x >= timelineBounds.x + timelineBounds.width,'Treatment is to the right of filtration as in the reference');
+        assert(probesBounds.x >= modeBounds.x + modeBounds.width,'Probes are to the right of the command column');
+      } else assert(modeBounds.y >= timelineBounds.y + timelineBounds.height,'Cards stack on mobile');
       assert.equal(await page.locator('#dashboardSettings').getAttribute('open'),null,'Settings start collapsed at every width');
       await page.locator('#dashboardSettings > summary').click();
       await setpoint.waitFor();

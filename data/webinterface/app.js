@@ -7673,6 +7673,8 @@
             ? controlMode + ' · ' + poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget)
             : controlMode;
           metrics.appendChild(mode);
+          poolConfigAppendMetric(metrics, tr('pool.metric.waterSafety', 'Sécurité eau'),
+            poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t));
         }
         if (definition.key === 'chlorine') {
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', modules['poollogic/chlorine']?.dis_setpoint));

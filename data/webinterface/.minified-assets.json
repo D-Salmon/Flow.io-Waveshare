@@ -17,11 +17,11 @@
       "gzip_bytes": 17427
     },
     "app.js": {
-      "source_sha256": "5e9cd35ec54e38d9e4fb0d509d0658741e9a88d19f936aea521f0c8afc4f7a8d",
-      "gzip_sha256": "6fe4fb88193fa24194782d6eb392a6f55cb9c064ca9a38c51171ac52b7469ba8",
-      "original_bytes": 535550,
-      "minified_bytes": 329607,
-      "gzip_bytes": 84178
+      "source_sha256": "3eb4e64f0b5ad86537ab1ba7c77a463bd3c834f56d078274f3eb342f91be754e",
+      "gzip_sha256": "4a32c071f7f927acdfcd128732318f8e15f152f6d029a9943e09783860a8fe99",
+      "original_bytes": 535733,
+      "minified_bytes": 329744,
+      "gzip_bytes": 84218
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",

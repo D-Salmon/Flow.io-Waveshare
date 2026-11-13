@@ -7652,9 +7652,8 @@
         const data = modules[definition.module] || {};
         if (definition.key === 'swg') {
           poolConfigAppendMetric(metrics, tr('pool.metric.control', 'Contrôle'), poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode));
-          poolConfigAppendMetric(metrics, tr('pool.metric.waterSafety', 'Sécurité eau'), poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t));
         }
-        if (definition.key === 'swg' || definition.key === 'chlorine') {
+        if (definition.key === 'chlorine') {
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', modules['poollogic/chlorine']?.dis_setpoint));
         } else if (definition.key === 'o2') {
           poolConfigAppendMetric(metrics, tr('pool.metric.weeklyDose', 'Dose hebdo'), poolConfigFormatValue(definition.module, 'dose_ml_10m3_week', data.dose_ml_10m3_week));

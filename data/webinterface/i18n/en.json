@@ -1,6 +1,14 @@
 {
   "locale": "en",
   "translations": {
+    "dashboard.hero.kicker": "Pool status",
+    "dashboard.gauge.water": "Water",
+    "dashboard.gauge.unavailable": "Unavailable",
+    "dashboard.filtration.start": "Start",
+    "dashboard.filtration.stop": "End",
+    "dashboard.filtration.duration": "Planned duration",
+    "dashboard.ai.details": "AI analysis and advice",
+    "dashboard.settings.details": "Pool settings",
     "pool.regulation.minimumDose.label": "Minimum injection duration (s)",
     "pool.regulation.minimumDose.help": "Calculated injections shorter than this duration are ignored.",
     "pool.regulation.interval.label": "Dosing calculation interval (s)",

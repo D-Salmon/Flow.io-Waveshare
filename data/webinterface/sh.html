@@ -97,21 +97,39 @@
         </div>
         <div class="pool-page-shell dashboard-page-shell">
           <div id="dashboardNetworkAddresses" class="network-addresses" aria-live="polite"></div>
-          <section class="pool-hero-panel">
-            <div class="pool-hero-main">
-              <span class="ui-msr pool-hero-icon" aria-hidden="true">pool</span>
-              <div class="pool-hero-copy">
+          <section class="dash-hero">
+              <div class="dash-verdict">
+                <span class="dash-kicker" data-i18n="dashboard.hero.kicker">État du bassin</span>
                 <div id="poolHeroState" class="pool-hero-state is-loading" aria-live="polite" aria-busy="true"></div>
-                <p id="poolConfigSummary" class="is-loading" aria-busy="true"></p>
-                <div class="pool-filtration-daybar" aria-hidden="true">
-                  <span id="poolFiltrationStart" class="pool-daybar-time is-loading">--:--</span>
-                  <span class="pool-daybar-track"><span id="poolFiltrationFill" class="pool-daybar-fill"></span></span>
-                  <span id="poolFiltrationStop" class="pool-daybar-time is-loading">--:--</span>
-                </div>
+                <p id="poolConfigSummary" class="dash-summary is-loading" aria-busy="true"></p>
                 <div id="poolLightingControl" class="pool-lighting-control" aria-live="polite"></div>
               </div>
+              <div id="dashGauges" class="dash-gauges" aria-live="polite"></div>
+          </section>
+          <section class="dash-panel" aria-labelledby="dashFiltrationTitle">
+            <h2 id="dashFiltrationTitle" data-i18n="pool.card.filtration.title">Filtration</h2>
+            <div class="dash-timeline" aria-hidden="true">
+              <div class="dash-tl-axis"></div>
+              <div id="poolFiltrationFill" class="dash-tl-win"></div>
+              <div id="dashFiltrationWrap" class="dash-tl-win"></div>
+              <div id="dashFiltrationNow" class="dash-tl-now" hidden></div>
+              <div class="dash-tl-hours"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
             </div>
-            <div class="pool-hero-side">
+            <dl class="dash-tl-stats">
+              <div><dt data-i18n="dashboard.filtration.start">Début</dt><dd id="poolFiltrationStart" class="is-loading">--:--</dd></div>
+              <div><dt data-i18n="dashboard.filtration.stop">Fin</dt><dd id="poolFiltrationStop" class="is-loading">--:--</dd></div>
+              <div><dt data-i18n="dashboard.filtration.duration">Durée prévue</dt><dd id="dashFiltrationDuration">—</dd></div>
+            </dl>
+          </section>
+          <section class="dashboard-measures-panel" aria-label="Domaines de mesures" data-i18n-aria-label="dashboard.domains.aria">
+            <div id="poolMeasuresDomains" class="measure-domain-tabs" role="tablist" aria-label="Domaines de mesures" data-i18n-aria-label="dashboard.domains.aria"></div>
+            <div class="measure-results-shell">
+              <div id="poolMeasuresGrid" class="status-grid measure-status-grid"></div>
+            </div>
+          </section>
+          <details id="dashboardAi" class="dash-details">
+            <summary data-i18n="dashboard.ai.details">Analyse et conseils IA</summary>
+            <div class="dash-details-body">
               <div class="pool-hero-ai-toolbar">
                 <button id="poolAiRefresh" type="button" class="btn-primary pool-ai-action-btn pool-hero-action" aria-label="Générer l’analyse IA" title="Générer l’analyse IA" data-i18n-aria-label="pool.ai.refresh" data-i18n-title="pool.ai.refresh">
                   <span class="ui-msr btn-msr" aria-hidden="true">auto_awesome</span>
@@ -127,16 +145,6 @@
                 <h3 id="poolAiResultTitle" data-i18n="pool.ai.result">Préconisation et explication</h3>
                 <pre id="poolAiInsightText">—</pre>
               </article>
-            </div>
-          </section>
-          <section class="dashboard-measures-panel" aria-label="Domaines de mesures" data-i18n-aria-label="dashboard.domains.aria">
-            <div id="poolMeasuresDomains" class="measure-domain-tabs" role="tablist" aria-label="Domaines de mesures" data-i18n-aria-label="dashboard.domains.aria"></div>
-            <div class="measure-results-shell">
-              <div id="poolMeasuresGrid" class="status-grid measure-status-grid"></div>
-            </div>
-          </section>
-          <section id="poolDisinfectionModes" class="pool-treatment-panel" aria-live="polite"></section>
-          <section id="poolConfigGrid" class="pool-config-grid" aria-live="polite"></section>
           <details id="poolAiPreview" class="pool-ai-diagnostics pool-ai-diagnostics-bottom">
             <summary>
               <span class="ui-msr pool-ai-diagnostics-icon" aria-hidden="true">expand_more</span>
@@ -152,6 +160,15 @@
                 <h4 data-i18n="pool.ai.prompt">Prompt préparé</h4>
                 <pre id="poolAiPromptText">—</pre>
               </article>
+            </div>
+          </details>
+            </div>
+          </details>
+          <details id="dashboardSettings" class="dash-details">
+            <summary data-i18n="dashboard.settings.details">Réglages de la piscine</summary>
+            <div class="dash-details-body">
+              <section id="poolDisinfectionModes" class="pool-treatment-panel" aria-live="polite"></section>
+              <section id="poolConfigGrid" class="pool-config-grid" aria-live="polite"></section>
             </div>
           </details>
         </div>

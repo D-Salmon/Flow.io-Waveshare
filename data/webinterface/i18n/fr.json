@@ -1,6 +1,14 @@
 {
   "locale": "fr",
   "translations": {
+    "dashboard.hero.kicker": "État du bassin",
+    "dashboard.gauge.water": "Eau",
+    "dashboard.gauge.unavailable": "Indisponible",
+    "dashboard.filtration.start": "Début",
+    "dashboard.filtration.stop": "Fin",
+    "dashboard.filtration.duration": "Durée prévue",
+    "dashboard.ai.details": "Analyse et conseils IA",
+    "dashboard.settings.details": "Réglages de la piscine",
     "pool.regulation.minimumDose.label": "Durée minimale d’injection (s)",
     "pool.regulation.minimumDose.help": "Les injections calculées plus courtes que cette durée sont ignorées.",
     "pool.regulation.interval.label": "Intervalle de calcul de la régulation (s)",

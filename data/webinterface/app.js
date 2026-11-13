@@ -1250,6 +1250,12 @@
     }
 
     function refreshAppHeaderClock() {
+      const timelineNow = document.getElementById('dashFiltrationNow');
+      if (timelineNow) {
+        const now = new Date();
+        timelineNow.hidden = false;
+        timelineNow.style.left = ((now.getHours() * 60 + now.getMinutes()) / 1440 * 100) + '%';
+      }
       if (headerClockLabel) {
         const baseLabel = tr('header.time', 'Heure');
         headerClockLabel.textContent = currentFlowTimeSourceLabel
@@ -2011,6 +2017,9 @@
     const poolFiltrationStart = document.getElementById('poolFiltrationStart');
     const poolFiltrationStop = document.getElementById('poolFiltrationStop');
     const poolFiltrationFill = document.getElementById('poolFiltrationFill');
+    const dashGauges = document.getElementById('dashGauges');
+    const dashFiltrationWrap = document.getElementById('dashFiltrationWrap');
+    const dashFiltrationDuration = document.getElementById('dashFiltrationDuration');
     const poolDisinfectionModes = document.getElementById('poolDisinfectionModes');
     const poolConfigGrid = document.getElementById('poolConfigGrid');
     const poolAiRefreshBtn = document.getElementById('poolAiRefresh');
@@ -4689,8 +4698,10 @@
         if (Number.isFinite(id)) entriesById.set(id, entry);
       });
       return (slots || []).map((slot) => {
-        const range = poolSondeRangeFromEntry(entriesById.get(Number(slot && slot.runtimeUiId)));
-        return range ? Object.assign({}, slot, { rangeMin: range.min, rangeMax: range.max }) : slot;
+        const entry = entriesById.get(Number(slot && slot.runtimeUiId));
+        const range = poolSondeRangeFromEntry(entry);
+        return Object.assign({}, slot, { key: entry && entry.key || '' },
+          range ? { rangeMin: range.min, rangeMax: range.max } : {});
       });
     }
 
@@ -6919,6 +6930,7 @@
 
     function renderPoolMeasuresGrid() {
       refreshPoolLightingControl();
+      renderDashboardGauges();
       if (!poolMeasuresGrid) return;
       const fragment = document.createDocumentFragment();
 
@@ -7519,8 +7531,89 @@
         poolFiltrationStop.classList.remove('is-loading');
         poolFiltrationStop.textContent = stop;
       }
-      if (poolFiltrationFill) {
-        poolFiltrationFill.style.width = poolConfigDayProgress(startValue, stopValue).toFixed(1) + '%';
+      renderDashboardFiltrationTimeline(startValue, stopValue);
+    }
+
+    // Keep the named vital measurements in place even when a sensor is unavailable.
+    // The ring represents its configured display range, not a water-quality verdict.
+    function renderDashboardGauges() {
+      if (!dashGauges) return;
+      const state = poolMeasureDomainState.sondes;
+      const slots = state.sondeSlots || [];
+      const definitions = [
+        { key: 'pool.water_temp', label: tr('dashboard.gauge.water', 'Eau'), accent: '#46d3ee' },
+        { key: 'pool.ph', label: 'pH', accent: '#4fd1a5' },
+        { key: 'pool.orp', label: 'ORP', accent: '#ffb057' }
+      ];
+      const fragment = document.createDocumentFragment();
+      definitions.forEach((definition) => {
+        const slot = slots.find((item) => item && item.key === definition.key);
+        const available = !!(slot && slot.enabled !== false && slot.available);
+        const display = available ? splitPoolSondeValue(slot) : { value: '—', unit: '' };
+        const numeric = Number(String(display.value).replace(',', '.'));
+        const minimum = slot && slot.rangeMin;
+        const maximum = slot && slot.rangeMax;
+        const hasRange = available && Number.isFinite(numeric) && Number.isFinite(minimum)
+          && Number.isFinite(maximum) && maximum > minimum;
+        const ratio = hasRange ? Math.max(0, Math.min(1, (numeric - minimum) / (maximum - minimum))) : 0;
+        const degrees = Math.round(ratio * 270);
+        const wrap = document.createElement('div');
+        wrap.className = 'dash-gauge-wrap' + (available ? '' : ' is-unavailable');
+        const label = slot && slot.label || definition.label;
+        wrap.setAttribute('role', 'group');
+        wrap.setAttribute('aria-label', label + ' : ' + (available ? display.value + ' ' + display.unit : tr('dashboard.gauge.unavailable', 'Indisponible')));
+        const ring = document.createElement('div');
+        ring.className = 'dash-gauge';
+        ring.setAttribute('aria-hidden', 'true');
+        ring.style.setProperty('--dash-gauge-accent', definition.accent);
+        ring.style.setProperty('--dash-gauge-deg', degrees + 'deg');
+        if (hasRange) ring.title = tr('dashboard.sonde.range', 'plage') + ' ' + minimum + '–' + maximum + ' ' + display.unit;
+        const inner = document.createElement('span');
+        inner.className = 'dash-gauge-in';
+        const value = document.createElement('span');
+        value.className = 'dash-gauge-val';
+        value.textContent = display.value;
+        const unit = document.createElement('span');
+        unit.className = 'dash-gauge-unit';
+        unit.textContent = display.unit;
+        inner.append(value, unit);
+        ring.appendChild(inner);
+        const name = document.createElement('span');
+        name.className = 'dash-gauge-name';
+        name.textContent = label;
+        const status = document.createElement('span');
+        status.className = 'dash-gauge-status';
+        status.textContent = available ? '' : tr('dashboard.gauge.unavailable', 'Indisponible');
+        wrap.append(ring, name, status);
+        fragment.appendChild(wrap);
+      });
+      dashGauges.replaceChildren(fragment);
+    }
+
+    function dashboardFiltrationWindow(startValue, stopValue) {
+      const valid = (value) => value !== null && value !== undefined && String(value).trim() !== ''
+        && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 24;
+      if (!valid(startValue) || !valid(stopValue)) return { minutes: null, spans: [] };
+      const start = Math.round(Number(startValue) * 60) % 1440;
+      const stop = Math.round(Number(stopValue) * 60) % 1440;
+      const minutes = (stop - start + 1440) % 1440 || 1440;
+      const first = Math.min(minutes, 1440 - start);
+      const spans = [{ start: start, minutes: first }];
+      if (minutes > first) spans.push({ start: 0, minutes: minutes - first });
+      return { minutes: minutes, spans: spans };
+    }
+
+    function renderDashboardFiltrationTimeline(startValue, stopValue) {
+      const window = dashboardFiltrationWindow(startValue, stopValue);
+      [poolFiltrationFill, dashFiltrationWrap].forEach((bar, index) => {
+        if (!bar) return;
+        const span = window.spans[index];
+        bar.style.left = (span ? span.start / 1440 * 100 : 0) + '%';
+        bar.style.width = (span ? span.minutes / 1440 * 100 : 0) + '%';
+      });
+      if (dashFiltrationDuration) {
+        dashFiltrationDuration.textContent = window.minutes === null ? '—'
+          : Math.floor(window.minutes / 60) + ' h' + (window.minutes % 60 ? ' ' + String(window.minutes % 60).padStart(2, '0') : '');
       }
     }
 
@@ -8030,7 +8123,7 @@
         poolFiltrationStop.textContent = '--:--';
         poolFiltrationStop.classList.add('is-loading');
       }
-      if (poolFiltrationFill) poolFiltrationFill.style.width = '0';
+      renderDashboardFiltrationTimeline(null, null);
       if (poolDisinfectionModes) {
         poolDisinfectionModes.hidden = false;
         poolDisinfectionModes.innerHTML = '';
@@ -8081,6 +8174,7 @@
         node.classList.remove('is-loading');
         node.textContent = '--:--';
       });
+      renderDashboardFiltrationTimeline(null, null);
       if (poolDisinfectionModes) {
         poolDisinfectionModes.innerHTML = '';
         poolDisinfectionModes.hidden = true;

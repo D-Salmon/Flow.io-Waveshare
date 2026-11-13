@@ -10,18 +10,18 @@
       "gzip_bytes": 691
     },
     "sh.html": {
-      "source_sha256": "a8dd451db8e24b394138a3d39c0b5f795039ff4563746e343e957cb81abc533f",
-      "gzip_sha256": "d483d64492f07d3e15ac6c1ac4904bc0c964632c4296dcf5203fd1fb4f23fe40",
-      "original_bytes": 56573,
-      "minified_bytes": 46593,
-      "gzip_bytes": 9542
+      "source_sha256": "646c120d6cc54d5622631e0b2460501f1df17acbf7377c938a23a1dba976e048",
+      "gzip_sha256": "4a286f0982170fd53da25ca30934bcd3ea7b09088b5b18605c3857148932b082",
+      "original_bytes": 57758,
+      "minified_bytes": 47584,
+      "gzip_bytes": 9789
     },
     "app.js": {
-      "source_sha256": "00e6019407a505af3996ad197bd32de7352da63eda0bd405906863019a4759bd",
-      "gzip_sha256": "38245cc574e09e5b4ef6ba3a04692bce36a58e4b843b1ad53a85ccc63f21a3f6",
-      "original_bytes": 532758,
-      "minified_bytes": 320239,
-      "gzip_bytes": 81658
+      "source_sha256": "839c586615f31c0d2be7b085a715440428aeeb6327c1061ab9c590cd2fa09841",
+      "gzip_sha256": "11d6a40399dcc2966ee81daaf355cf6c55a080fdfc0b946483b5d2eb9c820f57",
+      "original_bytes": 525908,
+      "minified_bytes": 323321,
+      "gzip_bytes": 82589
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -66,25 +66,25 @@
       "gzip_bytes": 9438
     },
     "i18n/fr.json": {
-      "source_sha256": "20aacab02994188f835f3d4e9c9b260f8195f72584750de813dbd64017c93017",
-      "gzip_sha256": "5a5692e5c98948a0a92ba1494a3eda6e2b13d500186624930d22ef093342c71d",
-      "original_bytes": 42414,
-      "minified_bytes": 37363,
-      "gzip_bytes": 10868
+      "source_sha256": "6649f71d1ed20fbc40b56cbee48d43381daf8628074d02ef759c2f03681088a5",
+      "gzip_sha256": "0041b6dd5f074ba376c78646f3bdd08198564b6bb0bc8e8558c8c4263ba45fa4",
+      "original_bytes": 42079,
+      "minified_bytes": 37704,
+      "gzip_bytes": 10954
     },
     "i18n/en.json": {
-      "source_sha256": "157838a5f2af04029a8a3dfd96cccffa3a9b5d97eec87c75a96cbfeef3dfb213",
-      "gzip_sha256": "7d5fe318cc0cddee1e4ab195709c9cda72c8a35838e4f2930e22ed251fa021c1",
-      "original_bytes": 37114,
-      "minified_bytes": 32427,
-      "gzip_bytes": 9252
+      "source_sha256": "3c1c63a6e559f3d6d76d37cc9275253907f28f941536934cbe02f07e938197a5",
+      "gzip_sha256": "b3c1b883901ca1599a02679ea46ee60ea6b0881a405e85d3044a37277e2f6f44",
+      "original_bytes": 36819,
+      "minified_bytes": 32756,
+      "gzip_bytes": 9347
     },
     "app-core.css": {
-      "source_sha256": "fd973862170982f4bae1ec93d572da525ed5f194b7805d75b3d7e687e2e818f2",
-      "gzip_sha256": "fb41e537e38f1809151e32c67cb674a34882a2dc1f310c8aaf0ffd40b6cda323",
-      "original_bytes": 164832,
-      "minified_bytes": 159392,
-      "gzip_bytes": 28547
+      "source_sha256": "c20a098dde49be5a7ddea557dace3c7028a91a092a10b84f3820f4ce4ea72659",
+      "gzip_sha256": "01ed81edab9d3a4003cc7bf8397b069bbf21d6ae9c984ba8c9104b00a8265fe2",
+      "original_bytes": 169626,
+      "minified_bytes": 163870,
+      "gzip_bytes": 29537
     },
     "network.css": {
       "source_sha256": "5598a20326b38fb10e8d3b38d50a971982d36a2446abb62f88bc67937880f16a",

@@ -17,16 +17,23 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const page = await browser.newPage();
     const errors = [], writes = [], shippedAssets = new Set();
     const modules = {
-      'poollogic/modes': {auto_mode:true, ph_auto_mode:true, orp_auto_mode:true, disinfection_type:1, winter_mode:false},
+      'poollogic/modes': {enabled:true, auto_mode:true, ph_auto_mode:true, orp_auto_mode:true, disinfection_type:1, winter_mode:false},
       'poollogic/heater': {heater_auto_mode:true, heater_setpoint:28.5},
       'poollogic/swg': {swg_control_mode:0, dly_electro_min:2, secure_elec_t:15},
       'poollogic/chlorine': {dis_setpoint:700, dis_auto_mode:true},
       'poollogic/regulation': {enabled:true, dly_pid_min:2, pid_min_on_ms:1000, pid_sample_ms:10000},
       'poollogic/safety': {winter_start_t:-2, freeze_hold_t:2, sensor_hold_wat:false},
       'poollogic/sensors': {},
+      'poollogic/filtration': {filtr_start_minute:1320, filtr_stop_minute:120},
       'io/drivers/expander00': {enabled:true, address:32, secondary_address:0, mask_default:0}
     };
-    let lighting = false, actionFailure = null, role = 'admin', docsUnavailable = false;
+    let lighting = false, actionFailure = null, role = 'admin', docsUnavailable = false, sensorsAvailable = false;
+    const sensorSlots = [
+      {key:'pool.orp',value:'700',unit:'mV',label:'ORP'},
+      {key:'pool.water_temp',value:'23.4',unit:'°C',label:'Eau'},
+      {key:'pool.ph',value:'7.2',unit:'',label:'pH'}
+    ].map((sensor,slot) => ({slot,runtime_ui_id:manifest.values.find(entry => entry.key === sensor.key).id,
+      value:sensor.value,unit:sensor.unit,label:sensor.label,enabled:true}));
     const configReads = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://flowio.local/**', async route => {
@@ -46,8 +53,12 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
         }
         if (name === '/api/runtime/manifest') body = manifest;
         if (name === '/api/runtime/values') body = {ok:true,values:
-          (url.searchParams.get('ids') || '').split(',').map(id => ({id:Number(id),value:false,available:true}))};
-        if (name === '/api/runtime/dashboard_slots') body = {ok:true,slots:[],alarm_slots:[]};
+          (url.searchParams.get('ids') || '').split(',').map(id => {
+            const key = manifest.values.find(entry => entry.id === Number(id))?.key;
+            const modeValues = {'pool.auto_mode':true,'pool.ph_auto_mode':true,'pool.winter_mode':false};
+            return {id:Number(id),value:modeValues[key] ?? false,available:true};
+          })};
+        if (name === '/api/runtime/dashboard_slots') body = {ok:true,slots:sensorSlots.map(slot => ({...slot,available:sensorsAvailable})),alarm_slots:[]};
         if (name === '/api/runtime/pooldevice_options') body = {ok:true,options:[
           {value:6,domainSlot:22,name:'Lights',controllable:true,actualOn:lighting,desiredOn:lighting}]};
         if (name === '/api/runtime/action') {
@@ -79,11 +90,49 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
         headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws: wss:"}});
     });
     await page.goto('http://flowio.local/webinterface?full=1&page=page-dashboard');
+    await page.locator('#poolFiltrationStart').filter({hasText:'22:00'}).waitFor();
+    assert.equal(await page.locator('#dashFiltrationDuration').innerText(), '4 h');
+    assert.equal(await page.locator('#dashGauges .dash-gauge-wrap').count(), 3);
+    assert.equal(await page.locator('#dashGauges .is-unavailable').count(), 3, 'Missing sensors remain explicit');
+    assert.equal(await page.locator('#dashboardAi').getAttribute('open'), null);
+    assert.equal(await page.locator('#dashboardSettings').getAttribute('open'), null);
+    sensorsAvailable = true;
+    await page.reload();
+    await page.locator('#dashGauges .dash-gauge-val').filter({hasText:'23.4'}).waitFor();
+    assert.deepEqual(await page.locator('#dashGauges .dash-gauge-val').allTextContents(),['23.4','7.2','700'],
+      'Gauges resolve semantic measurements through manifest IDs, not configured slot order');
+    assert.equal(await page.locator('#dashGauges .is-unavailable').count(),0);
+    assert.match(await page.locator('#dashGauges .dash-gauge').first().getAttribute('style'),/--dash-gauge-deg: (?!0deg)/,
+      'Configured ranges produce a partially filled ring');
+    const spans = await page.locator('.dash-tl-win').evaluateAll(bars => bars.map(bar => ({left:parseFloat(bar.style.left),width:parseFloat(bar.style.width)})));
+    assert(Math.abs(spans[0].left - 1320/1440*100) < 0.001);
+    assert(Math.abs(spans[0].width - 120/1440*100) < 0.001);
+    assert.equal(spans[1].left,0);
+    assert(Math.abs(spans[1].width - 120/1440*100) < 0.001);
+    await page.locator('#dashboardAi > summary').click();
+    await page.locator('#dashboardAi > summary').click();
+    assert.equal(writes.length,0,'Expanding and collapsing sections sends no command');
+    if (process.env.FLOWIO_TEST_SCREENSHOTS) {
+      fs.mkdirSync(process.env.FLOWIO_TEST_SCREENSHOTS, {recursive:true});
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(300); // Let the initial drawer transition finish before visual QA.
+      await page.evaluate(() => window.scrollTo(0,0));
+      await page.screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'dashboard-desktop.png'),fullPage:true});
+      await page.setViewportSize({width:390,height:844});
+      await page.waitForTimeout(300);
+      await page.evaluate(() => window.scrollTo(0,0));
+      await page.screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'dashboard-mobile.png'),fullPage:true});
+      await page.setViewportSize({width:1280,height:900});
+    }
+    await page.locator('#dashboardSettings > summary').click();
     const setpoint = page.locator('[data-module="poollogic/heater"][data-key="heater_setpoint"]');
     await setpoint.waitFor();
     assert.equal(await setpoint.inputValue(),'28.5');
     await setpoint.fill('29');
     await setpoint.blur();
+    await page.locator('#dashboardSettings > summary').click();
+    await page.locator('#dashboardSettings > summary').click();
+    assert.equal(await setpoint.inputValue(),'29','Collapsing settings preserves unsaved edits');
     assert.equal(writes.length,0,'Editing and blur cannot save configuration');
     const apply = setpoint.locator('..').locator('button');
     await apply.click();
@@ -157,6 +206,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     assert(configReads.some(name => name.startsWith('io/output/')),'Admin loads assignment configuration');
     role = 'operator';
     docsUnavailable = true; await page.reload();
+    await page.locator('#dashboardSettings > summary').click();
     await page.locator('#poolConfigGrid .pool-config-error-card').waitFor();
     assert.equal(await page.locator('#poolConfigGrid .control-row input, #poolConfigGrid .control-row select').count(),0,'No undocumented editable settings after a documentation failure');
     docsUnavailable = false;
@@ -166,6 +216,11 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       configReads.length = 0;
       await page.setViewportSize({width,height:900});
       await page.reload();
+      await page.locator('#dashGauges .dash-gauge-val').filter({hasText:'23.4'}).waitFor();
+      const gaugeBounds = await page.locator('#dashGauges').boundingBox();
+      assert(gaugeBounds.x >= 0 && gaugeBounds.x + gaugeBounds.width <= width,'Gauges fit the viewport');
+      assert.equal(await page.locator('#dashboardSettings').getAttribute('open'),null,'Settings start collapsed at every width');
+      await page.locator('#dashboardSettings > summary').click();
       await setpoint.waitFor();
       assert.match(await setpoint.locator('..').locator('..').innerText(), /Consigne chauffage/);
       assert(await setpoint.isEnabled(),'An operator can edit the heating setpoint');

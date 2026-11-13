@@ -2026,6 +2026,7 @@
     const dashGauges = document.getElementById('dashGauges');
     const dashFiltrationWrap = document.getElementById('dashFiltrationWrap');
     const dashFiltrationDuration = document.getElementById('dashFiltrationDuration');
+    const dashFiltrationRule = document.getElementById('dashFiltrationRule');
     const poolDisinfectionModes = document.getElementById('poolDisinfectionModes');
     const poolConfigGrid = document.getElementById('poolConfigGrid');
     const poolAiRefreshBtn = document.getElementById('poolAiRefresh');
@@ -7749,6 +7750,23 @@
         fragment.appendChild(wrap);
       });
       dashGauges.replaceChildren(fragment);
+      renderDashboardFiltrationRule();
+    }
+
+    function renderDashboardFiltrationRule() {
+      if (!dashFiltrationRule) return;
+      const water = (poolMeasureDomainState.sondes.sondeSlots || []).find(slot => slot && slot.key === 'pool.water_temp');
+      const display = splitPoolSondeValue(water);
+      const temperature = Number(String(display.value).replace(',', '.'));
+      if (!water || !water.available || !Number.isFinite(temperature)) {
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.unavailable', 'Règle de démarrage indisponible : température d’eau non mesurée.');
+      } else if (temperature <= 20) {
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.offpeak', 'Eau ≤ 20 °C : démarrage à 22 h.');
+      } else if (temperature < 30) {
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.solar', 'Eau > 20 °C et < 30 °C : plage centrée sur 15 h.');
+      } else {
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.continuous', 'Eau ≥ 30 °C : filtration continue.');
+      }
     }
 
     function dashboardFiltrationWindow(startValue, stopValue) {

@@ -174,6 +174,26 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     const surfaces = await page.locator('.dash-overview .dash-panel, .dash-content-grid .status-card, #dashboardAi, #dashboardSettings')
       .evaluateAll(cards => cards.map(card => getComputedStyle(card).backgroundImage));
     assert(surfaces.length >= 6 && surfaces.every(surface => surface === surfaces[0] && surface !== 'none'),'All dashboard cards use the shared light background');
+    assert.equal(await page.locator('#dashFiltrationHead > svg').count(), 1, 'Filtration uses its waves icon');
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate(theme => document.documentElement.setAttribute('data-theme', theme), theme);
+      const styles = await page.evaluate(() => {
+        const read = selector => {
+          const style = getComputedStyle(document.querySelector(selector));
+          return {size:style.fontSize, color:style.color, weight:style.fontWeight};
+        };
+        return {rule:read('#dashFiltrationRule'), time:read('#poolFiltrationStart'),
+          mode:read('.dash-treatment-mode'), safety:read('.dash-treatment-safety')};
+      });
+      assert.deepEqual(styles.rule, styles.time, 'Filtration message matches time typography in ' + theme);
+      assert.deepEqual(styles.safety, styles.mode, 'Safety matches treatment typography in ' + theme);
+      assert(!await page.locator('.dash-tl-rule dt').isVisible() ||
+        await page.locator('.dash-tl-rule dt').evaluate(node => node.classList.contains('visually-hidden')));
+      if (process.env.FLOWIO_TEST_SCREENSHOTS) {
+        fs.mkdirSync(process.env.FLOWIO_TEST_SCREENSHOTS, {recursive:true});
+        await page.locator('.dash-overview').screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'cards-' + theme + '.png')});
+      }
+    }
     if (process.env.FLOWIO_TEST_SCREENSHOTS) {
       fs.mkdirSync(process.env.FLOWIO_TEST_SCREENSHOTS, {recursive:true});
       await page.evaluate(() => document.fonts.ready);

@@ -119,8 +119,12 @@
           </section>
           <div class="dash-overview">
           <section class="dash-panel" aria-labelledby="dashFiltrationTitle">
-            <h2 id="dashFiltrationTitle" data-i18n="pool.card.filtration.title">Filtration</h2>
-            <p class="dash-panel-note" data-i18n="pool.card.filtration.note">La plage de filtration combine contraintes horaires et température d’eau pour protéger le bassin.</p>
+            <div id="dashFiltrationHead" class="dash-treatment-head">
+              <div>
+                <h2 id="dashFiltrationTitle" data-i18n="pool.card.filtration.title">Filtration</h2>
+                <p class="dash-panel-note" data-i18n="pool.card.filtration.note">La plage de filtration combine contraintes horaires et température d’eau pour protéger le bassin.</p>
+              </div>
+            </div>
             <div class="dash-timeline" aria-hidden="true">
               <div class="dash-tl-axis"></div>
               <div id="poolFiltrationFill" class="dash-tl-win"></div>
@@ -132,7 +136,7 @@
               <div><dt data-i18n="dashboard.filtration.start">Début</dt><dd id="poolFiltrationStart" class="is-loading">--:--</dd></div>
               <div><dt data-i18n="dashboard.filtration.stop">Fin</dt><dd id="poolFiltrationStop" class="is-loading">--:--</dd></div>
               <div><dt data-i18n="dashboard.filtration.duration">Durée prévue</dt><dd id="dashFiltrationDuration">—</dd></div>
-              <div class="dash-tl-rule"><dt data-i18n="dashboard.filtration.rule.label">Règle</dt><dd id="dashFiltrationRule"></dd></div>
+              <div class="dash-tl-rule"><dt class="visually-hidden" data-i18n="dashboard.filtration.rule.label">Règle</dt><dd id="dashFiltrationRule"></dd></div>
             </dl>
           </section>
           <section id="dashTreatment" class="dash-panel dash-treatment" aria-live="polite"></section>

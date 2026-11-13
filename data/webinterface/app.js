@@ -7758,11 +7758,13 @@
 
     function renderDashboardFiltrationRule() {
       if (!dashFiltrationRule) return;
+      const heading = document.getElementById('dashFiltrationHead');
+      if (heading && !heading.querySelector('svg')) heading.prepend(buildRuntimeActionIcon('waves'));
       const water = (poolMeasureDomainState.sondes.sondeSlots || []).find(slot => slot && slot.key === 'pool.water_temp');
       const display = splitPoolSondeValue(water);
       const temperature = Number(String(display.value).replace(',', '.'));
       if (!water || !water.available || !Number.isFinite(temperature)) {
-        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.unavailable', 'Règle de démarrage indisponible : température d’eau non mesurée.');
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.unavailable', 'Température d’eau non mesurée : démarrage à 22 h.');
       } else if (temperature <= 20) {
         dashFiltrationRule.textContent = tr('dashboard.filtration.rule.offpeak', 'Eau ≤ 20 °C : démarrage à 22 h.');
       } else if (temperature < 30) {

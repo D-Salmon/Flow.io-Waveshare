@@ -7674,8 +7674,11 @@
             ? controlMode + ' · ' + poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget)
             : controlMode;
           metrics.appendChild(mode);
-          poolConfigAppendMetric(metrics, tr('pool.metric.waterSafety', 'Sécurité eau'),
-            poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t));
+          const safety = document.createElement('p');
+          safety.className = 'dash-treatment-safety';
+          safety.textContent = tr('pool.metric.waterSafety', 'Sécurité eau') + ' · '
+            + poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t);
+          metrics.appendChild(safety);
         }
         if (definition.key === 'chlorine') {
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', modules['poollogic/chlorine']?.dis_setpoint));

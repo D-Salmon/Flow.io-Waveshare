@@ -16,6 +16,7 @@
     "dashboard.filtration.start": "Start",
     "dashboard.filtration.stop": "End",
     "dashboard.filtration.duration": "Planned duration",
+    "dashboard.filtration.rule.label": "Rule",
     "dashboard.filtration.rule.unavailable": "Start rule unavailable: water temperature is not measured.",
     "dashboard.filtration.rule.offpeak": "Water ≤ 20 °C: starts at 10 pm.",
     "dashboard.filtration.rule.solar": "Water > 20 °C and < 30 °C: window centered on 3 pm.",

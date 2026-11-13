@@ -16,6 +16,7 @@
     "dashboard.filtration.start": "Début",
     "dashboard.filtration.stop": "Fin",
     "dashboard.filtration.duration": "Durée prévue",
+    "dashboard.filtration.rule.label": "Règle",
     "dashboard.filtration.rule.unavailable": "Règle de démarrage indisponible : température d’eau non mesurée.",
     "dashboard.filtration.rule.offpeak": "Eau ≤ 20 °C : démarrage à 22 h.",
     "dashboard.filtration.rule.solar": "Eau > 20 °C et < 30 °C : plage centrée sur 15 h.",

@@ -7764,9 +7764,9 @@
       const display = splitPoolSondeValue(water);
       const temperature = Number(String(display.value).replace(',', '.'));
       if (!water || !water.available || !Number.isFinite(temperature)) {
-        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.unavailable', 'Température d’eau non mesurée : démarrage à 22 h.');
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.unavailable', 'Température d’eau non mesurée : démarrage à 22 h');
       } else if (temperature <= 20) {
-        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.offpeak', 'Eau ≤ 20 °C : démarrage à 22 h.');
+        dashFiltrationRule.textContent = tr('dashboard.filtration.rule.offpeak', 'Eau ≤ 20 °C : démarrage à 22 h');
       } else if (temperature < 30) {
         dashFiltrationRule.textContent = tr('dashboard.filtration.rule.solar', 'Eau > 20 °C et < 30 °C : plage centrée sur 15 h.');
       } else {

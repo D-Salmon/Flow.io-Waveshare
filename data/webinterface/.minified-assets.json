@@ -17,11 +17,11 @@
       "gzip_bytes": 17483
     },
     "app.js": {
-      "source_sha256": "232ff673555ecf12c27cbb521b0e9bba4b5e92157e9707949749e7b4363a910c",
-      "gzip_sha256": "931430e58cae770c6a853d2aa3965cd879b4b68f230da7a39fd4d4735fed24ea",
-      "original_bytes": 549501,
-      "minified_bytes": 330859,
-      "gzip_bytes": 84500
+      "source_sha256": "4510f79971b85d98f44e26749ae8eb7258d5f883e8d5f88e64251a921c5f9649",
+      "gzip_sha256": "92a5aa17ae70075d68dff6a38c8cee43da4e8db2eff3d91ad8ecedf570185c31",
+      "original_bytes": 549499,
+      "minified_bytes": 330857,
+      "gzip_bytes": 84502
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -66,22 +66,22 @@
       "gzip_bytes": 9438
     },
     "i18n/fr.json": {
-      "source_sha256": "fc849eea9278bf170b3921652cbce910cdb5021bf44d1a704f52df2bdde85f78",
-      "gzip_sha256": "c94b552ed3a54d86feaef4ef2945ff9bc64ef5f647d78f734bc69624e0300892",
-      "original_bytes": 43748,
-      "minified_bytes": 38536,
-      "gzip_bytes": 11163
+      "source_sha256": "46a19267cd7dc0260d6695cb50042a763602e072adc65498a0918069cce0b698",
+      "gzip_sha256": "a385d532f0d9a2f51bb44a6d836ec2d24c413815dab3ddbfd13c7980095f42fe",
+      "original_bytes": 43746,
+      "minified_bytes": 38534,
+      "gzip_bytes": 11162
     },
     "i18n/en.json": {
-      "source_sha256": "b9eebbf1ed40fde7f038348264babbe59a02750f9fe36a247958be774aaa0865",
-      "gzip_sha256": "7e5a5cbfa9a2c4f5b3c181413f822ee4b688d439a06430c03261fac5ebf6ad2b",
-      "original_bytes": 38416,
-      "minified_bytes": 33568,
+      "source_sha256": "d6bf710ba520d7b6c94d4d7822c69a9dca497bbc5454f4daffb4610b5fac05ed",
+      "gzip_sha256": "28465e94fc246c5da7ca16d7309cb702496e61405c3634949bc3b3a5982317ec",
+      "original_bytes": 38415,
+      "minified_bytes": 33567,
       "gzip_bytes": 9544
     },
     "app-core.css": {
-      "source_sha256": "bae3d5b5a76caf95e44575d4997289b48debb25449749952c7bc92e038ece7ef",
-      "gzip_sha256": "845919b000be6aedc9331998fe3a472a6bc75f6c1a46126f9749f84872ffda73",
+      "source_sha256": "ad11315d633653e4ae3a23a5d0077f3b34ac877b0dfce14a418ff75eb7f1e111",
+      "gzip_sha256": "e9920b21092b92c771f24454bc66e5586197f8a04ad880dd0a9ca165e2cabb73",
       "original_bytes": 182145,
       "minified_bytes": 174231,
       "gzip_bytes": 31383

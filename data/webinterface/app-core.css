@@ -1594,7 +1594,7 @@ body.web-icons-disabled .control-field-apply{font-size:16.8px;font-weight:800;le
 .dash-treatment-head p{margin:5px 0 0;font-size:12px;line-height:1.5;color:var(--text-muted);}
 .dash-treatment-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px;}
 .dash-treatment-metrics:empty{display:none;}
-.dash-treatment-mode,.dash-treatment-safety{grid-column:1/-1;margin:0;color:var(--text);font-size:14px;font-weight:750;line-height:1.25;}
+.dash-treatment-mode,.dash-treatment-safety{grid-column:1/-1;margin:0;color:var(--text);font-size:18px;font-weight:750;line-height:1.25;}
 .dash-gauge-name{text-transform:uppercase;letter-spacing:.5px;font-size:12px;}
 .dash-mode-control{display:inline-flex;gap:3px;padding:4px;border:1px solid var(--border);border-radius:13px;background:var(--surface);}
 .dash-mode-control button{padding:10px 14px;border:0;border-radius:9px;background:transparent;color:var(--primary);font-size:12px;font-weight:750;}

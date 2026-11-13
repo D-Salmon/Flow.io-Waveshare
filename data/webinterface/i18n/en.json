@@ -17,7 +17,7 @@
     "dashboard.filtration.stop": "End",
     "dashboard.filtration.duration": "Planned duration",
     "dashboard.filtration.rule.label": "Rule",
-    "dashboard.filtration.rule.unavailable": "Water temperature not measured: starts at 22:00.",
+    "dashboard.filtration.rule.unavailable": "Water temperature not measured: starts at 22:00",
     "dashboard.filtration.rule.offpeak": "Water ≤ 20 °C: starts at 10 pm.",
     "dashboard.filtration.rule.solar": "Water > 20 °C and < 30 °C: window centered on 3 pm.",
     "dashboard.filtration.rule.continuous": "Water ≥ 30 °C: continuous filtration.",

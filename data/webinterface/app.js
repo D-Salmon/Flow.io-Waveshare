@@ -7655,9 +7655,11 @@
         if (definition.key === 'swg') {
           const mode = document.createElement('p');
           mode.className = 'dash-treatment-mode';
-          mode.textContent = Number(data.swg_control_mode) === 0
-            ? tr('dashboard.treatment.orpTracking', 'Suivi consigne')
-            : poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode);
+          const controlMode = poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode);
+          const orpTarget = modules['poollogic/chlorine']?.dis_setpoint;
+          mode.textContent = Number(data.swg_control_mode) === 0 && orpTarget !== undefined && orpTarget !== null && orpTarget !== ''
+            ? controlMode + ' · ' + poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget)
+            : controlMode;
           metrics.appendChild(mode);
         }
         if (definition.key === 'chlorine') {

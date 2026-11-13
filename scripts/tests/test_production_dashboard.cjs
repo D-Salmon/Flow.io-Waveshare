@@ -124,6 +124,10 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     assert.equal(await page.locator('#dashGauges .dash-gauge-wrap').count(),4,'Configured pressure remains visible while unavailable');
     assert.equal(await page.locator('#dashGauges .is-unavailable').count(),1,'Missing pressure is explicit, not a zero reading');
     assert.match(await page.locator('.dashboard-sonde-list').innerText(),/--/,'Unavailable pressure remains explicit in probes');
+    const emptyPressure = page.locator('.dashboard-sonde-list .status-sonde-slot.is-empty');
+    assert.equal(await emptyPressure.locator('.status-sonde-slot-range').count(),1,'Unavailable probe keeps its bar');
+    assert.equal(await emptyPressure.locator('.status-sonde-slot-range-fill').evaluate(node => node.style.width),'0%','Unavailable probe bar is empty');
+    assert.equal(await emptyPressure.locator('[role=progressbar]').count(),0,'Empty bar does not announce a false measurement');
     pressure.enabled = false;
     await page.reload();
     await page.locator('#dashGauges .dash-gauge-val').filter({hasText:'23.4'}).waitFor();
@@ -186,7 +190,8 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
         return {rule:read('#dashFiltrationRule'), time:read('#poolFiltrationStart'),
           mode:read('.dash-treatment-mode'), safety:read('.dash-treatment-safety')};
       });
-      assert.equal(styles.rule.size, '16px', 'Filtration message stays compact in ' + theme);
+      assert.equal(styles.rule.size, '18px', 'Filtration message stays readable in ' + theme);
+      assert.equal(styles.rule.weight, '400', 'Filtration message uses normal weight in ' + theme);
       assert.equal(styles.rule.color, styles.time.color, 'Filtration message keeps the time color in ' + theme);
       assert.deepEqual(styles.safety, styles.mode, 'Safety matches treatment typography in ' + theme);
       assert(!await page.locator('.dash-tl-rule dt').isVisible() ||

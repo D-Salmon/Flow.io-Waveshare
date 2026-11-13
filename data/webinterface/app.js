@@ -4866,20 +4866,25 @@
         const rangeMin = Number(slot && slot.rangeMin);
         const rangeMax = Number(slot && slot.rangeMax);
         const hasRange = Number.isFinite(rangeMin) && Number.isFinite(rangeMax) && rangeMax > rangeMin;
-        if (available || hasRange) {
+        {
           const rangeGroup = document.createElement('div');
           rangeGroup.className = 'status-sonde-slot-range-group';
           const unitSuffix = display.unit ? ' ' + display.unit : '';
-          if (available && Number.isFinite(numericValue) && hasRange) {
-            const progress = Math.max(0, Math.min(100, ((numericValue - rangeMin) / (rangeMax - rangeMin)) * 100));
+          {
+            const hasProgress = available && Number.isFinite(numericValue) && hasRange;
+            const progress = hasProgress ? Math.max(0, Math.min(100, ((numericValue - rangeMin) / (rangeMax - rangeMin)) * 100)) : 0;
             const range = document.createElement('div');
             range.className = 'status-sonde-slot-range';
-            range.setAttribute('role', 'progressbar');
-            range.setAttribute('aria-label', title.textContent);
-            range.setAttribute('aria-valuemin', String(rangeMin));
-            range.setAttribute('aria-valuemax', String(rangeMax));
-            range.setAttribute('aria-valuenow', String(numericValue));
-            range.title = String(rangeMin) + unitSuffix + ' – ' + String(rangeMax) + unitSuffix;
+            if (hasProgress) {
+              range.setAttribute('role', 'progressbar');
+              range.setAttribute('aria-label', title.textContent);
+              range.setAttribute('aria-valuemin', String(rangeMin));
+              range.setAttribute('aria-valuemax', String(rangeMax));
+              range.setAttribute('aria-valuenow', String(numericValue));
+            } else {
+              range.setAttribute('aria-hidden', 'true');
+            }
+            if (hasRange) range.title = String(rangeMin) + unitSuffix + ' – ' + String(rangeMax) + unitSuffix;
             const fill = document.createElement('span');
             fill.className = 'status-sonde-slot-range-fill';
             fill.style.width = progress.toFixed(2) + '%';
@@ -7666,19 +7671,22 @@
       if (definition) {
         const data = modules[definition.module] || {};
         if (definition.key === 'swg') {
+          const summary = document.createElement('div');
+          summary.className = 'pool-metric dash-treatment-summary';
           const mode = document.createElement('p');
-          mode.className = 'pool-metric dash-treatment-mode';
+          mode.className = 'dash-treatment-mode';
           const controlMode = poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode);
           const orpTarget = modules['poollogic/chlorine']?.dis_setpoint;
           mode.textContent = Number(data.swg_control_mode) === 0 && orpTarget !== undefined && orpTarget !== null && orpTarget !== ''
-            ? controlMode + ' · ' + poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget)
+            ? controlMode + ' ' + poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget)
             : controlMode;
-          metrics.appendChild(mode);
+          summary.appendChild(mode);
           const safety = document.createElement('p');
-          safety.className = 'pool-metric dash-treatment-safety';
-          safety.textContent = tr('pool.metric.waterSafety', 'Sécurité eau') + ' · '
+          safety.className = 'dash-treatment-safety';
+          safety.textContent = tr('pool.metric.waterSafety', 'Sécurité eau') + ' '
             + poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t);
-          metrics.appendChild(safety);
+          summary.appendChild(safety);
+          metrics.appendChild(summary);
         }
         if (definition.key === 'chlorine') {
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', modules['poollogic/chlorine']?.dis_setpoint));

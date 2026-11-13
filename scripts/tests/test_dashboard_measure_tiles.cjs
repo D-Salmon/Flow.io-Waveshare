@@ -67,7 +67,8 @@ async function main() {
     }, { sinceCode, floatCode, sensorCode, alarmCode, alarmSlotsCode });
 
     assert.equal(await page.locator('.status-sonde-slot').count(), 4, 'Only enabled probes appear');
-    assert.equal(await page.locator('.status-sonde-slot-range').count(), 3, 'Only configured credible ranges render bars');
+    assert.equal(await page.locator('.status-sonde-slot-range').count(), 4, 'All configured probes keep their bars');
+    assert.equal(await page.locator('.status-sonde-slot-range[role=progressbar]').count(), 3, 'Only credible ranges have measured progress');
     assert.equal(await page.locator('.status-sonde-slot-range[aria-label="pH"]').getAttribute('aria-valuemin'), '6.4');
     assert.deepEqual(await page.locator('.status-sonde-slot-range-label').allTextContents(),
       ['plage 0–40 °C', 'plage 6.4–8.4', 'plage 350–900 mV']);

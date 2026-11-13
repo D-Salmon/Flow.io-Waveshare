@@ -143,7 +143,7 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
     await page.reload();
     await page.locator('#dashGauges.has-pressure').waitFor();
     await page.locator('.dashboard-sonde-list .status-sonde-slot-title').filter({hasText:'Air'}).waitFor();
-    assert.deepEqual(await page.locator('.dashboard-sonde-list .status-sonde-slot-title').allTextContents(),['ORP','Eau','pH','Pression filtre','Air'],
+    assert.deepEqual(await page.locator('.dashboard-sonde-list .status-sonde-slot-title').allTextContents(),['Eau','pH','ORP','Pression filtre','Air'],
       'The probes card retains all configured measurements, including the hero gauges');
     assert.equal(await page.locator('.dash-alarm-details').getAttribute('open'),null,'Normal protections use the compact summary');
     assert.match(await page.locator('#dashGauges .dash-gauge').first().getAttribute('style'),/--dash-gauge-deg: (?!0deg)/,

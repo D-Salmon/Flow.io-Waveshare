@@ -2169,6 +2169,7 @@
     let infoFlowLastSuccessAt = 0;
     let infoFlowRefreshPromise = null;
     const runtimeMeasureDomainKeys = Object.freeze(['mode', 'equipements', 'sondes', 'alarm']);
+    const dashboardProbeOrder = Object.freeze(['pool.water_temp', 'pool.ph', 'pool.orp', 'pool.psi']);
     let runtimeManifestDomainCache = null;
     let runtimeManifestDomainLoadPromise = null;
     const poolMeasureDomainState = {
@@ -4804,6 +4805,16 @@
         slots.forEach((slot) => {
           const idx = Number(slot && slot.slot);
           if (Number.isInteger(idx) && idx >= 0 && idx < 8) cleanSlots[idx] = slot;
+        });
+      }
+      if (options.compact) {
+        cleanSlots.sort((a, b) => {
+          if (!a) return b ? 1 : 0;
+          if (!b) return -1;
+          const aRank = dashboardProbeOrder.indexOf(a.key);
+          const bRank = dashboardProbeOrder.indexOf(b.key);
+          return (aRank < 0 ? dashboardProbeOrder.length : aRank) - (bRank < 0 ? dashboardProbeOrder.length : bRank)
+            || Number(a.slot) - Number(b.slot);
         });
       }
       const grid = document.createElement('div');

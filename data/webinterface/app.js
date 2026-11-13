@@ -4687,6 +4687,14 @@
     }
 
     function poolSondeRangeFromEntry(entry) {
+      if (entry && entry.key === 'pool.psi') {
+        const safety = poolConfigModulesCache && poolConfigModulesCache['poollogic/safety'];
+        const configuredMin = Number(safety && safety.psi_low_th);
+        const configuredMax = Number(safety && safety.psi_high_th);
+        const min = Number.isFinite(configuredMin) ? configuredMin : 0.15;
+        const max = Number.isFinite(configuredMax) ? configuredMax : 1.80;
+        if (max > min) return { min: min, max: max };
+      }
       const displayConfig = runtimeMeasureDisplayConfig(entry);
       const bands = displayConfig.bands && typeof displayConfig.bands === 'object' && !Array.isArray(displayConfig.bands)
         ? displayConfig.bands

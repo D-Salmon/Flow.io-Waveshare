@@ -17,11 +17,11 @@
       "gzip_bytes": 17427
     },
     "app.js": {
-      "source_sha256": "20a894b93290eaae04635b59cc291b3a92c2d255b242523c98f9f77bf37e1d4e",
-      "gzip_sha256": "99963b6f1a9ec4f96dc34e4b967c735c53ed8f5bbe6c7f97d4d3979a2511ec52",
-      "original_bytes": 534882,
-      "minified_bytes": 329161,
-      "gzip_bytes": 84041
+      "source_sha256": "8773ee8a4bea76ab91977796b32766cf0335f6802832ae72da89f683cb0e0604",
+      "gzip_sha256": "ab266977d468728fa1fb76274b619c459359ef52d3f25a4cc9d0c5d84d01674b",
+      "original_bytes": 535012,
+      "minified_bytes": 329256,
+      "gzip_bytes": 84069
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -66,18 +66,18 @@
       "gzip_bytes": 9438
     },
     "i18n/fr.json": {
-      "source_sha256": "9a88b66920ad6dde18e5ad84aaeae01093a88e62f75c951ee865faa41c088e57",
-      "gzip_sha256": "d0d6c782b4097d9ef0be4020644f948502ae4cf0f173c3c7601e42d28184f5af",
-      "original_bytes": 42524,
-      "minified_bytes": 38095,
-      "gzip_bytes": 11057
+      "source_sha256": "0b3a3310fd279f756243d3eba7043c7a5f4b27772698d8a688d6ada7cd21f33e",
+      "gzip_sha256": "3781a0877e7cd41c011313fe9c5b388262348c0730c08a0f12ecda0cce6cc855",
+      "original_bytes": 42588,
+      "minified_bytes": 38153,
+      "gzip_bytes": 11068
     },
     "i18n/en.json": {
-      "source_sha256": "e764cb3aa915850aad15bd17bcc065b8834f2bf047e9e1baf480ec3505c83c5a",
-      "gzip_sha256": "5aa88f229e791e2e320402ad14459f4f73eee5587e37cbda9f67f9cc32ad2412",
-      "original_bytes": 37252,
-      "minified_bytes": 33135,
-      "gzip_bytes": 9428
+      "source_sha256": "5aa73f3e9949a64350521a46c419553058e3fede9f5bd4c4fbd9d841edd99dc6",
+      "gzip_sha256": "6a9d550ca5924becdca5b4bf314f032c993e008c98d614f29ad831a3b537e069",
+      "original_bytes": 37314,
+      "minified_bytes": 33191,
+      "gzip_bytes": 9438
     },
     "app-core.css": {
       "source_sha256": "042b07884380ada5a5d1c920087a457f7db8bb7c999c2f9bb2287ed79c025383",

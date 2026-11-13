@@ -54,6 +54,7 @@
     "pool.state.unknown": "Unknown",
     "pool.state.unavailable": "Status unavailable",
     "pool.disinfection.disabled": "Disabled",
+    "dashboard.treatment.label": "Disinfection: {treatment}",
     "pool.disinfection.chlorine.title": "Chlorine / Bromine",
     "pool.disinfection.chlorine.note": "Liquid regulation driven by the ORP reading and a dosing pump.",
     "pool.disinfection.swg.title": "Salt chlorinator",

@@ -54,6 +54,7 @@
     "pool.state.unknown": "Inconnu",
     "pool.state.unavailable": "État indisponible",
     "pool.disinfection.disabled": "Désactivé",
+    "dashboard.treatment.label": "Désinfection : {treatment}",
     "pool.disinfection.chlorine.title": "Chlore / Brome",
     "pool.disinfection.chlorine.note": "Régulation liquide pilotée par la mesure ORP et une pompe doseuse.",
     "pool.disinfection.swg.title": "Électrolyse",

@@ -7642,7 +7642,8 @@
       heading.appendChild(buildRuntimeActionIcon(definition ? 'flask' : 'equipment'));
       const copy = document.createElement('div');
       const title = document.createElement('h2');
-      title.textContent = definition ? tr(definition.titleKey, definition.title) : tr('pool.disinfection.disabled', 'Désactivé');
+      const treatmentName = definition ? tr(definition.titleKey, definition.title) : tr('pool.disinfection.disabled', 'Désactivé');
+      title.textContent = tr('dashboard.treatment.label', 'Désinfection : {treatment}').replace('{treatment}', treatmentName);
       const note = document.createElement('p');
       note.textContent = definition ? tr(definition.noteKey, definition.note)
         : tr('pool.disinfection.disabled.note', 'Aucun traitement de désinfection n’est sélectionné.');

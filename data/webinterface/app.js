@@ -4689,10 +4689,12 @@
     function poolSondeRangeFromEntry(entry) {
       if (entry && entry.key === 'pool.psi') {
         const safety = poolConfigModulesCache && poolConfigModulesCache['poollogic/safety'];
-        const configuredMin = Number(safety && safety.psi_low_th);
-        const configuredMax = Number(safety && safety.psi_high_th);
-        const min = Number.isFinite(configuredMin) ? configuredMin : 0.15;
-        const max = Number.isFinite(configuredMax) ? configuredMax : 1.80;
+        const readThreshold = (value) => value !== null && value !== undefined && String(value).trim() !== ''
+          && Number.isFinite(Number(value)) ? Number(value) : null;
+        const configuredMin = readThreshold(safety && safety.psi_low_th);
+        const configuredMax = readThreshold(safety && safety.psi_high_th);
+        const min = configuredMin !== null ? configuredMin : 0.15;
+        const max = configuredMax !== null ? configuredMax : 1.80;
         if (max > min) return { min: min, max: max };
       }
       const displayConfig = runtimeMeasureDisplayConfig(entry);
@@ -7651,7 +7653,12 @@
       if (definition) {
         const data = modules[definition.module] || {};
         if (definition.key === 'swg') {
-          poolConfigAppendMetric(metrics, tr('pool.metric.control', 'Contrôle'), poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode));
+          const mode = document.createElement('p');
+          mode.className = 'dash-treatment-mode';
+          mode.textContent = Number(data.swg_control_mode) === 0
+            ? tr('dashboard.treatment.orpTracking', 'Suivi consigne')
+            : poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode);
+          metrics.appendChild(mode);
         }
         if (definition.key === 'chlorine') {
           poolConfigAppendMetric(metrics, tr('pool.metric.setpoint', 'Consigne'), poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', modules['poollogic/chlorine']?.dis_setpoint));

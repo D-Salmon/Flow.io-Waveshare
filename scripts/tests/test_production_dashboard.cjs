@@ -117,7 +117,13 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(300); // Let the initial drawer transition finish before visual QA.
       await page.evaluate(() => window.scrollTo(0,0));
+      await page.waitForFunction(() => document.querySelector('#poolLightingControl button')?.disabled === false);
       await page.screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'dashboard-desktop.png'),fullPage:true});
+      await page.locator('.dash-hero').screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'hero-light.png')});
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme','dark'));
+      await page.waitForFunction(() => document.querySelector('#poolLightingControl button')?.disabled === false);
+      await page.locator('.dash-hero').screenshot({path:path.join(process.env.FLOWIO_TEST_SCREENSHOTS, 'hero-dark.png')});
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme','light'));
       await page.setViewportSize({width:390,height:844});
       await page.waitForTimeout(300);
       await page.evaluate(() => window.scrollTo(0,0));

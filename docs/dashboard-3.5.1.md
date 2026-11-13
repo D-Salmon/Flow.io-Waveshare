@@ -5,9 +5,9 @@ Adaptation du bandeau et des jauges de `christophebelmont/Flow.io-Waveshare`
 
 - Bandeau clair en mode clair, sombre en mode sombre, avec la vague d'origine.
   Le même fond clair est appliqué aux autres cartes.
-- Jauges eau, pH, ORP et pression (si mesurée) résolues par les identifiants du manifeste runtime,
+- Jauges eau, pH, ORP et pression (si configurée) résolues par les identifiants du manifeste runtime,
   indépendamment de l'ordre des emplacements configurés. Une mesure absente reste
-  explicitement indisponible ; l'anneau représente la plage d'affichage configurée,
+  explicitement indisponible, y compris pour une sonde de pression configurée ; l'anneau représente la plage d'affichage configurée,
   pas une qualification de la qualité de l'eau.
 - La carte Sondes conserve toutes les mesures configurées, même présentes dans le
   bandeau, et utilise des barres horizontales. La pression garde son unité réelle ;

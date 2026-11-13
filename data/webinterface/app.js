@@ -7667,7 +7667,7 @@
         const data = modules[definition.module] || {};
         if (definition.key === 'swg') {
           const mode = document.createElement('p');
-          mode.className = 'dash-treatment-mode';
+          mode.className = 'pool-metric dash-treatment-mode';
           const controlMode = poolConfigFormatValue(definition.module, 'swg_control_mode', data.swg_control_mode);
           const orpTarget = modules['poollogic/chlorine']?.dis_setpoint;
           mode.textContent = Number(data.swg_control_mode) === 0 && orpTarget !== undefined && orpTarget !== null && orpTarget !== ''
@@ -7675,7 +7675,7 @@
             : controlMode;
           metrics.appendChild(mode);
           const safety = document.createElement('p');
-          safety.className = 'dash-treatment-safety';
+          safety.className = 'pool-metric dash-treatment-safety';
           safety.textContent = tr('pool.metric.waterSafety', 'Sécurité eau') + ' · '
             + poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t);
           metrics.appendChild(safety);
@@ -7700,9 +7700,7 @@
       ];
       return definitions.map(definition => ({ ...definition,
         slot: slots.find(item => item && item.enabled !== false && item.key === definition.key) }))
-        .filter(item => !item.optional || (item.slot && item.slot.available
-          && String(item.slot.value).trim() !== ''
-          && Number.isFinite(Number(splitPoolSondeValue(item.slot).value.replace(',', '.')))));
+        .filter(item => !item.optional || !!item.slot);
     }
 
     function renderDashboardGauges() {

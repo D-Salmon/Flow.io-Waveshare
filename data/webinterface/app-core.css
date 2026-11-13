@@ -1494,7 +1494,7 @@ body.web-icons-disabled .control-field-apply{font-size:16.8px;font-weight:800;le
 .dash-tl-stats dt{font-size:12px;color:var(--text-muted);}
 .dash-tl-stats dd{margin:0;font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;}
 .dash-tl-stats>div.dash-tl-rule{flex:1 1 270px;flex-direction:row;align-items:baseline;gap:8px;}
-.dash-tl-rule dd{line-height:1.35;color:var(--text);}
+.dash-tl-stats .dash-tl-rule dd{font-size:16px;line-height:1.35;color:var(--text);}
 .dash-details>summary{padding:18px 20px;font-size:16px;font-weight:750;color:var(--text);cursor:pointer;overflow-wrap:anywhere;}
 .dash-details>summary:focus-visible{outline:2px solid var(--primary);outline-offset:-4px;border-radius:18px;}
 .dash-details[open]>summary{border-bottom:1px solid var(--border);}

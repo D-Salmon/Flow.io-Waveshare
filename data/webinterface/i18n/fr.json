@@ -76,7 +76,7 @@
     "pool.metric.window": "Fenêtre",
     "pool.metric.control": "Contrôle",
     "pool.metric.delay": "Délai",
-    "pool.metric.waterSafety": "Sécurité eau",
+    "pool.metric.waterSafety": "Fonctionnement de l’électrolyseur à partir de",
     "pool.metric.poolVolume": "Volume bassin",
     "pool.metric.weeklyDose": "Dose hebdo",
     "pool.metric.injections": "Injections",

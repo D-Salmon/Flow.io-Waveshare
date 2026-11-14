@@ -17,11 +17,11 @@
       "gzip_bytes": 17492
     },
     "app.js": {
-      "source_sha256": "16608ab2f1997ad69139d26519da4310fdfb75a45fb56cf09b6343a9244a0154",
-      "gzip_sha256": "dc261ebc9f8589e4b822b8686c5306a0ddc23e7e88b02661c2f8399ede6746b6",
-      "original_bytes": 549923,
-      "minified_bytes": 330974,
-      "gzip_bytes": 84561
+      "source_sha256": "7cb26abb07eb1f2b3170e7af21910e41021cd3a1aa1d48b6765a7eed33d4add0",
+      "gzip_sha256": "eec8351578f4062a2ebeb7495edf2fc7d09f0b89b1a515ba1f9c21233bbdee29",
+      "original_bytes": 549958,
+      "minified_bytes": 331009,
+      "gzip_bytes": 84569
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -66,22 +66,22 @@
       "gzip_bytes": 9438
     },
     "i18n/fr.json": {
-      "source_sha256": "46a19267cd7dc0260d6695cb50042a763602e072adc65498a0918069cce0b698",
-      "gzip_sha256": "a385d532f0d9a2f51bb44a6d836ec2d24c413815dab3ddbfd13c7980095f42fe",
-      "original_bytes": 43746,
-      "minified_bytes": 38534,
-      "gzip_bytes": 11162
+      "source_sha256": "6d00fecb651c618146e258ce45c0795e5968cdff7fcbf855f4cadf7c820563f1",
+      "gzip_sha256": "f39fde85cd5dbd40164e023cb94eac69c07d0893a31546d6e940eed82d0d3f73",
+      "original_bytes": 43781,
+      "minified_bytes": 38569,
+      "gzip_bytes": 11168
     },
     "i18n/en.json": {
-      "source_sha256": "d6bf710ba520d7b6c94d4d7822c69a9dca497bbc5454f4daffb4610b5fac05ed",
-      "gzip_sha256": "28465e94fc246c5da7ca16d7309cb702496e61405c3634949bc3b3a5982317ec",
-      "original_bytes": 38415,
-      "minified_bytes": 33567,
-      "gzip_bytes": 9544
+      "source_sha256": "bccb4e954d6f55908d423249a402a5e390e318a78b5244ce23ad615e0aa64041",
+      "gzip_sha256": "66a5dbdf7a4ec0f78ddc03342be67c9e7c7a164f6ea0ae8687322f2ff5affb94",
+      "original_bytes": 38430,
+      "minified_bytes": 33582,
+      "gzip_bytes": 9553
     },
     "app-core.css": {
-      "source_sha256": "33709e6c2e5acff1e1a5481804aa64462bacaed182f0029eec58fddee12bee7b",
-      "gzip_sha256": "b90924867ebd54c5bbe2f86fb08cfbd13f8fe71a3384346dd8ae2a6631c46b1e",
+      "source_sha256": "eba401d69c270825c3ccbfc2fc93f893641112786961c9c73e6df14f36fe5033",
+      "gzip_sha256": "56df1accd1054aa3f8552f1e94716f72418c1e0b74b312cbf589b98d9f03201c",
       "original_bytes": 182940,
       "minified_bytes": 175008,
       "gzip_bytes": 31520

@@ -7690,7 +7690,7 @@
           const target = Number(data.swg_control_mode) === 0 && orpTarget !== undefined && orpTarget !== null && orpTarget !== ''
             ? poolConfigFormatValue('poollogic/chlorine', 'dis_setpoint', orpTarget) : undefined;
           appendLine(controlMode, target, 'dash-treatment-mode');
-          appendLine(tr('pool.metric.waterSafety', 'Sécurité eau'),
+          appendLine(tr('pool.metric.waterSafety', 'Fonctionnement de l’électrolyseur à partir de'),
             poolConfigFormatValue(definition.module, 'secure_elec_t', data.secure_elec_t), 'dash-treatment-safety');
           metrics.appendChild(summary);
         }

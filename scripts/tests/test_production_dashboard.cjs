@@ -190,8 +190,15 @@ const manifest = JSON.parse(manifestHeader.match(/R"RUI\(([\s\S]*?)\)RUI"/)[1]);
         return {rule:read('#dashFiltrationRule'), time:read('#poolFiltrationStart'),
           mode:read('.dash-treatment-mode'), safety:read('.dash-treatment-safety')};
       });
-      assert.equal(styles.rule.size, '18px', 'Filtration message stays readable in ' + theme);
+      assert.equal(styles.rule.size, '12px', 'Filtration message stays readable in ' + theme);
       assert.equal(styles.rule.weight, '400', 'Filtration message uses normal weight in ' + theme);
+      const alignment = await page.evaluate(() => {
+        const label = document.querySelector('#dashFiltrationDuration').previousElementSibling;
+        const rule = document.querySelector('#dashFiltrationRule');
+        return {labelSize:getComputedStyle(label).fontSize, ruleSize:getComputedStyle(rule).fontSize, delta:Math.abs(label.getBoundingClientRect().bottom-rule.getBoundingClientRect().bottom)};
+      });
+      assert.equal(alignment.ruleSize,alignment.labelSize,'Filtration message matches duration label size');
+      assert(alignment.delta <= 2,'Filtration message aligns vertically with duration label');
       assert.equal(styles.rule.color, styles.time.color, 'Filtration message keeps the time color in ' + theme);
       assert.deepEqual(styles.safety, styles.mode, 'Safety matches treatment typography in ' + theme);
       assert.equal(styles.mode.weight, '400', 'Treatment labels use normal weight');

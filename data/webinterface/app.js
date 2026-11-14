@@ -61,6 +61,7 @@
       'icon-calibration': 'science',
       'icon-terminal': 'list_alt',
       'icon-activity': 'history',
+      'icon-event-list': 'format_list_bulleted',
       'icon-system': 'system_update_alt',
       'icon-flowcfg': 'settings',
       'icon-info': 'info',

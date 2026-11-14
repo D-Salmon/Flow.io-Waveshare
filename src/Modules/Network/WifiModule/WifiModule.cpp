@@ -1,3 +1,4 @@
+#include "Core/SharedMdns.h"
 #include "Core/PsramJsonAllocator.h"
 /**
  * @file WifiModule.cpp
@@ -1038,7 +1039,7 @@ void WifiModule::loadSystemDeviceName_()
 void WifiModule::stopMdns_()
 {
     if (!mdnsStarted) return;
-    MDNS.end();
+    releaseMdns(MdnsInterface::Wifi);
     mdnsStarted = false;
     mdnsApplied[0] = '\0';
     LOGD("mDNS stopped");
@@ -1054,22 +1055,15 @@ void WifiModule::syncMdns_()
     char host[sizeof(deviceName_)] = {0};
     formatHostname_(deviceName_, host, sizeof(host));
 
-    if (mdnsStarted && strcmp(mdnsApplied, host) == 0) return;
-
-    if (mdnsStarted) {
-        MDNS.end();
-        mdnsStarted = false;
-        mdnsApplied[0] = '\0';
-    }
-
-    if (!MDNS.begin(host)) {
+    const bool changed = !mdnsStarted || strcmp(mdnsApplied, host) != 0;
+    if (!acquireMdns(MdnsInterface::Wifi, host)) {
         LOGW("mDNS start failed host=%s", host);
         return;
     }
 
     mdnsStarted = true;
     snprintf(mdnsApplied, sizeof(mdnsApplied), "%s", host);
-    LOGD("mDNS started host=%s.local", mdnsApplied);
+    if (changed) LOGD("mDNS started host=%s.local", mdnsApplied);
 }
 
 void WifiModule::loop() {

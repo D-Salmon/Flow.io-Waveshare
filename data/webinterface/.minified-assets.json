@@ -10,18 +10,18 @@
       "gzip_bytes": 691
     },
     "sh.html": {
-      "source_sha256": "806a0f0b7b22e16dfde58a3e46bf727da14604c7fdef7a4a81e457396858c493",
-      "gzip_sha256": "69f77641f23498ee09b86487ddbf6f80bc31d57c06edb8abfe3537649b596577",
-      "original_bytes": 69396,
-      "minified_bytes": 58074,
-      "gzip_bytes": 17483
+      "source_sha256": "7a31b4e7e6a0cf254a836190971b8e0c0cc9fc14df8b520765ee61c921bfd9be",
+      "gzip_sha256": "5dfe99c6224cec0c4f0a18b911a84c3a16807d5747c625c91c32129989a52106",
+      "original_bytes": 69398,
+      "minified_bytes": 58076,
+      "gzip_bytes": 17492
     },
     "app.js": {
-      "source_sha256": "2b1674a75621b6540b3a9966868bc9278f548ff15f2f3c805491600c62767bcd",
-      "gzip_sha256": "4aaa7ed7f107a665177902ff7481f7af8f74b676176e1e9cccbfd0fc828d6735",
-      "original_bytes": 549873,
-      "minified_bytes": 330933,
-      "gzip_bytes": 84536
+      "source_sha256": "16608ab2f1997ad69139d26519da4310fdfb75a45fb56cf09b6343a9244a0154",
+      "gzip_sha256": "dc261ebc9f8589e4b822b8686c5306a0ddc23e7e88b02661c2f8399ede6746b6",
+      "original_bytes": 549923,
+      "minified_bytes": 330974,
+      "gzip_bytes": 84561
     },
     "network.js": {
       "source_sha256": "ba511cf40ad4b7a27ffdaf4f7f220ba48687a636152e9741df76cb80934ea345",
@@ -80,11 +80,11 @@
       "gzip_bytes": 9544
     },
     "app-core.css": {
-      "source_sha256": "d8388a7cda05abd2f2c63c4ade710b0d55434bc22faef05ad0398e079065c464",
-      "gzip_sha256": "aa3ddd05caf7e6a44e7d72634538c22ea40b79c1ca6e3cbe1443c82ee8de0af1",
-      "original_bytes": 182300,
-      "minified_bytes": 174381,
-      "gzip_bytes": 31416
+      "source_sha256": "33709e6c2e5acff1e1a5481804aa64462bacaed182f0029eec58fddee12bee7b",
+      "gzip_sha256": "b90924867ebd54c5bbe2f86fb08cfbd13f8fe71a3384346dd8ae2a6631c46b1e",
+      "original_bytes": 182940,
+      "minified_bytes": 175008,
+      "gzip_bytes": 31520
     },
     "network.css": {
       "source_sha256": "5598a20326b38fb10e8d3b38d50a971982d36a2446abb62f88bc67937880f16a",

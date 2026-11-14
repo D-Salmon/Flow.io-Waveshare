@@ -1,3 +1,4 @@
+#include "Core/SharedMdns.h"
 #include "Core/PsramJsonAllocator.h"
 #include "Modules/Network/EthernetModule/EthernetModule.h"
 
@@ -522,7 +523,7 @@ void EthernetModule::startMdns_()
     char host[sizeof(deviceName_)] = {0};
     formatHostname_(deviceName_, host, sizeof(host));
 
-    if (!MDNS.begin(host)) {
+    if (!acquireMdns(MdnsInterface::Ethernet, host)) {
         LOGW("mDNS start failed host=%s on Ethernet", host);
         return;
     }
@@ -534,7 +535,7 @@ void EthernetModule::startMdns_()
 void EthernetModule::stopMdns_()
 {
     if (!mdnsStarted_) return;
-    MDNS.end();
+    releaseMdns(MdnsInterface::Ethernet);
     mdnsStarted_ = false;
     mdnsApplied_[0] = '\0';
     LOGI("mDNS stopped (Ethernet)");

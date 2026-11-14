@@ -10,6 +10,8 @@ Gestion de la connectivité WiFi STA:
 
 Lorsque le Wi-Fi est activé et configuré, la connexion démarre indépendamment d’Ethernet. Les deux interfaces peuvent rester connectées simultanément ; la disponibilité d’Ethernet ne suspend pas les tentatives de connexion Wi-Fi.
 
+Le répondeur mDNS est commun au Wi-Fi et à Ethernet (`Core/SharedMdns`). Chaque interface conserve une participation tant qu’elle est connectée. Débrancher le câble Ethernet ne doit pas arrêter l’annonce de `flowio.local` sur le Wi-Fi ; le service s’arrête lorsque la dernière interface le libère. Un verrou sérialise les opérations sur le répondeur partagé. Les changements de nom et les échecs de démarrage restent réessayables.
+
 Type: module actif.
 
 ## Dépendances

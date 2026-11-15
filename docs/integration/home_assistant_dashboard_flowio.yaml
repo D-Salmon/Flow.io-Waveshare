@@ -1855,9 +1855,16 @@ views:
               - entity: sensor.fio_alm_pack
                 name: Trame d’alarmes
                 icon: mdi:chip
-              - entity: binary_sensor.fio_io_factory_reset
-                name: Bouton de réinitialisation
-                icon: mdi:restart-alert
+              - type: conditional
+                conditions:
+                  - entity: binary_sensor.fio_io_factory_reset
+                    state_not: unavailable
+                  - entity: binary_sensor.fio_io_factory_reset
+                    state_not: unknown
+                row:
+                  entity: binary_sensor.fio_io_factory_reset
+                  name: Bouton de réinitialisation
+                  icon: mdi:restart-alert
               - entity: binary_sensor.fio_io_flow_meter
                 name: Détection de débit
                 icon: mdi:waves-arrow-right

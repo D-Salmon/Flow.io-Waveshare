@@ -31,7 +31,7 @@ def mappings(value):
 class DashboardTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.text = DASHBOARD.read_text()
+        cls.text = DASHBOARD.read_text(encoding='utf-8')
         cls.config = yaml.load(cls.text, Loader=UniqueKeyLoader)
         cls.nodes = list(mappings(cls.config))
 
@@ -67,7 +67,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('switch.fio_pl_regulation_enabled', ids)
         self.assertFalse(any('supervisor_ip' in entity or 'io_chl_gen' in entity for entity in ids))
         self.assertFalse(any(re.search(r'io_gpio(?:0[4-9]|11)$', entity) for entity in ids))
-        override_source = (ROOT / 'src/Modules/PoolDeviceModule/PoolDeviceOverrideDiscovery.h').read_text()
+        override_source = (ROOT / 'src/Modules/PoolDeviceModule/PoolDeviceOverrideDiscovery.h').read_text(encoding='utf-8')
         panel = set(re.findall(r'"(pdm_ovr_[a-z_]+)"', override_source))
         self.assertEqual({entity.split('.fio_')[1] for entity in ids if '.fio_pdm_ovr_' in entity}, panel)
         self.assertEqual(len(panel), 7)
@@ -80,7 +80,8 @@ class DashboardTests(unittest.TestCase):
                 self.assertTrue(node['target']['entity_id'].startswith('button.fio_'))
             if node.get('type') == 'simple-entity':
                 self.assertEqual(node['tap_action'], {'action': 'more-info'})
-        reset_rows = [n for n in self.nodes if n.get('type') == 'conditional' and 'row' in n]
+        reset_rows = [n for n in self.nodes if n.get('type') == 'conditional'
+                      and n.get('row', {}).get('entity', '').startswith('button.fio_alm_')]
         self.assertEqual(len(reset_rows), 4)
         for node in reset_rows:
             alarm, button = node['conditions']
@@ -107,9 +108,27 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(chemistry['entities'][1]['y_axis'], 'secondary')
 
     def test_optional_theme(self):
-        theme = yaml.load((ROOT / 'docs/integration/home-assistant/flowio-theme.yaml').read_text(), Loader=UniqueKeyLoader)
+        theme = yaml.load((ROOT / 'docs/integration/home-assistant/flowio-theme.yaml').read_text(encoding='utf-8'), Loader=UniqueKeyLoader)
         self.assertIn('Flowio Clair', theme)
         self.assertEqual(theme['Flowio Clair']['ha-card-background'], '#FFFFFF')
+
+    def test_fork_controls_and_treatment_visibility(self):
+        views = {view['path']: list(mappings(view)) for view in self.config['views']}
+        self.assertTrue(any(node.get('primary') == 'Pression du filtre'
+                            and node.get('entity') == 'sensor.fio_io_psi'
+                            for node in views['piscine']))
+        for path, control in [('ph', 'switch.fio_pl_ph_auto_mode'),
+                              ('desinfection', 'switch.fio_pl_dis_auto')]:
+            entities = {node.get('entity') for node in views[path]}
+            self.assertIn(control, entities)
+            self.assertNotIn('switch.fio_pl_regulation_enabled', entities)
+        for heading, mode in [('Cuve', 'Chlore/Brome'), ('Électrolyse au sel', 'Electrolyse')]:
+            card = next(node for node in views['desinfection'] if node.get('heading') == heading)
+            self.assertEqual(card['visibility'], [{'condition': 'state',
+                'entity': 'select.fio_pl_modes_dis', 'state': mode}])
+        self.assertIn('Sans limite', self.text)
+        summary = views['piscine'][0]['sections'][0]['cards'][0]['secondary']
+        self.assertIn("'%02d:%02d'", summary)
 
 
 if __name__ == '__main__':

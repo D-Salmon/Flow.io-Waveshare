@@ -6,7 +6,15 @@ utilisées initialement : **Mushroom 5+**, **card-mod**, **mini-graph-card** et
 JavaScript, aucun `config-template-card` n'est nécessaire. Les extensions HACS
 restent, techniquement, des composants JavaScript existants.
 
-## Installation
+## Installation simplifiée par le Marketplace
+
+L’intégration [Flow.io Dashboard](https://github.com/D-Salmon/Flow.io-Home-Assistant)
+installe ce tableau de bord et ses quatre bibliothèques de cartes avec un assistant.
+Elle nécessite Home Assistant 2026.11+ et les entités Flow.io déjà découvertes par MQTT.
+Ajouter son dépôt personnalisé au Marketplace/HACS, télécharger, redémarrer Home Assistant
+puis ajouter **Flow.io Dashboard** dans Appareils et services. Aucun flash nécessaire.
+
+## Installation manuelle du YAML
 
 1. Vérifier que les quatre extensions ci-dessus sont installées et chargées.
    Modern Circular Gauge doit prendre en charge les templates **Jinja dans
@@ -34,11 +42,11 @@ Les anciens liens `#flowio=ph` deviennent les onglets natifs (`…/ph`).
   Aucun script ne déplace ou ne masque les éléments de l'application.
 
 Les mesures et graphiques utilisent les données réelles de Home Assistant.
-Les identifiants restent stables pour les entités encore publiées par la branche 3.5.0.
+Les identifiants restent stables pour les entités publiées par notre fork 3.5.1.
 
-## Correspondance avec la branche 3.5.0
+## Adaptation de la carte de main à notre fork 3.5.1
 
-Le firmware et ce dashboard doivent être mis à jour ensemble. Les deux fenêtres
+Ce dashboard cible le firmware du fork 3.5.1. Son installation se fait dans Home Assistant ; aucun nouveau flash du Waveshare n’est nécessaire si ce firmware est déjà installé. Les deux fenêtres
 PID (`number.fio_pl_ph_window` et `number.fio_pl_dis_window`) sont présentées en
 **secondes**, de 1 à 10 800 s. Les valeurs MQTT de configuration restent en
 millisecondes : le Discovery réalise la conversion dans les deux sens. Les
@@ -55,12 +63,30 @@ entre utilisateurs. Les interrupteurs des équipements restent des commandes
 immédiates ; ils ne remplacent pas les boutons de forçage temporisé.
 
 Les rôles piscine suivent les affectations configurées au démarrage, et leurs
-entités peuvent être absentes si le rôle n'est pas affecté. Le relais CH6 est
-**libre par défaut** : le dashboard ne commande plus un ancien
-`switch.fio_io_chl_gen` supposé correspondre à l'électrolyse. Les mesures et
-réglages d'électrolyse nécessitent un rôle effectivement affecté. Les pilotes à
-consigne exposent aussi, selon leur configuration, `number.fio_pdN_setpoint`
-ou `select.fio_pdN_setpoint` : ajouter l'entité réelle de son appareil si utilisée.
+entités peuvent être absentes si le rôle n’est pas affecté ou si un autre traitement
+est sélectionné. Notre fork partage l’équipement de désinfection entre dosage et
+électrolyse : les commandes de pompe, la cuve et la fenêtre PID sont présentées
+pour **Chlore/Brome** ; les réglages d’électrolyse apparaissent pour **Electrolyse**.
+La régulation désinfection commande le traitement sélectionné, comme le Web.
+Les lignes de rôles optionnels sont masquées lorsqu’une entité est indisponible.
+
+Le relais CH6 est **libre par défaut** : aucun ancien `switch.fio_io_chl_gen`
+n’est ajouté au dashboard. Le forçage commun permet de sélectionner l’équipement
+réellement configuré, y compris un relais libre. Les pilotes à consigne exposent,
+selon leur configuration, `number.fio_pdN_setpoint` ou `select.fio_pdN_setpoint` :
+ajouter l’entité réelle de son appareil si utilisée.
+
+La présentation de main est conservée : huit onglets, jauges pH/ORP et cartes
+arrondies. L’adaptation ajoute notamment :
+
+- pression du filtre à l’accueil et températures Eau/Air explicites ;
+- horaires précis à la minute, y compris les créneaux traversant minuit ;
+- calcul 3.5.1 : début à 22 h jusqu’à 20 °C, bornes horaires entre 20 et 30 °C,
+  filtration continue à partir de 30 °C et repli 22 h–minuit sans mesure d’eau ;
+- absence de sondes signalée sans graphiques tournant indéfiniment ;
+- limite de marche quotidienne égale à zéro présentée comme **Sans limite** ;
+- autorisations pH et désinfection séparées, autorisation générale dans Équipements ;
+- panneau de forçage temporisé partagé, avec états lisibles en français.
 
 Les diagnostics d'entrées utilisent les identités logiques publiées par le
 firmware, et non les anciennes références `io_gpio04` à `io_gpio09` / `io_gpio11`.
